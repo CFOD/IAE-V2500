@@ -218,7 +218,7 @@ export class Scene3D {
     const stS = new THREE.Shape(); stS.moveTo(0, 0); stS.lineTo(0.62, 0); stS.lineTo(0.56, 0.1); stS.lineTo(0.2, 0.035); stS.lineTo(0, 0);
     const strake = new THREE.Mesh(new THREE.ExtrudeGeometry(stS, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 2 }).translate(0.25, 1.03, -0.006), fanCowl.mat);
     strake.rotation.x = -0.42; strake.userData.tag = 'skin'; this._reg(fanCowl, strake);
-    this._solid(cna, band(P.bypOuter, offset(P.bypOuter, 0.012), 1.2, 3.5, 20), { mat: new THREE.MeshPhysicalMaterial({ ...composite, side: THREE.DoubleSide }) });
+    this._solid(cna, band(P.bypOuter, offset(P.bypOuter, 0.012), 1.2, 3.5, 20), { tag: 'liner', mat: new THREE.MeshPhysicalMaterial({ ...composite, side: THREE.DoubleSide }) });
 
     // ---------------- fan
     // Spinner per reference photos: a long straight cone in two pieces. Dark nose cone with a
@@ -295,6 +295,13 @@ export class Scene3D {
     const valve = new THREE.CylinderGeometry(0.035, 0.03, 0.07, 14); valve.translate(0, 0.33, 0);
     this._ring(hpcCase, valve, 3, (m, th) => { m.makeRotationX(th); m.setPosition(1.62, 0, 0); }, { phase: 2.6, cut: false, mat: pipeSteel });
     this._ring(hpcCase, valve, 1, (m, th) => { m.makeRotationX(th); m.setPosition(1.8, 0, 0); }, { phase: 4.0, cut: false, mat: pipeGold });
+    // structural struts of the intermediate case, crossing the swan-neck duct
+    this._row(lpcCase, { x0: 0.94, x1: 1.08, kind: 'stator', lo: P.coreInner, hi: P.coreOuter }, 9, this.engine, { stagger: [0, 0], camber: [0, 0], thick: [0.2, 0.2], chordK: 1, tipK: 1 });
+    // blanked bleed ports (orange covers on the museum model)
+    const port = new THREE.CylinderGeometry(0.045, 0.05, 0.09, 18); port.translate(0, 0.33, 0);
+    const capG = new THREE.CylinderGeometry(0.052, 0.052, 0.012, 18); capG.translate(0, 0.38, 0);
+    const orange = new THREE.MeshStandardMaterial({ color: 0xe2572b, roughness: 0.5 });
+    for (const [x, ph] of [[1.74, 2.55], [1.74, 4.3], [2.1, 3.4]]) for (const [g, mt] of [[port, pipeSteel], [capG, orange]]) this._ring(x > 2 ? hptCase : hpcCase, g, 1, (m, th) => { m.makeRotationX(th - Math.PI / 2); m.setPosition(x, 0, 0); }, { phase: ph, cut: false, mat: mt });
     this._solid(hptCase, band(CO, offset(CO, 0.028), 2.2, 2.45, 6));
     for (const x of [2.21, 2.44]) this._flange(hptCase, x, co(x) + 0.026, 48);
     this._solid(lptCase, band(CO, offset(CO, 0.022), 2.45, 3.02, 10));
@@ -308,9 +315,10 @@ export class Scene3D {
 
     // ---------------- combustor
     const comb = A({ id: 'combcase', name: 'Diffuser and combustor case', ex: 0.3, mat: caseM, desc: 'Pressure vessel around the combustor. Slows the compressor delivery air before it enters the flame tube.', live: (o) => `${B(o.P3)} · ${C(o.T3)}` });
-    this._solid(comb, band(CO, offset(CO, 0.032), 1.9, 2.2, 6));
+    // diffuser case bulges outward around the combustor (cutaway drawing)
+    this._solid(comb, [[1.9, co(1.9)], [1.9, co(1.9) + 0.03], [1.95, 0.372], [2.0, 0.388], [2.1, 0.388], [2.16, 0.372], [2.2, co(2.2) + 0.03], [2.2, co(2.2)], [2.18, 0.33], [1.92, 0.33]]);
     this._solid(comb, band(CONST(0.13), P.coreInner, 1.88, 2.24, 6));
-    this._flange(comb, 2.05, co(2.05) + 0.03, 48);
+    this._flange(comb, 2.05, 0.386, 48);
     const liner = A({ id: 'liner', name: 'Annular combustor liner', ex: 0.32, glow: (o) => (o.lit ? o.T4 - 520 : 300), mat: { color: 0xa39a90, metalness: 0.9, roughness: 0.5 }, desc: 'Flame tube. Only about a third of the air is burned; the rest cools the liner and dilutes the gas to a temperature the turbine can survive.', live: (o) => (o.lit ? `Flame on · fuel/air ${o.far.toFixed(4)} (φ ${o.phi.toFixed(2)}) · exit ${C(o.T4)}` : `No flame · lean limit ${o.leanLimit.toFixed(4)}`) });
     this._solid(liner, [[1.965, 0.292], [1.975, 0.303], [2.17, 0.307], [2.195, 0.292], [2.17, 0.297], [1.98, 0.293]]);
     this._solid(liner, [[1.965, 0.208], [1.975, 0.197], [2.17, 0.213], [2.195, 0.228], [2.17, 0.223], [1.98, 0.207]]);
@@ -319,7 +327,7 @@ export class Scene3D {
     this._ring(liner, hole, 40, (m, th) => { m.makeRotationX(th); m.setPosition(2.07, 0, 0); }, { mat: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 }) });
     const noz = A({ id: 'fuel', name: 'Fuel manifold and 20 fuel nozzles', ex: 0.3, mat: pipeGold, desc: 'Twenty airblast nozzles spray fuel into the front of the combustor.', live: (o) => `Fuel flow ${(o.wf * 3600).toFixed(0)} kg/h · ${(o.wf * 3600 / 20).toFixed(0)} kg/h per nozzle${o.wfUnburnt > 0.001 ? ` · unburnt ${(o.wfUnburnt * 3600).toFixed(0)} kg/h` : ''}` });
     this._solid(noz, [[1.905, 0.412], [1.905, 0.436], [1.929, 0.436], [1.929, 0.412]], { seg: 96, cut: false });
-    const ng = new THREE.CylinderGeometry(0.009, 0.013, 0.175, 8); ng.translate(0, 0.33, 0);
+    const ng = new THREE.CylinderGeometry(0.009, 0.013, 0.175, 8); ng.translate(0, 0.33, 0); ng.rotateZ(0.4); ng.translate(0.13, 0, 0); // enter at a steep angle
     this._ring(noz, ng, 20, (m, th) => { m.makeRotationX(th + 0.157 - Math.PI / 2); m.setPosition(1.94, 0, 0); }, { cut: false });
     this._pipe(noz, [[0.95, 1.02, 180], [1.2, 0.72, 182], [1.6, 0.6, 186], [1.917, 0.44, 190]], 0.012);
     const ign = A({ id: 'ign', name: 'Igniter plugs (2)', ex: 0.3, mat: { color: 0xe6e9ec, metalness: 0.9, roughness: 0.25 }, desc: 'Two high-energy spark igniters. Only needed to light the flame; combustion is self-sustaining afterwards.', live: (o) => (o.ignOn ? 'Sparking' : 'Off') });
@@ -330,7 +338,7 @@ export class Scene3D {
     const cowl = A({ id: 'corecowl', name: 'Core cowl (inner fixed structure)', ex: 0.15, mat: composite, desc: 'Inner wall of the bypass duct, wrapped around the core engine. Remove it to see the pipework underneath.', live: (o) => `Bypass duct ${B(o.P13)} · mixing plane ${B(o.Pm)}` });
     this._solid(cowl, band(offset(P.bypInner, -0.016), P.bypInner, 0.42, 3.12, 30));
     const tec = A({ id: 'tec', name: 'Turbine exhaust case and plug', ex: 1.35, mat: hotM, glow: (o) => o.T5 - 170, desc: 'Carries the rear bearing. The EGT thermocouples and the P4.9 pressure probes used for EPR sit in its struts.', live: (o) => `EGT ${C(o.egt)} · EPR ${o.epr.toFixed(3)} · core jet Mach ${o.M8.toFixed(2)}` });
-    this._solid(tec, [...sample(P.coreInner, 3.0, 3.75, 16), [3.0, 0.0]]);
+    this._solid(tec, [...sample(P.coreInner, 3.0, 3.44, 18), [3.0, 0.0]]);
     this._solid(tec, band(CO, offset(CO, 0.02), 3.02, 3.12, 3));
     const strut = bladeGeo({ span: 0.2, chord: [0.09, 0.09], stagger: [0, 0], camber: [0, 0], thick: [0.16, 0.16], nSpan: 2 });
     this._ring(tec, strut, 13, (m, th) => { m.makeRotationX(th); m.setPosition(3.065, 0.275 * Math.cos(th), 0.275 * Math.sin(th)); });
@@ -455,6 +463,14 @@ export class Scene3D {
     else if (part !== this.hover) { this.hover = part; this.canvas.style.cursor = part ? 'pointer' : 'grab'; this.onHover && this.onHover(part, e); }
   }
 
+  /** Thrust reverser: sleeve slides aft to uncover the cascades, blocker doors swing into the duct. */
+  _reverser(rev) {
+    if (rev === this._rev) return; this._rev = rev;
+    if (!this.revNodes) { this.revNodes = []; this.engine.traverse((n) => { const k = /^cna_sleeve/i.test(n.name) ? 'sleeve' : /^cna_blocker/i.test(n.name) ? 'door' : null; if (k) { n.userData.rev = { k, x: n.position.x, q: n.quaternion.clone() }; this.revNodes.push(n); } }); }
+    const e = rev * rev * (3 - 2 * rev), qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -e * 1.05);
+    for (const n of this.revNodes) { const b = n.userData.rev; n.position.x = b.x + 0.46 * e; if (b.k === 'door') n.quaternion.copy(b.q).multiply(qy); }
+  }
+
   view(name) {
     const v = { hero: [-0.72, 0.2, 9.6, 1.45], front: [-1.3, 0.1, 7.6, 0.3], rear: [0.95, 0.14, 10.5, 3.6], side: [0, 0.03, 9.4, 1.45], core: [-0.2, 0.22, 4.4, 1.95] }[name];
     if (v) Object.assign(this.orbit, { az: v[0], el: v[1], dist: v[2] }), this.orbit.target.set(v[3], -0.05, 0);
@@ -496,7 +512,7 @@ export class Scene3D {
       const own = {};
       for (const n of nodes) {
         holder.attach(n);
-        n.userData.variant = /__cut$/i.test(n.name) ? 'cut' : nodes.some((m) => m.name === `${n.name}__cut`) ? 'full' : null;
+        n.userData.variant = /__cut$/i.test(n.name) ? 'cut' : /__full$/i.test(n.name) || nodes.some((m) => m.name === `${n.name}__cut`) ? 'full' : null;
         n.traverse((m) => {
           if (!m.isMesh) return;
           const swap = (mt) => { const sh = this.shared[mt.name]; if (!sh) { mt.side = THREE.DoubleSide; return mt; } if (mt.name === 'section') return sh; return (own[mt.name] ||= (() => { const c = sh.clone(); part.extMats.push(c); return c; })()); };
@@ -507,7 +523,7 @@ export class Scene3D {
       taken.push(id);
     }
     this.scene.remove(root);
-    this.setCutaway(this.cutaway);
+    this.setCutaway(this.cutaway); this.revNodes = null; this._rev = -1;
     return taken;
   }
 
@@ -540,6 +556,7 @@ export class Scene3D {
     this.g2.rotation.x += Math.pow(p2, 0.55) * 26 * dt;
     this.fanBlur.material.opacity = this.byId.fan.removed ? 0 : clamp(p1 * 0.2, 0, 0.16);
     this.fanBlur.position.x = 0.16 + this.byId.fan.ex * this.explode * 1.5;
+    this._reverser(o.rev || 0);
 
     // variable stators turn about their own radial axis
     if (Math.abs(o.vsv - (this._vsv ?? 1e9)) > 0.2) {
@@ -603,7 +620,7 @@ export class Scene3D {
     const thr = clamp(o.Fg / 140e3, 0, 1), hotK = clamp((o.T5 - 400) / 500, 0, 1);
     const L = 1.2 + 5.5 * Math.sqrt(thr);
     const setPl = (m, len, a, sp) => { m.scale.set(len, 1, 1); m.material.uniforms.uT.value = t; m.material.uniforms.uA.value = a; m.material.uniforms.uSpeed.value = sp; m.visible = a > 0.004; };
-    setPl(this.plumeOuter, L, o.W9 > 5 ? 0.06 + 0.3 * thr : 0, 0.6 + 2.5 * thr);
+    setPl(this.plumeOuter, L, o.W9 > 5 ? (0.06 + 0.3 * thr) * (1 - 0.8 * (o.rev || 0)) : 0, 0.6 + 2.5 * thr);
     setPl(this.plumeCore, L * 0.8, (0.2 + 0.6 * thr) * hotK, 0.8 + 3 * thr);
     setPl(this.plumeHot, L * 0.45, (0.3 + 0.6 * thr) * clamp((o.T5 - 560) / 300, 0, 1), 1 + 3 * thr);
     this.plumeCore.material.uniforms.uC.value.setRGB(1.0, 0.35 + 0.35 * hotK, 0.12 + 0.2 * hotK);

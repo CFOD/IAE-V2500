@@ -33,6 +33,7 @@ export const eprForThrust = (kN) => lerpTable(EPR_VS_THRUST, kN);
 export const RU_STEADY = [[20,0.03],[45,0.031],[55.9,0.0307],[62.2,0.0293],[71.5,0.03],[78.1,0.0298],[83.7,0.0318],[88.2,0.0344],[90.8,0.0363],[93.1,0.0381],[95,0.0398],[97,0.0417],[98.5,0.0426],[104.5,0.046]];
 const ACCEL_MARGIN = [[20, 1.25], [36, 1.3], [44, 1.55], [56, 1.45], [62, 1.38], [75, 1.42], [97, 1.3]];
 const DECEL_FRAC = 0.5;
+export const MAX_REVERSE_N1 = 80; // % - reverse thrust is limited well below take-off fan speed (assumed value)
 
 export class Fadec {
   constructor(engine) {
@@ -166,8 +167,12 @@ export class Fadec {
         const eprCmd = this.eprCommand(o);
         const egtLim = this.tla > 0.86 ? RATINGS[this.rating].egtTO : LIMITS.EGT_MCT;
         // loop errors normalised to "fraction of fuel flow per second"
+        // With the reverser out the core no longer exhausts against the bypass stream, so EPR stops
+        // tracking thrust. Reverse is governed on fan speed instead, between idle and MAX_REVERSE_N1.
+        const reverse = o.rev > 0.05;
+        const n1Cmd = 22 + (MAX_REVERSE_N1 - 22) * this.tla;
         const cand = [
-          [(eprCmd - o.epr) * 3.0, 'EPR'],
+          reverse ? [(n1Cmd - o.N1pct) * 0.06, 'EPR'] : [(eprCmd - o.epr) * 3.0, 'EPR'],
           [(LIMITS.N1_RED - 0.5 - o.N1pct) * 0.15, 'N1 limit'],
           [(LIMITS.N2_RED - 0.5 - n2) * 0.25, 'N2 limit'],
           [(egtLim - 5 - egtC) * 0.012, 'EGT limit'],
@@ -176,7 +181,7 @@ export class Fadec {
         for (const cnd of cand) if (cnd[0] < e[0]) e = cnd;
         const eIdle = (idle - n2) * 0.25 - n2dot * 0.08;
         if (eIdle > e[0] && e[1] === 'EPR') e = [eIdle, 'idle'];
-        this.limiter = e[1];
+        this.limiter = e[1] === 'EPR' && reverse ? 'N1 (reverse)' : e[1];
         const scale = Math.max(this.wf, 0.05);
         wf = this.wf + clamp(e[0], -1.5, 1.5) * scale * dt;
         const hi = ruAcc * p3bar, lo = Math.max(ruDec * p3bar, 0.022);

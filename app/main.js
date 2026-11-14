@@ -131,6 +131,7 @@ sel.value = fadec.rating; sel.onchange = () => { fadec.rating = sel.value; logMs
 const setMaster = (v) => { fadec.master = v; if (v && fadec.phase === 'abort') fadec.phase = 'off'; $('master').setAttribute('aria-pressed', v); logMsg(`ENG MASTER ${v ? 'ON' : 'OFF'}`); };
 $('master').onclick = () => setMaster(!fadec.master);
 $('manStart').onclick = () => { fadec.manStart = !fadec.manStart; $('manStart').setAttribute('aria-pressed', fadec.manStart); };
+$('reverser').onclick = () => { eng.u.reverser = !eng.u.reverser; $('reverser').setAttribute('aria-pressed', eng.u.reverser); logMsg(`Thrust reverser ${eng.u.reverser ? 'deploy' : 'stow'}`); };
 const tla = $('tla');
 const detent = (t) => (t >= 0.995 ? 'TOGA' : Math.abs(t - 0.85) < 0.012 ? 'Max continuous' : Math.abs(t - 0.7) < 0.012 ? 'Climb' : t < 0.005 ? 'Idle' : `${(t * 100).toFixed(0)} %`);
 const setTla = (v) => { fadec.tla = Math.min(1, Math.max(0, v)); tla.value = fadec.tla; $('tlaOut').textContent = detent(fadec.tla); };
@@ -158,7 +159,7 @@ const frame3d = () => { if (!view3d) return; const shut = $('drawer').classList.
 $('btnDrawer').onclick = () => { const shut = $('drawer').classList.toggle('shut'); $('btnDrawer').classList.toggle('on', !shut); frame3d(); };
 function reset(running) {
   eng.initCold(); eng.events.length = 0; evIdx = 0; fadec._evIdx = 0; fadec.phase = 'off'; fadec.wf = 0; eng.s.fuelUsed = 0;
-  peaks.egt = peaks.n1 = peaks.n2 = 0; setTla(0); setMaster(running);
+  peaks.egt = peaks.n1 = peaks.n2 = 0; setTla(0); setMaster(running); eng.u.reverser = false; $('reverser').setAttribute('aria-pressed', false);
   if (running) { for (let i = 0; i < 100 * 60; i++) { fadec.update(1 / 60); eng.step(1 / 60); } eng.s.t = 0; eng.s.fuelUsed = 0; eng.events.length = 0; fadec._evIdx = 0; }
   log.length = 0; logMsg(running ? 'Reset: engine running at ground idle' : 'Reset: cold and dark');
 }
@@ -252,6 +253,7 @@ function statusHtml(o) {
   if (fadec.msg) add(fadec.msg[0] + fadec.msg.slice(1).toLowerCase(), /ABORT|STALL|FLAME|HUNG/.test(fadec.msg) ? 'warn' : 'ok');
   add(o.lit ? 'Flame on' : 'No flame', o.lit ? 'ok' : '');
   if (o.ignOn) add('Igniters sparking', 'ok');
+  if (o.rev > 0.01) add(o.rev > 0.99 ? 'Reverser deployed' : 'Reverser in transit', 'warn');
   if (o.tStart > 0) add('Starter engaged', 'ok');
   if (fadec.master && fadec.limiter) add(`Governing on ${fadec.limiter}`);
   if (Object.values(fadec.ovr).some((v) => v != null)) add('Manual override active', 'warn');

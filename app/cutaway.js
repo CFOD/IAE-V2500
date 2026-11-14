@@ -11,7 +11,7 @@ export const P = {
   bypOuter: [[0, 0.81], [0.35, 0.81], [1.2, 0.8], [2.4, 0.74], [3.2, 0.66], [3.55, 0.61]],
   bypInner: [[0.4, 0.47], [0.7, 0.54], [1.3, 0.56], [2.4, 0.54], [3.0, 0.52], [3.12, 0.46]],
   coreOuter: [[0.4, 0.47], [0.85, 0.44], [1.15, 0.3], [1.85, 0.25], [1.92, 0.33], [2.18, 0.33], [2.22, 0.3], [2.42, 0.33], [3.0, 0.48], [3.12, 0.44]],
-  coreInner: [[0.3, 0.27], [0.45, 0.33], [0.85, 0.36], [1.15, 0.17], [1.85, 0.215], [1.92, 0.17], [2.18, 0.2], [2.22, 0.235], [2.42, 0.25], [3.0, 0.28], [3.12, 0.27], [3.75, 0]],
+  coreInner: [[0.3, 0.27], [0.45, 0.33], [0.85, 0.36], [1.15, 0.17], [1.85, 0.215], [1.92, 0.17], [2.18, 0.2], [2.22, 0.235], [2.42, 0.25], [3.0, 0.28], [3.12, 0.262], [3.3, 0.15], [3.41, 0.05], [3.44, 0]], // short blunt centre-body
   spinner: [[-0.56, 0], [0.02, 0.245], [0.3, 0.27]], // long straight cone, per reference photos
 };
 export function rAt(prof, x) {
@@ -25,7 +25,7 @@ export function rAt(prof, x) {
 // blade rows
 export const ROWS = [];
 ROWS.push({ x0: 0.03, x1: 0.3, kind: 'rotor', spool: 1, lo: P.spinner, hi: P.bypOuter, fan: true });
-ROWS.push({ x0: 0.56, x1: 0.68, kind: 'stator', lo: P.bypInner, hi: P.bypOuter });
+ROWS.push({ x0: 1.0, x1: 1.13, kind: 'stator', lo: P.bypInner, hi: P.bypOuter }); // outlet guide vanes sit aft, at the fan frame
 for (let i = 0; i < 4; i++) {
   const x = 0.47 + i * 0.095;
   ROWS.push({ x0: x, x1: x + 0.04, kind: 'rotor', spool: 1, lo: P.coreInner, hi: P.coreOuter });
@@ -199,7 +199,7 @@ export class Cutaway {
       nac.closePath();
       solid(nac, '#1c2530');
       solid(band(P.coreOuter, P.bypInner, 0.4, 3.12, s), '#222d3a');
-      solid(band(ZERO, P.coreInner, 0.3, 3.75, s), '#18202a');
+      solid(band(ZERO, P.coreInner, 0.3, 3.44, s), '#18202a');
       // spinner
       solid(band(ZERO, P.spinner, -0.56, 0.3, s), '#2a3644');
     }

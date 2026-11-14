@@ -219,6 +219,7 @@ export function turbineExpand(t, W, Tin, far, PR, N, effDelta, out) {
 
 /** Convergent nozzle. Returns mass flow, gross thrust, exit velocity & sensitivity. */
 export function nozzle(A, Pt, Tt, far, P0, out) {
+  if (A <= 0) { out.W = 0; out.Fg = 0; out.V = 0; out.M = 0; out.Ts = Tt; out.dWdP = 0; return out; }
   if (Pt <= P0) {
     // slight reverse flow, no thrust
     const rho = P0 / (R_GAS * Tt);

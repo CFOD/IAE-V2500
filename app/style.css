@@ -112,7 +112,7 @@ body.nodrawer #dock { right: 16px; }
 .field.grow { min-width: 150px; }
 .switch { position: relative; width: 50px; height: 28px; border-radius: 999px; border: 0; background: var(--fill2); transition: background .15s; }
 .switch i { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); box-shadow: 0 1px 4px rgba(0, 0, 0, .45); transition: transform .16s cubic-bezier(.2, .8, .2, 1); }
-.switch[aria-pressed=true] { background: var(--ok); } .switch[aria-pressed=true] i { transform: translateX(22px); background: #0e0f11; }
+.switch[aria-pressed=true] { background: var(--ok); } #reverser[aria-pressed=true] { background: var(--warn); } .switch[aria-pressed=true] i { transform: translateX(22px); background: #0e0f11; }
 select { height: 30px; padding: 0 8px; border-radius: 9px; border: 1px solid var(--line); background: var(--fill); font-size: 12.5px; font-weight: 540; outline: none; }
 select option { background: #17181b; }
 .lever { flex: 0 1 230px; min-width: 180px; display: flex; flex-direction: column; gap: 6px; padding-left: 22px; border-left: 1px solid var(--line); }

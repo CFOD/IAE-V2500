@@ -120,6 +120,8 @@ export function sizeEngine(d = DESIGN) {
   cfg.A8 = dp.A8;
   cfg.A18 = dp.A18;
   cfg.A9 = dp.A9;
+  cfg.Acas = 0.8 * dp.A18; // effective flow area of the reverser cascades
+  cfg.revTurn = 0.55; // fraction of cascade gross thrust that acts forwards (efflux angled ~45 deg, with losses)
   cfg.A25 = 0.07; // LPC (2.5) bleed ring max effective area, m^2
   // handling bleed flow capacities W*sqrt(T)/P for one 7th-stage valve and the 10th-stage valve
   cfg.K7 = (0.035 * dp.Wc * Math.sqrt(dp.T3)) / dp.P3;
@@ -149,6 +151,7 @@ export function defaultInputs() {
     alt: 0, // m
     dTisa: 0, // K
     mach: 0,
+    reverser: false, // thrust reverser deployed
   };
 }
 
@@ -167,7 +170,7 @@ export class Engine {
     this.cfg = cfg;
     this.u = defaultInputs();
     this.mods = defaultMods();
-    this.o = { fan: {}, lpc: {}, hpc: {}, hptF: {}, lptF: {}, hpt: {}, lpt: {}, n8: {}, n18: {}, n9: {} };
+    this.o = { fan: {}, lpc: {}, hpc: {}, hptF: {}, lptF: {}, hpt: {}, lpt: {}, n8: {}, n18: {}, n9: {}, ncas: {} };
     this.out = { W2: 0 };
     this.events = []; // {t, type}
     this.subDt = 0.0005;
@@ -192,7 +195,7 @@ export class Engine {
       P13: a.Pt0, P25: a.Pt0, P3: a.Pt0, P45: a.Pt0, P5: a.Pt0, Pm: a.P0, T7: a.T2,
       T13: a.T2, T25: a.T2, T3: a.T2, T4: a.T2, T45: a.T2, T5: a.T2,
       lit: false, ignTimer: 0, pool: 0, wf: 0, vsv: vsvSchedule(0), b25: 1,
-      egt: a.T2, Tm: a.T2, q4: 0, fanSt: { stalled: false, stallTime: 0 }, lpcSt: { stalled: false, stallTime: 0 },
+      egt: a.T2, Tm: a.T2, q4: 0, rev: 0, fanSt: { stalled: false, stallTime: 0 }, lpcSt: { stalled: false, stallTime: 0 },
       hpcSt: { stalled: false, stallTime: 0 }, fuelUsed: 0,
     };
     this._eval(0);
@@ -237,6 +240,7 @@ export class Engine {
       s.t += dt;
       s.wf += (Math.max(0, u.wfCmd) - s.wf) * Math.min(1, dt / 0.08);
       s.b25 += clamp(u.bleed25 - s.b25, -dt / 0.4, dt / 0.4);
+      s.rev = clamp((s.rev || 0) + (u.reverser ? dt : -dt) / 2.0, 0, 1); // about two seconds to travel
     }
 
     // ---- low pressure compression system
@@ -338,7 +342,10 @@ export class Engine {
     // ---- nozzles
     const Pt5 = s.P5 * (1 - lossJet), Pt13 = s.P13 * (1 - lossByp);
     nozzle(c.A8 * m.a8, Pt5, s.T5, far45, s.Pm, o.n8);
-    nozzle(c.A18 * m.a18, Pt13, s.T13, 0, s.Pm, o.n18);
+    // reverser: blocker doors close the bypass duct ahead of the mixer and the cascades open to ambient
+    const rev = s.rev || 0;
+    nozzle(c.A18 * m.a18 * (1 - 0.97 * rev), Pt13, s.T13, 0, s.Pm, o.n18);
+    nozzle(c.Acas * rev, Pt13, s.T13, 0, P0, o.ncas);
     const Wc7 = Math.max(o.n8.W, 0), Wb7m = Math.max(o.n18.W, 0), W7 = Wc7 + Wb7m;
     let Pt7 = s.Pm, far7 = 0;
     if (W7 > 0.01) {
@@ -365,7 +372,7 @@ export class Engine {
         const k = (gR * T) / V;
         return Math.max(P + (dt * k * net) / (1 + dt * k * S), 0.2 * P0);
       };
-      const P13 = upd(s.P13, s.T13, c.vol.v13, o.fan.W + Wb25 + Wb7 + Wb10 - o.n18.W, o.fan.dWdPout + o.n18.dWdP);
+      const P13 = upd(s.P13, s.T13, c.vol.v13, o.fan.W + Wb25 + Wb7 + Wb10 - o.n18.W - o.ncas.W, o.fan.dWdPout + o.n18.dWdP + (o.ncas.dWdP || 0));
       const P25 = upd(s.P25, s.T25, c.vol.v25, o.lpc.W - Wb25 - o.hpc.W, o.lpc.dWdPout + o.hpc.dWdPin);
       const P3 = upd(s.P3, s.T3, c.vol.v3, o.hpc.W - Wb7 - Wb10 - Wcust - Wc1 - Wc2 - Wa,
         o.hpc.dWdPout + o.hptF.dUp + (Wb7 + Wb10) / s.P3);
@@ -388,7 +395,8 @@ export class Engine {
     out.amb = amb;
     out.N1 = s.N1; out.N2 = s.N2;
     out.N1pct = (100 * s.N1) / LIMITS.N1_100; out.N2pct = (100 * s.N2) / LIMITS.N2_100;
-    out.thrust = o.n9.Fg - W2 * V0;
+    out.thrust = o.n9.Fg - c.revTurn * o.ncas.Fg - W2 * V0;
+    out.rev = rev; out.Wcas = o.ncas.W;
     out.Fg = o.n9.Fg;
     out.epr = s.P5 / P2;
     out.W2 = W2; out.Wbypass = o.fan.W; out.Wcore = o.hpc.W; out.Wlpc = o.lpc.W;

@@ -142,3 +142,17 @@ test('flat rating: thrust held to ISA+31 (V2527) at rising EGT, then lapses', ()
   assert.ok(b.egt - 273.15 < 635, `EGT inside limit at the corner point: ${b.egt - 273.15}`);
   assert.ok(c.thrust < 0.97 * b.thrust, 'thrust lapses beyond the flat-rating temperature');
 });
+
+test('thrust reverser: net thrust goes negative, fan stays out of surge, stows cleanly', () => {
+  const { e, f } = idling();
+  e.u.reverser = true; run(e, f, 5);
+  assert.ok(e.out.rev > 0.99, 'deployed');
+  f.tla = 1; run(e, f, 25);
+  const o = e.out;
+  assert.ok(o.thrust < -14e3, `reverse thrust ${o.thrust}`);
+  assert.ok(o.N1pct < 82, `fan speed limited in reverse: ${o.N1pct}`);
+  assert.ok(o.Wcas > 0.8 * o.Wbypass, 'bypass air leaves through the cascades');
+  f.tla = 0; run(e, f, 20); e.u.reverser = false; run(e, f, 10);
+  assert.ok(e.out.rev === 0 && e.out.thrust > 0 && e.out.lit);
+  assert.equal(surges(e), 0);
+});
