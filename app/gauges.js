@@ -1,8 +1,8 @@
 // ECAM-style engine display and small plots, drawn on canvas.
 import { mapSpeedLine } from '../src/sim/components.js';
 
-const G = '#39d98a', A = '#ffb020', R = '#ff4d4d', W = '#cfd8e3', DIM = '#5a6a7e', C = '#4cc9f0';
-const FONT = 'ui-monospace, Menlo, Consolas, monospace';
+const G = '#2fe36a', A = '#ffa41c', R = '#ff3b30', W = '#e9eef2', DIM = '#6f7f8c', C = '#35d6ff';
+const FONT = "'B612 Mono', Consolas, monospace";
 
 function fit(cv) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2), r = cv.getBoundingClientRect();
@@ -31,8 +31,8 @@ function dial(ctx, cx, cy, rad, o) {
 
 export function drawEcam(cv, o, f, peaks, egtRed = 635) {
   const [ctx, w, h] = fit(cv);
-  const rad = Math.min(w / 4 / 2 - 24, h * 0.26);
-  const cy = rad + 24, step = w / 4;
+  const rad = Math.min(w / 4 / 2 - 22, h * 0.24);
+  const cy = rad + 26, step = w / 4;
   const egt = o.egt - 273.15;
   dial(ctx, step * 0.5, cy, rad, { min: 1, max: 2.2, value: o.epr, bug: f.eprCmd, label: 'EPR', fmt: (v) => v.toFixed(3), ticks: [1, 1.4, 1.8, 2.2], tickFmt: (t) => t.toFixed(1) });
   dial(ctx, step * 1.5, cy, rad, { min: 0, max: 900, value: egt, amber: 610, red: egtRed, label: 'EGT °C', fmt: (v) => v.toFixed(0), ticks: [0, 300, 600, 900] });
@@ -78,7 +78,7 @@ export function drawMaps(cv, eng) {
   defs.forEach(([title, key, wMax, prMax], i) => {
     const m = cfg[key], x0 = i * pw + 34, y0 = 20, pwi = pw - 46, phi = h - 46;
     const X = (wc) => x0 + (wc / wMax) * pwi, Y = (pr) => y0 + phi - ((pr - 1) / (prMax - 1)) * phi;
-    ctx.strokeStyle = '#243041'; ctx.lineWidth = 1; ctx.strokeRect(x0, y0, pwi, phi);
+    ctx.strokeStyle = '#2a333b'; ctx.lineWidth = 1; ctx.strokeRect(x0, y0, pwi, phi);
     ctx.fillStyle = W; ctx.font = `600 11px ${FONT}`; ctx.textAlign = 'left'; ctx.fillText(title, x0 + 4, y0 + 13);
     ctx.fillStyle = DIM; ctx.font = `10px ${FONT}`;
     ctx.fillText('PR', x0 - 30, y0 + 10); ctx.fillText(prMax, x0 - 30, y0 + 24); ctx.fillText('1', x0 - 14, y0 + phi);

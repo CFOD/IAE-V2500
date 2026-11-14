@@ -2,52 +2,80 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'">
 <title>V2500 Engine Simulator</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <div class="brand">V2500<span>ENGINE SIMULATOR</span></div>
-  <div class="hgroup">
-    <button id="btnPause" title="Space">❚❚ PAUSE</button>
+<div id="stage">
+  <canvas id="stage3d"></canvas>
+  <canvas id="cutaway" hidden></canvas>
+  <div id="tip" hidden></div>
+</div>
+
+<header id="topbar">
+  <div class="plate"><b>V2500-A5</b><span>TEST CELL 1</span><i id="clock">T+ 0:00</i></div>
+  <div class="bar">
+    <button id="btnPause" class="key" title="Space">HOLD</button>
     <div class="seg" id="speed"><button data-v="0.25">¼×</button><button data-v="1" class="on">1×</button><button data-v="4">4×</button><button data-v="10">10×</button></div>
-    <button id="btnSound">🔇 SOUND OFF</button>
-    <button id="btnLabels" class="on">LABELS</button>
+    <button id="btnSound" class="key">SOUND</button>
   </div>
-  <div class="hgroup">
-    <button id="btnCold">RESET: COLD &amp; DARK</button>
-    <button id="btnIdle">RESET: RUNNING AT IDLE</button>
+  <div class="bar">
+    <div class="seg" id="viewMode"><button data-v="3d" class="on">3D</button><button data-v="2d">SECTION</button></div>
+    <button id="btnCut" class="key on">CUTAWAY</button>
+    <button id="btnFlow" class="key on">FLOW</button>
+    <label class="mini">EXPLODE<input type="range" id="explode" min="0" max="1" step="0.01" value="0"></label>
+    <div class="seg" id="cams"><button data-v="hero">¾</button><button data-v="front">FRONT</button><button data-v="side">SIDE</button><button data-v="rear">REAR</button><button data-v="core">CORE</button></div>
   </div>
-  <div class="clock" id="clock">T+ 0:00</div>
+  <div class="bar right">
+    <button id="btnCold" class="key">COLD &amp; DARK</button>
+    <button id="btnIdle" class="key">AT IDLE</button>
+    <button id="btnDrawer" class="key on">TEST CELL PANEL</button>
+  </div>
 </header>
-<main>
-  <section id="view"><canvas id="cutaway"></canvas><div id="help">↑/↓ thrust lever · M master switch · Space pause · F11 fullscreen</div></section>
-  <section id="bottom">
-    <div class="panel" id="cockpit">
-      <h3>FLIGHT DECK</h3>
-      <div class="row"><label>ENG MASTER</label><button id="master" class="toggle big">OFF</button></div>
-      <div class="row"><label>MAN START</label><button id="manStart" class="toggle">OFF</button></div>
-      <div class="row"><label>RATING</label><select id="rating"></select></div>
-      <div class="tlaWrap">
-        <input type="range" id="tla" min="0" max="1" step="0.005" value="0" orient="vertical">
-        <div class="detents" id="detents"><span style="top:0">TOGA 100</span><span style="top:15%">FLX/MCT 85</span><span style="top:30%">CLB 70</span><span style="top:100%">IDLE</span></div>
-      </div>
-      <div class="row"><label>THRUST LEVER</label><output id="tlaOut">0 %</output></div>
+
+<aside id="partcard">
+  <div class="eyebrow">COMPONENT</div>
+  <h2 id="pcName">Nothing selected</h2>
+  <p id="pcDesc">Drag to orbit, scroll to zoom, right-drag to pan. Click any part of the engine to inspect it.</p>
+  <div id="pcLive"></div>
+  <button id="pcRemove" class="key" hidden>REMOVE PART</button>
+  <div id="removedWrap" hidden><div class="eyebrow">REMOVED — click to refit</div><div id="removed"></div><button id="restoreAll" class="key">REFIT ALL</button></div>
+</aside>
+
+<aside id="drawer" class="panel">
+  <nav class="tabs" data-group="drawer"><button data-t="ctl" class="on">ENGINE CONTROL</button><button data-t="amb">AMBIENT</button><button data-t="hw">HARDWARE</button></nav>
+  <div class="tab on" id="t-ctl"></div>
+  <div class="tab" id="t-amb"></div>
+  <div class="tab" id="t-hw"></div>
+</aside>
+
+<footer id="console" class="panel">
+  <span class="screw tl"></span><span class="screw tr"></span>
+  <section id="pedestal">
+    <div class="engrave">ENG 1</div>
+    <div class="sw">
+      <div class="swcol"><span class="lbl">MASTER</span><button id="master" class="toggle" aria-pressed="false"><i></i></button><span class="lbl sub"><b>ON</b><b>OFF</b></span></div>
+      <div class="swcol"><span class="lbl">MAN START</span><button id="manStart" class="korry"><span class="l1">ON</span></button></div>
+      <div class="swcol wide"><span class="lbl">RATING</span><select id="rating"></select></div>
     </div>
-    <div class="panel" id="ecamP"><canvas id="ecam"></canvas></div>
-    <div class="panel" id="tabsP">
-      <nav id="tabs"><button data-t="ctl" class="on">ENGINEERING</button><button data-t="amb">AMBIENT</button><button data-t="hw">HARDWARE</button><button data-t="maps">MAPS</button><button data-t="trend">TRENDS</button><button data-t="data">DATA</button><button data-t="log">LOG</button></nav>
-      <div class="tab on" id="t-ctl"></div>
-      <div class="tab" id="t-amb"></div>
-      <div class="tab" id="t-hw"></div>
-      <div class="tab" id="t-maps"><canvas id="maps"></canvas></div>
+    <div class="leverbay">
+      <div class="quadrant"><input type="range" id="tla" min="0" max="1" step="0.005" value="0"></div>
+      <div class="detents"><span style="top:0">TO GA</span><span style="top:15%">FLX MCT</span><span style="top:30%">CL</span><span style="top:100%">0</span></div>
+      <output id="tlaOut">IDLE</output>
+    </div>
+  </section>
+  <section class="crt" id="ewd"><div class="bezel"><canvas id="ecam"></canvas></div><div class="engrave">ENGINE / WARNING DISPLAY</div></section>
+  <section class="crt" id="sd">
+    <div class="bezel">
+      <div class="tab on" id="t-maps"><canvas id="maps"></canvas></div>
       <div class="tab" id="t-trend"><canvas id="trend"></canvas></div>
       <div class="tab" id="t-data"><pre id="data"></pre></div>
       <div class="tab" id="t-log"><pre id="log"></pre></div>
     </div>
+    <nav class="tabs keys" data-group="sd"><button data-t="maps" class="on">COMPR MAPS</button><button data-t="trend">TRENDS</button><button data-t="data">STATIONS</button><button data-t="log">LOG</button></nav>
   </section>
-</main>
+</footer>
 <script type="module" src="main.js"></script>
 </body>
 </html>

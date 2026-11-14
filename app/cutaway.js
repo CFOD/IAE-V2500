@@ -5,7 +5,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 
 // ---- geometry: axial station x [m] vs radius r [m] (engine is ~3.2 m long, 1.6 m fan)
-const P = {
+export const P = {
   inletInner: [[-0.78, 0.8], [-0.62, 0.765], [-0.3, 0.79], [0, 0.81]],
   nacelle: [[-0.78, 0.8], [-0.74, 0.9], [-0.45, 1.0], [0.5, 1.04], [2.0, 0.98], [3.55, 0.635]],
   bypOuter: [[0, 0.81], [0.35, 0.81], [1.2, 0.8], [2.4, 0.74], [3.2, 0.66], [3.55, 0.61]],
@@ -14,7 +14,7 @@ const P = {
   coreInner: [[0.3, 0.27], [0.45, 0.33], [0.85, 0.36], [1.15, 0.17], [1.85, 0.215], [1.92, 0.17], [2.18, 0.2], [2.22, 0.235], [2.42, 0.25], [3.0, 0.28], [3.12, 0.27], [3.75, 0]],
   spinner: [[-0.45, 0], [-0.3, 0.09], [-0.12, 0.19], [0, 0.24], [0.3, 0.27]],
 };
-function rAt(prof, x) {
+export function rAt(prof, x) {
   if (x <= prof[0][0]) return prof[0][1];
   for (let i = 1; i < prof.length; i++) {
     if (x <= prof[i][0]) return lerp(prof[i - 1][1], prof[i][1], (x - prof[i - 1][0]) / (prof[i][0] - prof[i - 1][0]));
@@ -23,7 +23,7 @@ function rAt(prof, x) {
 }
 
 // blade rows
-const ROWS = [];
+export const ROWS = [];
 ROWS.push({ x0: 0.03, x1: 0.3, kind: 'rotor', spool: 1, lo: P.spinner, hi: P.bypOuter, fan: true });
 ROWS.push({ x0: 0.56, x1: 0.68, kind: 'stator', lo: P.bypInner, hi: P.bypOuter });
 for (let i = 0; i < 4; i++) {
@@ -50,6 +50,13 @@ for (let i = 0; i < 5; i++) {
 
 /** Temperature [K] to colour. */
 const STOPS = [[220, [70, 150, 255]], [300, [60, 170, 245]], [450, [70, 210, 190]], [700, [240, 210, 80]], [1000, [255, 140, 40]], [1400, [255, 70, 40]], [1900, [255, 235, 200]], [2400, [255, 255, 255]]];
+export function tempRGB(T) {
+  let i = 1;
+  while (i < STOPS.length - 1 && T > STOPS[i][0]) i++;
+  const [t0, c0] = STOPS[i - 1], [t1, c1] = STOPS[i];
+  const f = clamp((T - t0) / (t1 - t0), 0, 1);
+  return [lerp(c0[0], c1[0], f) / 255, lerp(c0[1], c1[1], f) / 255, lerp(c0[2], c1[2], f) / 255];
+}
 export function tempColor(T, a = 1) {
   let i = 1;
   while (i < STOPS.length - 1 && T > STOPS[i][0]) i++;
@@ -261,7 +268,7 @@ export class Cutaway {
 
     // ---- labels
     if (this.showLabels) {
-      ctx.font = '600 11px ui-monospace, Menlo, Consolas, monospace'; ctx.textAlign = 'center';
+      ctx.font = "700 11px 'B612 Mono', Consolas, monospace"; ctx.textAlign = 'center';
       const comp = [['FAN', 0.16], ['LPC', 0.65], ['HPC', 1.5], ['COMB', 2.05], ['HPT', 2.32], ['LPT', 2.72]];
       ctx.fillStyle = '#e6eef8';
       for (const [n, x] of comp) ctx.fillText(n, tx(x), oy + 4);

@@ -2,7 +2,7 @@
   "name": "v2500-engine-simulator",
   "productName": "V2500 Engine Simulator",
   "version": "0.1.0",
-  "description": "Physics-based IAE V2500 turbofan simulator with a 2D cutaway view",
+  "description": "Physics-based IAE V2500 turbofan simulator with an interactive 3D cutaway",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -17,9 +17,25 @@
   },
   "build": {
     "appId": "com.example.v2500sim",
-    "files": ["app/**", "src/**", "electron/**", "package.json"],
-    "win": { "target": "dir" },
-    "linux": { "target": "dir" },
-    "mac": { "target": "dir" }
+    "files": [
+      "app/**",
+      "src/**",
+      "electron/**",
+      "package.json"
+    ],
+    "win": {
+      "target": "dir"
+    },
+    "linux": {
+      "target": "dir"
+    },
+    "mac": {
+      "target": "dir"
+    }
+  },
+  "dependencies": {
+    "@fontsource/b612": "^5.3.0",
+    "@fontsource/b612-mono": "^5.3.0",
+    "three": "^0.187.0"
   }
 }

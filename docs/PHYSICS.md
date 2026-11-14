@@ -32,6 +32,18 @@ products; compression and expansion are solved with the entropy function rather 
 Idle, acceleration, starting, hung and hot starts, surge (with flow reversal and recovery cycles),
 flame-out, windmilling and altitude effects are not scripted. They come out of those equations.
 
+## Intake condensation and ground vortex (visual only)
+
+Computed in `app/main.js` from simulation outputs; they do not feed back into the cycle.
+Inlet throat Mach number is solved from mass flow, total pressure and temperature over a 1.84 m²
+throat. That gives static temperature Ts = Tt/(1+0.2M²) and the matching static pressure drop. The
+ambient dew point follows from temperature and relative humidity (Magnus formula), lowered for the
+reduced vapour pressure at the throat. Fog density rises as Ts falls below that dew point. At
+take-off power the throat runs near Mach 0.5, a drop of about 14 K, so fog forms above roughly 60 %
+humidity on a 15 °C day. The ground vortex is shown when the engine is static and throat velocity
+exceeds about 70 m/s; this is a simple threshold, not a vortex-formation correlation, and wind is
+not modelled.
+
 ## Sizing
 
 `sizeEngine()` runs a design-point cycle for the V2533-A5 certified take-off rating (31,600 lbf,
