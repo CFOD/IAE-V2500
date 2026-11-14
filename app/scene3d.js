@@ -11,6 +11,7 @@ import { ShaderPass } from './vendor/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from './vendor/jsm/postprocessing/UnrealBloomPass.js';
 import { GTAOPass } from './vendor/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from './vendor/jsm/postprocessing/OutputPass.js';
+import { SMAAPass } from './vendor/jsm/postprocessing/SMAAPass.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { P, ROWS, rAt, tempRGB } from './cutaway.js';
 
@@ -102,7 +103,7 @@ export class Scene3D {
     this.orbit = { az: -0.72, el: 0.2, dist: 9.6, target: new THREE.Vector3(1.45, -0.05, 0) };
     this.offsetX = 0; this.offsetY = 0;
     const key = (this.key = new THREE.DirectionalLight(0xfff4e6, 2.0)); key.position.set(-2.5, 7, 6); key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02;
+    key.shadow.mapSize.set(4096, 4096); key.shadow.bias = -0.0003; key.shadow.normalBias = 0.02; key.shadow.radius = 2.5;
     Object.assign(key.shadow.camera, { left: -4.5, right: 5.5, top: 4, bottom: -4, near: 1, far: 22 }); scene.add(key);
     const rim = new THREE.DirectionalLight(0x9fc2ff, 1.4); rim.position.set(5, 3, -7); scene.add(rim);
     const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(2, -1, 6); scene.add(fill);
@@ -230,8 +231,17 @@ export class Scene3D {
     this._solid(spinner, [[-0.56, 0.0008], [-0.5, sr(-0.5)], [-0.5, 0]], { parent: this.g1, mat: white, seg: 48 });
     this._solid(spinner, [[-0.19, sr(-0.19) + 0.004], [0.02, sr(0.02) + 0.004], [0.02, 0.05], [-0.19, 0.05]], { parent: this.g1, mat: fairing });
     this._solid(spinner, [[-0.196, sr(-0.196) + 0.001], [-0.186, sr(-0.186) + 0.006], [-0.186, sr(-0.186) - 0.004]], { parent: this.g1, mat: fairing, seg: 96 });
-    const crescent = (x0, x1, a0, len) => this._reg(spinner, new THREE.Mesh(lathe([[x0, sr(x0) + 0.0015], [x1, sr(x1) + 0.0015], [x1, sr(x1) - 0.002], [x0, sr(x0) - 0.002]], 48, a0, len), white), this.g1);
-    crescent(-0.375, -0.305, 0.2, 3.7); crescent(-0.368, -0.312, 0.05, 0.15); crescent(-0.368, -0.312, 3.9, 0.15); crescent(-0.36, -0.32, -0.06, 0.11); crescent(-0.36, -0.32, 4.05, 0.11);
+    // white crescent: a band on the cone whose width tapers smoothly to a point at each end
+    {
+      const N = 96, xc = -0.34, pos = [], idx = [];
+      for (let k = 0; k <= N; k++) {
+        const t = k / N, phi = 0.15 + t * 3.9, hw = 0.036 * Math.pow(Math.sin(Math.PI * t), 0.6) + 0.0005;
+        for (const x of [xc - hw, xc + hw]) { const r = sr(x) + 0.0018; pos.push(x, r * Math.cos(phi), r * Math.sin(phi)); }
+        if (k < N) idx.push(2 * k, 2 * k + 1, 2 * k + 2, 2 * k + 1, 2 * k + 3, 2 * k + 2);
+      }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+      this._reg(spinner, new THREE.Mesh(g, white), this.g1);
+    }
     const pocket = new THREE.SphereGeometry(0.02, 10, 8); pocket.scale(1.5, 0.45, 1);
     this._ring(spinner, pocket, 11, (m, th) => { m.makeRotationX(th); m.multiply(new THREE.Matrix4().makeRotationZ(0.405)); m.setPosition(-0.08, (sr(-0.08) + 0.004) * Math.cos(th), (sr(-0.08) + 0.004) * Math.sin(th)); }, { parent: this.g1, mat: new THREE.MeshStandardMaterial({ color: 0x3a3e43, metalness: 0.6, roughness: 0.5 }) });
     const fan = A({ id: 'fan', name: 'Fan — 22 wide-chord blades', ex: -1.0, mat: titanium, desc: 'Hollow titanium wide-chord blades, 1.6 m across. Produces most of the thrust by moving a large mass of bypass air.', live: (o) => `N1 ${o.N1pct.toFixed(1)} % · absorbs ${(o.pwrFan / 1e6).toFixed(1)} MW · efficiency ${(o.fan.eff * 100).toFixed(0)} %` });
@@ -405,6 +415,10 @@ export class Scene3D {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(4, 4), 0.35, 0.5, 1.35); c.addPass(this.bloom);
     this.haze = new ShaderPass(HeatHaze); c.addPass(this.haze);
     c.addPass(new OutputPass());
+    // Anti-aliasing is layered: multisampling on the scene buffer (geometry edges), supersampling on
+    // High when the display is not already high-density (thin blades, pipes, bright highlights), and
+    // SMAA on the final image (edges the post-processing passes re-introduce).
+    this.smaa = new SMAAPass(); c.addPass(this.smaa);
   }
 
   // ---------------------------------------------------------------- controls
@@ -455,7 +469,7 @@ export class Scene3D {
   setRemoved(id, removed) { const p = this.byId[id]; if (!p) return; p.removed = removed; for (const ob of p.objs) ob.visible = !removed; if (removed && this.selected === p) this.selected = null; }
   restoreAll() { for (const p of this.parts) this.setRemoved(p.id, false); }
   surge(which) { this.flash = 1; this.flashFront = which !== 'hpc'; }
-  setQuality(q) { this.quality = q; this.renderer.shadowMap.enabled = q !== 'low'; this.key.castShadow = q !== 'low'; this.ao.enabled = q === 'high'; }
+  setQuality(q) { this.quality = q; this.renderer.shadowMap.enabled = q !== 'low'; this.key.castShadow = q !== 'low'; this.ao.enabled = q === 'high'; this.resize(); }
 
   /**
    * Replace generated components with an authored glTF model.
@@ -501,7 +515,9 @@ export class Scene3D {
     const r = this.canvas.getBoundingClientRect();
     if (r.width < 2 || r.height < 2) return;
     this.renderer.setSize(r.width, r.height, false);
-    const pr = this.renderer.getPixelRatio();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const pr = this.quality === 'high' ? Math.max(dpr, 1.5) : dpr;
+    this.renderer.setPixelRatio(pr); this.renderer.setSize(r.width, r.height, false);
     this.composer.setPixelRatio(pr); this.composer.setSize(r.width, r.height);
     this.camera.aspect = r.width / r.height;
     if (this.offsetX || this.offsetY) this.camera.setViewOffset(r.width, r.height, this.offsetX, this.offsetY, r.width, r.height); else this.camera.clearViewOffset();
