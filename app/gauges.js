@@ -29,13 +29,13 @@ function dial(ctx, cx, cy, rad, o) {
   ctx.fillStyle = C; ctx.font = `600 11px ${FONT}`; ctx.fillText(o.label, cx, cy + rad * 0.5);
 }
 
-export function drawEcam(cv, o, f, peaks) {
+export function drawEcam(cv, o, f, peaks, egtRed = 635) {
   const [ctx, w, h] = fit(cv);
   const rad = Math.min(w / 4 / 2 - 24, h * 0.26);
   const cy = rad + 24, step = w / 4;
   const egt = o.egt - 273.15;
   dial(ctx, step * 0.5, cy, rad, { min: 1, max: 2.2, value: o.epr, bug: f.eprCmd, label: 'EPR', fmt: (v) => v.toFixed(3), ticks: [1, 1.4, 1.8, 2.2], tickFmt: (t) => t.toFixed(1) });
-  dial(ctx, step * 1.5, cy, rad, { min: 0, max: 900, value: egt, amber: 610, red: 650, label: 'EGT °C', fmt: (v) => v.toFixed(0), ticks: [0, 300, 600, 900] });
+  dial(ctx, step * 1.5, cy, rad, { min: 0, max: 900, value: egt, amber: 610, red: egtRed, label: 'EGT °C', fmt: (v) => v.toFixed(0), ticks: [0, 300, 600, 900] });
   dial(ctx, step * 2.5, cy, rad, { min: 0, max: 115, value: o.N1pct, red: 100, label: 'N1 %', fmt: (v) => v.toFixed(1), ticks: [0, 50, 100] });
   dial(ctx, step * 3.5, cy, rad, { min: 0, max: 115, value: o.N2pct, red: 100, label: 'N2 %', fmt: (v) => v.toFixed(1), ticks: [0, 50, 100] });
   // digital row
@@ -63,7 +63,7 @@ export function drawEcam(cv, o, f, peaks) {
   if (f.limiter && f.master) tag('CTRL: ' + f.limiter.toUpperCase(), C);
   if (f.msg) tag(f.msg, f.msg.includes('ABORT') || f.msg.includes('STALL') || f.msg.includes('FLAME') ? A : G);
   if (o.hpc.stalled || o.lpc.stalled || o.fan.stalled) tag('COMPRESSOR STALL', R);
-  if (egt > 650) tag('EGT OVERLIMIT', R);
+  if (egt > egtRed) tag('EGT OVERLIMIT', R);
   if (o.N1pct > 100 || o.N2pct > 100) tag('OVERSPEED', R);
   ctx.fillStyle = DIM; ctx.font = `11px ${FONT}`;
   ctx.fillText(`PEAK  EGT ${peaks.egt.toFixed(0)}°C   N1 ${peaks.n1.toFixed(1)}   N2 ${peaks.n2.toFixed(1)}`, 10, y2 + 18);

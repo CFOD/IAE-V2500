@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { cp, tIsentropic, isa } from '../src/sim/gas.js';
 import { Engine } from '../src/sim/engine.js';
 import { Fadec, ratedThrustN } from '../src/sim/fadec.js';
-import { DESIGN } from '../src/sim/v2500.js';
+import { DESIGN, ICAO_V2527 } from '../src/sim/v2500.js';
 
 function rig() { const e = new Engine(); const f = new Fadec(e); return { e, f }; }
 function run(e, f, T, each) { const dt = 1 / 60; for (let t = 0; t < T; t += dt) { f.update(dt); e.step(dt); if (each) each(e.out, t); } }
@@ -24,40 +24,68 @@ test('design point is a steady state of the dynamic model', () => {
   assert.ok(Math.abs(o.thrust - DESIGN.thrustN) / DESIGN.thrustN < 0.01, `thrust ${o.thrust}`);
   assert.ok(Math.abs(o.N1 - DESIGN.N1d) / DESIGN.N1d < 0.005);
   assert.ok(Math.abs(o.N2 - DESIGN.N2d) / DESIGN.N2d < 0.005);
-  assert.ok(Math.abs(o.bpr - 4.5) < 0.05 && Math.abs(o.opr - 33.4) < 0.3);
+  assert.ok(Math.abs(o.bpr - 4.46) < 0.05 && Math.abs(o.opr - 33.44) < 0.3);
   // mass is conserved through the core
   assert.ok(Math.abs(o.W8 - (o.Wlpc + o.wf - o.Wb25 - o.Wb7 - o.Wb10 - o.Wcust)) < 0.05);
+  assert.ok(Math.abs(o.W9 - (o.W2 + o.wf)) < 0.1, 'everything leaves through the common nozzle');
 });
 
-test('automatic start reaches a realistic ground idle without exceedances', () => {
+test('automatic start reaches the published ground idle without exceedances', () => {
   const { e, f } = rig(); f.master = true;
   let peakEgt = 0, tIdle = null;
   run(e, f, 120, (o, t) => { peakEgt = Math.max(peakEgt, o.egt - 273.15); if (tIdle == null && f.phase === 'run') tIdle = t; });
   const o = e.out;
   assert.equal(f.phase, 'run');
-  assert.ok(tIdle > 25 && tIdle < 90, `time to idle ${tIdle}`);
+  assert.ok(tIdle > 25 && tIdle < 75, `time to idle ${tIdle}`);
   assert.ok(peakEgt < 635, `start EGT ${peakEgt}`);
-  assert.ok(o.N2pct > 55 && o.N2pct < 62, `N2 ${o.N2pct}`);
-  assert.ok(o.N1pct > 18 && o.N1pct < 30, `N1 ${o.N1pct}`);
-  assert.ok(o.wf * 3600 > 280 && o.wf * 3600 < 450, `FF ${o.wf * 3600}`);
+  // IAE operating instructions: about N1 21.7 %, N2 60 %, EGT 400 C, 300-378 kg/h, with
+  // tolerances N1 -2/+3.8, N2 -2/+2.2, EGT -25/+90, FF -50/+125
+  assert.ok(o.N1pct > 19.7 && o.N1pct < 25.5, `N1 ${o.N1pct}`);
+  assert.ok(o.N2pct > 58 && o.N2pct < 62.2, `N2 ${o.N2pct}`);
+  assert.ok(o.egt - 273.15 > 350 && o.egt - 273.15 < 490, `EGT ${o.egt - 273.15}`);
+  assert.ok(o.wf * 3600 > 300 && o.wf * 3600 < 460, `FF ${o.wf * 3600}`);
   assert.equal(surges(e), 0);
 });
 
-test('V2527-A5 take-off matches published cycle figures', () => {
+test('V2527-A5 matches the ICAO databank fuel flows and cycle', () => {
+  const { e, f } = idling();
+  const at = (frac) => { // hold a thrust fraction of the ICAO rated output with manual fuel trim
+    const target = frac * ICAO_V2527.ratedN; let wf = e.out.wf;
+    f.ovr.bleed25 = null;
+    for (let k = 0; k < 60; k++) { wf *= 1 + 0.5 * (target - e.out.thrust) / Math.max(target, e.out.thrust); f.ovr.fuel = wf; run(e, f, 3); }
+    assert.ok(Math.abs(e.out.thrust - target) / target < 0.01, `converged ${e.out.thrust}`);
+    return e.out;
+  };
+  const within = (name, got, ref, tol) => assert.ok(Math.abs(got - ref) / ref < tol, `${name}: model ${got.toFixed(3)} vs published ${ref}`);
+  within('approach fuel flow', at(0.30).wf, ICAO_V2527.approach, 0.06);
+  within('climb-out fuel flow', at(0.85).wf, ICAO_V2527.climb, 0.05);
+  const to = at(1.0);
+  within('take-off fuel flow', to.wf, ICAO_V2527.takeoff, 0.04);
+  within('overall pressure ratio', to.opr, ICAO_V2527.opr, 0.03);
+  within('bypass ratio', to.bpr, ICAO_V2527.bpr, 0.03);
+  within('idle (7 %) fuel flow', at(0.07).wf, ICAO_V2527.idle, 0.08);
+  assert.equal(surges(e), 0);
+});
+
+test('V2527-A5 take-off: certified thrust, EPR, acceleration', () => {
   const { e, f } = idling();
   f.tla = 1;
-  let t95 = null;
+  let t95 = null, epr50 = null;
   const rated = ratedThrustN('V2527-A5');
   run(e, f, 40, (o, t) => { if (t95 == null && o.thrust > 0.95 * rated) t95 = t; });
   const o = e.out;
-  assert.ok(Math.abs(o.thrust - rated) / rated < 0.03, `thrust ${o.thrust} vs ${rated}`);
-  assert.ok(o.bpr > 4.6 && o.bpr < 5.1, `BPR ${o.bpr}`); // published 4.8
-  assert.ok(o.opr > 25.5 && o.opr < 29, `OPR ${o.opr}`); // published 27.2
-  assert.ok(o.W2 > 335 && o.W2 < 375, `airflow ${o.W2}`); // published ~355-368 kg/s
-  assert.ok(o.egt - 273.15 < 610);
+  assert.ok(Math.abs(o.thrust - rated) / rated < 0.02, `thrust ${o.thrust} vs ${rated}`);
+  assert.ok(o.epr > 1.5 && o.epr < 1.7, `take-off EPR ${o.epr}`); // crew reports ~1.6 max
+  assert.ok(o.egt - 273.15 < 635 - 60, 'healthy EGT margin on a new engine at ISA');
   assert.ok(t95 < 8, `accel time ${t95}`);
   assert.equal(surges(e), 0);
-  f.tla = 0; run(e, f, 30);
+  // A320 crews set "50 % N1 (CFM) or 1.05 EPR (IAE)" before releasing the brakes,
+  // so 1.05 EPR should sit in the region of half fan speed
+  f.tla = 0.12; run(e, f, 30);
+  let wf = e.out.wf;
+  for (let k = 0; k < 40; k++) { wf *= 1 + 8 * (1.05 - e.out.epr); f.ovr.fuel = wf; run(e, f, 3); }
+  assert.ok(Math.abs(e.out.epr - 1.05) < 0.003 && e.out.N1pct > 40 && e.out.N1pct < 55, `N1 at 1.05 EPR: ${e.out.N1pct}`);
+  f.ovr.fuel = null; f.tla = 0; run(e, f, 30);
   assert.ok(e.out.lit && surges(e) === 0 && e.out.N2pct < 62);
 });
 
@@ -65,8 +93,8 @@ test('every rating delivers its rated thrust at sea level static', () => {
   for (const r of ['V2522-A5', 'V2524-A5', 'V2530-A5', 'V2533-A5']) {
     const { e, f } = idling(); f.rating = r; f.tla = 1; run(e, f, 40);
     const rated = ratedThrustN(r);
-    assert.ok(Math.abs(e.out.thrust - rated) / rated < 0.03, `${r}: ${e.out.thrust} vs ${rated}`);
-    assert.ok(e.out.N1pct < 100 && e.out.N2pct < 100 && e.out.egt - 273.15 < 650, r);
+    assert.ok(Math.abs(e.out.thrust - rated) / rated < 0.02, `${r}: ${e.out.thrust} vs ${rated}`);
+    assert.ok(e.out.N1pct < 100 && e.out.N2pct < 100 && e.out.egt - 273.15 < 635, r);
   }
 });
 
@@ -95,8 +123,11 @@ test('altitude cruise: thrust lapses with density and the engine stays lit', () 
   assert.ok(o.N1pct < 100.5 && o.N2pct < 100.5);
 });
 
-test('hot day: EGT rises for the same thrust setting', () => {
-  const a = idling(); a.f.tla = 1; run(a.e, a.f, 40);
-  const b = idling(); b.e.u.dTisa = 15; b.f.tla = 1; run(b.e, b.f, 40);
-  assert.ok(b.e.out.egt > a.e.out.egt + 20);
+test('flat rating: thrust held to ISA+31 (V2527) at rising EGT, then lapses', () => {
+  const pt = (dT) => { const r = rig(); r.e.u.dTisa = dT; r.f.master = true; run(r.e, r.f, 100); r.f.tla = 1; run(r.e, r.f, 40); return r.e.out; };
+  const a = pt(0), b = pt(30), c = pt(40);
+  assert.ok(Math.abs(b.thrust - a.thrust) / a.thrust < 0.03, `flat: ${a.thrust} vs ${b.thrust}`);
+  assert.ok(b.egt > a.egt + 40, 'EGT margin is consumed as the day gets hotter');
+  assert.ok(b.egt - 273.15 < 635, `EGT inside limit at the corner point: ${b.egt - 273.15}`);
+  assert.ok(c.thrust < 0.97 * b.thrust, 'thrust lapses beyond the flat-rating temperature');
 });

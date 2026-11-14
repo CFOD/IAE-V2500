@@ -201,7 +201,10 @@ export function turbineExpand(t, W, Tin, far, PR, N, effDelta, out) {
   const dhs = hin - h(Ts, far);
   const root = Math.sqrt(t.dhsD / dhs);
   const nu = (N / t.Nd) * root;
-  const effD = t.effD + effDelta;
+  // part-load loss: at low expansion ratio the blading runs far off its design
+  // incidence and Reynolds number
+  const u = Math.max(0, 1 - (PR - 1) / (t.PRd - 1));
+  const effD = (t.effD + effDelta) * (1 - t.kPR * u * u);
   const shape = clamp(2 - nu, -1, 2);
   const omegaD = t.Nd * 0.104719755;
   out.torque = (W * dhs * effD * shape * root) / omegaD;

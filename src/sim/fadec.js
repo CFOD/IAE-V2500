@@ -9,6 +9,7 @@
 // how you get to do everything the real control laws exist to prevent.
 
 import { LIMITS, RATINGS, LBF } from './v2500.js';
+import { isa } from './gas.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const lerpTable = (tab, x) => {
@@ -22,15 +23,15 @@ const lerpTable = (tab, x) => {
   return tab[tab.length - 1][1];
 };
 
-// Sea-level-static EPR that gives each model's rated take-off thrust in this
-// model (calibrated with tools/calibrate.js, checked by tests).
-export const RATED_EPR = {
-  'V2522-A5': 1.49, 'V2524-A5': 1.55, 'V2527-A5': 1.646, 'V2530-A5': 1.902, 'V2533-A5': 1.986,
-};
+// Sea-level-static thrust [kN] -> EPR for this model (tools/calibrate.js; checked by tests).
+// Ratings are stored as certified thrust and converted to an EPR target, as the
+// real EEC stores EPR rating tables.
+export const EPR_VS_THRUST = [[0,1.0],[4.2,1.011],[6,1.016],[7.8,1.021],[13.9,1.037],[19.6,1.052],[25.1,1.073],[34.3,1.108],[44.3,1.147],[56.4,1.218],[67.6,1.284],[79.6,1.365],[88,1.427],[96,1.491],[103.7,1.556],[111.1,1.622],[118.3,1.688],[125.2,1.754],[133,1.832],[140.5,1.909],[146.7,1.971]];
+export const eprForThrust = (kN) => lerpTable(EPR_VS_THRUST, kN);
 
 // Steady-state fuel ratio Wf/P3 [kg/s per bar] vs corrected N2 % (from calibration)
-export const RU_STEADY = [[20, 0.030], [45, 0.031], [57, 0.031], [70, 0.033], [80, 0.036], [90, 0.040], [97, 0.046], [104, 0.05]];
-const ACCEL_MARGIN = [[20, 1.25], [40, 1.3], [46, 1.5], [60, 1.38], [75, 1.42], [97, 1.3]];
+export const RU_STEADY = [[20,0.03],[45,0.031],[55.9,0.0307],[62.2,0.0293],[71.5,0.03],[78.1,0.0298],[83.7,0.0318],[88.2,0.0344],[90.8,0.0363],[93.1,0.0381],[95,0.0398],[97,0.0417],[98.5,0.0426],[104.5,0.046]];
+const ACCEL_MARGIN = [[20, 1.25], [36, 1.3], [44, 1.55], [56, 1.45], [62, 1.38], [75, 1.42], [97, 1.3]];
 const DECEL_FRAC = 0.5;
 
 export class Fadec {
@@ -55,16 +56,30 @@ export class Fadec {
     this.auto = {};
   }
 
-  eprLimit(out) {
-    // flat rated to ISA+15 at sea level; lapse with inlet temperature above the corner point
-    const base = RATED_EPR[this.rating];
-    const corner = 288.15 + 15;
-    const over = Math.max(0, out.T2 - corner);
-    return 1 + (base - 1) * (1 - 0.006 * over);
+  /** EPR limits for the selected rating: take-off and max continuous. */
+  eprLimits(out) {
+    const r = RATINGS[this.rating];
+    // Take-off is flat rated: constant EPR up to ISA + flatISA, then EPR falls so that
+    // turbine temperature stays near its corner-point value.
+    const isaT = isa(this.eng.u.alt, 0).T;
+    const over = Math.max(0, out.amb.T0 - (isaT + r.flatISA));
+    const lapse = 1 - 0.0075 * over;
+    const to = 1 + (eprForThrust((r.toLbf * LBF) / 1000) - 1) * lapse;
+    const overM = Math.max(0, out.amb.T0 - (isaT + 10));
+    const mct = Math.min(to, 1 + (eprForThrust((r.mctLbf * LBF) / 1000) - 1) * (1 - 0.0075 * overM));
+    return { to, mct, clb: 1 + (mct - 1) * 0.93 };
+  }
+
+  /** Thrust lever -> EPR command through the detents: idle 0, CLB 0.70, FLX/MCT 0.85, TOGA 1. */
+  eprCommand(out) {
+    const L = this.eprLimits(out), t = this.tla;
+    if (t >= 0.85) return L.mct + ((L.to - L.mct) * (t - 0.85)) / 0.15;
+    if (t >= 0.7) return L.clb + ((L.mct - L.clb) * (t - 0.7)) / 0.15;
+    return 1 + ((L.clb - 1) * t) / 0.7;
   }
 
   idleN2(out) {
-    return clamp(58 * Math.sqrt(out.T2 / 288.15), 54, 68);
+    return clamp(58.5 * Math.sqrt(out.T2 / 288.15), 54, 68);
   }
 
   update(dt) {
@@ -95,8 +110,8 @@ export class Fadec {
         case 'off':
         case 'crank':
           if (o.lit && n2 > idle - 4) { this.phase = 'run'; break; }
-          starter = true;
-          ign = n2 >= 16;
+          starter = true; this.cutout = false;
+          ign = n2 >= LIMITS.MIN_START_N2;
           this.msg = 'START VALVE OPEN';
           this.timer += dt;
           if (n2 >= 22 || (this.timer > 35 && n2 > 15)) { this.phase = 'lightup'; this.timer = 0; }
@@ -109,7 +124,8 @@ export class Fadec {
           else if (this.timer > 15) { this.phase = 'abort'; this.msg = 'NO LIGHT-UP - START ABORTED'; this.timer = 0; }
           break;
         case 'accel':
-          starter = n2 < LIMITS.STARTER_CUTOUT_N2; ign = starter; fuelOn = true;
+          if (n2 >= LIMITS.STARTER_CUTOUT_N2) this.cutout = true; // latched: the starter is not re-engaged
+          starter = !this.cutout; ign = starter; fuelOn = true;
           this.msg = 'STARTING';
           this.timer += dt;
           if (!o.lit) { this.phase = 'lightup'; this.timer = 0; }
@@ -143,12 +159,12 @@ export class Fadec {
         wf = Math.max(0.033, 0.03 * p3bar);
       } else if (this.phase === 'accel') {
         // open-loop start schedule trimmed by EGT
-        const trim = clamp((LIMITS.EGT_START - 45 - egtC) / 60, 0.55, 1);
+        const trim = clamp((LIMITS.EGT_START - 15 - egtC) / 40, 0.55, 1);
         wf = Math.max(0.03, ruAcc * p3bar * trim);
         this.limiter = trim < 1 ? 'EGT (start)' : 'accel sched';
       } else {
-        const eprCmd = 1 + (this.eprLimit(o) - 1) * this.tla;
-        const egtLim = this.tla > 0.95 ? LIMITS.EGT_TAKEOFF : LIMITS.EGT_MCT;
+        const eprCmd = this.eprCommand(o);
+        const egtLim = this.tla > 0.86 ? RATINGS[this.rating].egtTO : LIMITS.EGT_MCT;
         // loop errors normalised to "fraction of fuel flow per second"
         const cand = [
           [(eprCmd - o.epr) * 3.0, 'EPR'],
@@ -169,7 +185,7 @@ export class Fadec {
       }
     }
     this.wf = wf;
-    this.eprCmd = 1 + (this.eprLimit(o) - 1) * this.tla;
+    this.eprCmd = this.eprCommand(o);
 
     // ---------------- handling bleeds & stators
     const decel = n2dot < -1.0;
@@ -196,5 +212,5 @@ export class Fadec {
 }
 
 export function ratedThrustN(rating) {
-  return RATINGS[rating].thrustLbf * LBF;
+  return RATINGS[rating].toLbf * LBF;
 }

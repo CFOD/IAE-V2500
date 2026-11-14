@@ -95,7 +95,7 @@ const mulRow = (name, key, lo, hi, tip) => ({ name, tip, min: lo, max: hi, step:
 [
   effRow('Fan efficiency', 'effFan'), effRow('LPC efficiency', 'effLpc'), effRow('HPC efficiency', 'effHpc'), effRow('HPT efficiency', 'effHpt'), effRow('LPT efficiency', 'effLpt'),
   mulRow('HPC flow capacity', 'flowHpc', -20, 10, 'Compressor fouling reduces flow'), mulRow('HPT nozzle area', 'flowHpt', -15, 15, 'Turbine flow capacity. Smaller = HPC pushed towards surge'), mulRow('LPT nozzle area', 'flowLpt', -15, 15),
-  mulRow('Core nozzle area', 'a8', -30, 30, 'Exhaust nozzle area trim'), mulRow('Bypass nozzle area', 'a18', -30, 30, 'Smaller = fan pushed towards surge'),
+  mulRow('Final nozzle area', 'a9', -30, 30, 'Common exhaust nozzle. Smaller = fan pushed towards surge'), mulRow('Core mixer area', 'a8', -30, 30, 'Core stream area at the mixing plane'), mulRow('Bypass mixer area', 'a18', -30, 30, 'Bypass stream area at the mixing plane'),
   mulRow('Turbine cooling air', 'cooling', -100, 50, 'Cooling air taken from the HPC'),
   { name: 'Fuel heating value', tip: 'Lower heating value. Jet A ≈ 43.1 MJ/kg', min: 25, max: 50, step: 0.1, def: 43.1, get: () => m.lhv / 1e6, set: (v) => (m.lhv = v * 1e6), fmt: (v) => `${v.toFixed(1)} MJ/kg` },
 ].forEach((d) => addRow(hw.lastChild, d));
@@ -103,7 +103,7 @@ $('hwReset').onclick = () => { resetRows(hw); Object.assign(m, defaultMods()); l
 
 // ------------------------------------------------------------ cockpit
 const sel = $('rating');
-for (const k of Object.keys(RATINGS)) sel.add(new Option(`${k} ${(RATINGS[k].thrustLbf / 1000).toFixed(1)}k lbf`, k));
+for (const k of Object.keys(RATINGS)) sel.add(new Option(`${k} ${(RATINGS[k].toLbf / 1000).toFixed(1)}k lbf`, k));
 sel.value = fadec.rating; sel.onchange = () => { fadec.rating = sel.value; logMsg(`Rating ${sel.value}`); };
 const setMaster = (v) => { fadec.master = v; if (v && fadec.phase === 'abort') fadec.phase = 'off'; $('master').textContent = v ? 'ON' : 'OFF'; $('master').classList.toggle('on', v); logMsg(`ENG MASTER ${v ? 'ON' : 'OFF'}`); };
 $('master').onclick = () => setMaster(!fadec.master);
@@ -150,10 +150,10 @@ function handleEvents(dt) {
   const o = eng.out, egt = o.egt - 273.15;
   peaks.egt = Math.max(peaks.egt, egt); peaks.n1 = Math.max(peaks.n1, o.N1pct); peaks.n2 = Math.max(peaks.n2, o.N2pct);
   // over-temperature burns turbine life: HPT efficiency is permanently lost
-  if (egt > LIMITS.EGT_TAKEOFF) {
+  if (egt > RATINGS[fadec.rating].egtTO) {
     if (overTemp === 0) logMsg('EGT OVER LIMIT – turbine damage accumulating');
     overTemp += dt;
-    m.effHpt -= 0.00004 * (egt - LIMITS.EGT_TAKEOFF) * dt;
+    m.effHpt -= 0.00004 * (egt - RATINGS[fadec.rating].egtTO) * dt;
     m.effHpt = Math.max(m.effHpt, -0.15);
   } else overTemp = 0;
 }
@@ -173,7 +173,8 @@ function dataText(o) {
     `45 HPT exit     ${C(o.T45)}  ${B(o.P45)}  ${K(o.W45)}  │ power: fan ${MW(o.pwrFan)} LPC ${MW(o.pwrLpc)} HPC ${MW(o.pwrHpc)}`,
     `49 LPT exit     ${C(o.T5)}  ${B(o.P5)}  ${K(o.W8)}  │        HPT ${MW(o.pwrHpt)} LPT ${MW(o.pwrLpt)}`,
     ``,
-    `jet velocity   core ${o.V8.toFixed(0).padStart(4)} m/s (M ${o.M8.toFixed(2)})   bypass ${o.V18.toFixed(0).padStart(4)} m/s (M ${o.M18.toFixed(2)})   turbine metal ${C(o.Tm)}`,
+    `7  mixed (CNA)  ${C(o.T7)}  ${B(o.Pt7)}  ${K(o.W9)}  │ mixing plane static ${(o.Pm / 1e5).toFixed(3)} bar  core M ${o.M8.toFixed(2)}  bypass M ${o.M18.toFixed(2)}`,
+    `jet velocity ${o.V9.toFixed(0).padStart(4)} m/s (M ${o.M9.toFixed(2)})   turbine metal ${C(o.Tm)}   EPR = P4.9/P2 = ${o.epr.toFixed(3)}`,
     `bleeds         2.5: ${o.Wb25.toFixed(2)}  stg7: ${o.Wb7.toFixed(2)}  stg10: ${o.Wb10.toFixed(2)}  customer: ${o.Wcust.toFixed(2)}  turbine cooling: ${o.Wcool.toFixed(2)} kg/s`,
     `shaft torque   N1 net ${o.tq1.toFixed(0).padStart(6)} N·m   N2 net ${o.tq2.toFixed(0).padStart(6)} N·m   starter ${o.tStart.toFixed(0)} N·m   N1 ${o.N1.toFixed(0)} rpm  N2 ${o.N2.toFixed(0)} rpm`,
   ].join('\n');
@@ -193,7 +194,7 @@ function tick(now) {
   const o = eng.out;
   view.draw(o, paused ? 0 : real * Math.min(speed, 2));
   audio.update(o, real);
-  drawEcam($('ecam'), o, fadec, peaks);
+  drawEcam($('ecam'), o, fadec, peaks, RATINGS[fadec.rating].egtTO);
   if (frame++ % 3 === 0) {
     refreshRows();
     $('clock').textContent = `T+ ${stamp()}`;

@@ -66,16 +66,24 @@ function designCycle(d, T4) {
   const PRlpt = Math.exp((phi(T45, far45) - phi(TsL, far45)) / R_GAS);
   const P5 = P45 / PRlpt;
   const T5 = tFromH(h(T45, far45) - dhLpt, far45, T45 - 300);
-  // nozzles (unit area -> scale)
-  const n8 = nozzle(1, P5 * (1 - d.dpJetpipe), T5, far45, P0, {});
-  const A8 = W45 / n8.W;
-  const n18 = nozzle(1, P13 * (1 - d.dpBypass), fan.T, 0, P0, {});
+  // common nozzle assembly: core and bypass streams meet at a mixing plane with
+  // a shared static pressure Pm, mix, and leave through one final nozzle
+  const Pt13 = P13 * (1 - d.dpBypass), Pt5 = P5 * (1 - d.dpJetpipe);
+  const Pm = Pt13 / Math.pow(1 + 0.2 * d.mixMach * d.mixMach, 3.5);
+  const n18 = nozzle(1, Pt13, fan.T, 0, Pm, {});
   const A18 = Wb / n18.W;
-  const thrust = n8.Fg * A8 + n18.Fg * A18;
+  const n8 = nozzle(1, Pt5, T5, far45, Pm, {});
+  const A8 = Pt5 > Pm ? W45 / n8.W : 1e9;
+  const W7 = Wb + W45, far7 = wf / (W7 - wf);
+  const T7 = tFromH((Wb * h(fan.T) + W45 * h(T5, far45)) / W7, far7, 450);
+  const Pt7 = ((Wb * Pt13 + W45 * Pt5) / W7) * (1 - d.dpMix);
+  const n9 = nozzle(1, Pt7, T7, far7, P0, {});
+  const A9 = W7 / n9.W;
+  const thrust = Pt5 > Pm ? n9.Fg * A9 : 0;
   const q = qFlow;
   return {
     T2, P2, Wc, Wb, T13: fan.T, T25: lpc.T, T3: hpc.T, P13, P25, P3, P4, HPCPR, wf, far4, W4, T4, T41, far41,
-    PRhpt, dhsHpt, P45, T45, W45, far45, PRlpt, dhsLpt, P5, T5, A8, A18, thrust,
+    PRhpt, dhsHpt, P45, T45, W45, far45, PRlpt, dhsLpt, P5, T5, A8, A18, A9, Pm, T7, thrust,
     Khpt: (W4 * Math.sqrt(T4)) / P4 / q(PRhpt), q4d: q(PRhpt),
     Klpt: (W45 * Math.sqrt(T45)) / P45 / q(PRlpt),
   };
@@ -104,19 +112,20 @@ export function sizeEngine(d = DESIGN) {
   cfg.hpc = makeCompressorMap({
     Nd: d.N2d, Td: dp.T25, Pd: dp.P25, Wd: dp.Wc, PRd: dp.HPCPR, effD: d.effHpc,
     aW: 0.12, kW: 3.6, sW: 1.5, aP: 0.08, kP: 4.5, sP: 3.0, c0: 0.04, c1: 0.3,
-    xs: (n) => 1.24 - 0.12 * Math.exp(-(((n - 0.74) / 0.12) ** 2)), U2d: 1.8e5, Awm: 0.05, kEff: 1.3, effFloor: 0.72,
+    xs: (n) => 1.24 - 0.12 * Math.exp(-(((n - 0.74) / 0.12) ** 2)), U2d: 1.8e5, Awm: 0.05, kEff: 1.3, effFloor: 0.78,
   });
-  cfg.hpt = { Nd: d.N2d, dhsD: dp.dhsHpt, effD: d.effHpt, K: dp.Khpt };
-  cfg.lpt = { Nd: d.N1d, dhsD: dp.dhsLpt, effD: d.effLpt, K: dp.Klpt };
+  cfg.hpt = { Nd: d.N2d, dhsD: dp.dhsHpt, effD: d.effHpt, K: dp.Khpt, PRd: dp.PRhpt, kPR: 0.04 };
+  cfg.lpt = { Nd: d.N1d, dhsD: dp.dhsLpt, effD: d.effLpt, K: dp.Klpt, PRd: dp.PRlpt, kPR: 0.32 };
   cfg.q4d = dp.q4d;
   cfg.A8 = dp.A8;
   cfg.A18 = dp.A18;
+  cfg.A9 = dp.A9;
   cfg.A25 = 0.07; // LPC (2.5) bleed ring max effective area, m^2
   // handling bleed flow capacities W*sqrt(T)/P for one 7th-stage valve and the 10th-stage valve
   cfg.K7 = (0.035 * dp.Wc * Math.sqrt(dp.T3)) / dp.P3;
   cfg.K10 = (0.06 * dp.Wc * Math.sqrt(dp.T3)) / dp.P3;
   cfg.metalHeatCap = 75e3; // J/K, lumped turbine metal
-  cfg.vol = { v13: 3.0, v25: 0.35, v3: 0.25, v45: 0.15, v5: 1.0 };
+  cfg.vol = { v13: 3.0, v25: 0.35, v3: 0.25, v45: 0.15, v5: 0.6, v7: 1.2 };
   return cfg;
 }
 
@@ -147,7 +156,7 @@ export function defaultMods() {
   return {
     effFan: 0, effLpc: 0, effHpc: 0, effHpt: 0, effLpt: 0, // efficiency deltas
     flowFan: 1, flowLpc: 1, flowHpc: 1, flowHpt: 1, flowLpt: 1, // capacity multipliers
-    a8: 1, a18: 1, // nozzle area multipliers
+    a8: 1, a18: 1, a9: 1, // core mixer, bypass mixer and final nozzle area multipliers
     lhv: LHV_JET_A,
     cooling: 1, // turbine cooling flow multiplier
   };
@@ -158,7 +167,7 @@ export class Engine {
     this.cfg = cfg;
     this.u = defaultInputs();
     this.mods = defaultMods();
-    this.o = { fan: {}, lpc: {}, hpc: {}, hptF: {}, lptF: {}, hpt: {}, lpt: {}, n8: {}, n18: {} };
+    this.o = { fan: {}, lpc: {}, hpc: {}, hptF: {}, lptF: {}, hpt: {}, lpt: {}, n8: {}, n18: {}, n9: {} };
     this.out = { W2: 0 };
     this.events = []; // {t, type}
     this.subDt = 0.0005;
@@ -180,7 +189,7 @@ export class Engine {
     const a = this.ambient();
     this.s = {
       t: 0, N1: 0, N2: 0,
-      P13: a.Pt0, P25: a.Pt0, P3: a.Pt0, P45: a.Pt0, P5: a.Pt0,
+      P13: a.Pt0, P25: a.Pt0, P3: a.Pt0, P45: a.Pt0, P5: a.Pt0, Pm: a.P0, T7: a.T2,
       T13: a.T2, T25: a.T2, T3: a.T2, T4: a.T2, T45: a.T2, T5: a.T2,
       lit: false, ignTimer: 0, pool: 0, wf: 0, vsv: vsvSchedule(0), b25: 1,
       egt: a.T2, Tm: a.T2, q4: 0, fanSt: { stalled: false, stallTime: 0 }, lpcSt: { stalled: false, stallTime: 0 },
@@ -195,7 +204,7 @@ export class Engine {
     Object.assign(this.s, {
       N1: d.N1d, N2: d.N2d, P13: dp.P13, P25: dp.P25, P3: dp.P3, P45: dp.P45, P5: dp.P5,
       T13: dp.T13, T25: dp.T25, T3: dp.T3, T4: dp.T4, T45: dp.T45, T5: dp.T5,
-      lit: true, wf: dp.wf, vsv: 0, b25: 0, egt: dp.T5, pool: 0, Tm: dp.T45, q4: 1,
+      lit: true, wf: dp.wf, vsv: 0, b25: 0, egt: dp.T5, pool: 0, Tm: dp.T45, q4: 1, Pm: dp.Pm, T7: dp.T7,
     });
     this.u.wfCmd = dp.wf;
     this.u.bleed25 = 0;
@@ -220,8 +229,8 @@ export class Engine {
     const wRel = clamp(((this.out.W2 || 0) / d.W2) * (101325 / amb.Pt0) * Math.sqrt(T2 / 288.15), 0, 1.2);
     const P2 = amb.Pt0 * (1 - (1 - d.inletRecovery) * wRel * wRel);
     amb.P2 = P2;
-    const lossByp = d.dpBypass * clamp((s.P13 / P0 - 1) / (d.FPR - 1), 0, 1.3);
-    const lossJet = d.dpJetpipe * clamp((s.P5 / P0 - 1) / (c.dp.P5 / 101325 - 1), 0, 1.3);
+    const lossByp = d.dpBypass * clamp((s.P13 / s.Pm - 1) / (c.dp.P13 / c.dp.Pm - 1), 0, 1.3);
+    const lossJet = d.dpJetpipe * clamp((s.P5 / s.Pm - 1) / (c.dp.P5 / c.dp.Pm - 1), 0, 1.3);
 
     // ---- actuators & fuel system
     if (dt > 0) {
@@ -327,14 +336,24 @@ export class Engine {
     if (W45 > 0) s.T5 += (o.lpt.Tout - s.T5) * kT;
 
     // ---- nozzles
-    nozzle(c.A8 * m.a8, s.P5 * (1 - lossJet), s.T5, far45, P0, o.n8);
-    nozzle(c.A18 * m.a18, s.P13 * (1 - lossByp), s.T13, 0, P0, o.n18);
+    const Pt5 = s.P5 * (1 - lossJet), Pt13 = s.P13 * (1 - lossByp);
+    nozzle(c.A8 * m.a8, Pt5, s.T5, far45, s.Pm, o.n8);
+    nozzle(c.A18 * m.a18, Pt13, s.T13, 0, s.Pm, o.n18);
+    const Wc7 = Math.max(o.n8.W, 0), Wb7m = Math.max(o.n18.W, 0), W7 = Wc7 + Wb7m;
+    let Pt7 = s.Pm, far7 = 0;
+    if (W7 > 0.01) {
+      far7 = (far45 / (1 + far45)) * Wc7 / Math.max(W7 - (far45 / (1 + far45)) * Wc7, 1e-3);
+      const T7 = tFromH((Wb7m * h(s.T13) + Wc7 * h(s.T5, far45)) / W7, far7, s.T7);
+      s.T7 += (T7 - s.T7) * kT;
+      Pt7 = Math.max(s.Pm, ((Wb7m * Pt13 + Wc7 * Pt5) / W7) * (1 - d.dpMix * clamp((s.Pm / P0 - 1) / (c.dp.Pm / 101325 - 1), 0, 1.3)));
+    }
+    nozzle(c.A9 * m.a9, Pt7, s.T7, far7, P0, o.n9);
 
     // ---- shaft torques
     const w2 = Math.max(s.N2, 30) * RPM2RAD;
     const accPower = u.offtakeW * Math.min(1, s.N2 / (0.5 * LIMITS.N2_100));
     let tStart = 0;
-    if (u.starterValve) tStart = 480 * (u.starterPsi / 40) * Math.max(0, 1 - s.N2 / (0.58 * LIMITS.N2_100));
+    if (u.starterValve) tStart = 440 * (u.starterPsi / 40) * Math.max(0, 1 - s.N2 / (0.72 * LIMITS.N2_100));
     const tq2 = o.hpt.torque - hpcTorque - (s.N2 > 1 ? fric2(s.N2) : 0) - accPower / w2 + tStart;
     const tq1 = o.lpt.torque - o.fan.torque - o.lpc.torque - (s.N1 > 1 ? fric1(s.N1) : 0);
 
@@ -351,7 +370,8 @@ export class Engine {
         o.hpc.dWdPout + o.hptF.dUp + (Wb7 + Wb10) / s.P3);
       const P45 = upd(s.P45, s.T45, c.vol.v45, W45in - W45, o.hptF.dDown + o.lptF.dUp);
       const P5 = upd(s.P5, s.T5, c.vol.v5, W45 - o.n8.W, o.lptF.dDown + o.n8.dWdP);
-      s.P13 = P13; s.P25 = P25; s.P3 = P3; s.P45 = P45; s.P5 = P5;
+      const Pm = upd(s.Pm, s.T7, c.vol.v7, o.n8.W + o.n18.W - o.n9.W, o.n8.dWdP + o.n18.dWdP + o.n9.dWdP);
+      s.P13 = P13; s.P25 = P25; s.P3 = P3; s.P45 = P45; s.P5 = P5; s.Pm = Pm;
       s.N2 = Math.max(0, s.N2 + (dt * tq2) / d.I2 / RPM2RAD);
       s.N1 = Math.max(0, s.N1 + (dt * tq1) / d.I1 / RPM2RAD);
       s.fuelUsed += s.wf * dt;
@@ -367,8 +387,8 @@ export class Engine {
     out.amb = amb;
     out.N1 = s.N1; out.N2 = s.N2;
     out.N1pct = (100 * s.N1) / LIMITS.N1_100; out.N2pct = (100 * s.N2) / LIMITS.N2_100;
-    out.thrust = o.n8.Fg + o.n18.Fg - W2 * V0;
-    out.Fg = o.n8.Fg + o.n18.Fg;
+    out.thrust = o.n9.Fg - W2 * V0;
+    out.Fg = o.n9.Fg;
     out.epr = s.P5 / P2;
     out.W2 = W2; out.Wbypass = o.fan.W; out.Wcore = o.hpc.W; out.Wlpc = o.lpc.W;
     out.bpr = o.lpc.W > 0.01 ? o.fan.W / o.lpc.W : 0;
@@ -380,6 +400,7 @@ export class Engine {
     out.P3 = s.P3; out.T3 = s.T3; out.P4 = P4; out.T4 = s.T4; out.T41 = T41; out.P45 = s.P45; out.T45 = s.T45;
     out.P5 = s.P5; out.T5 = s.T5; out.W4 = W4; out.W45 = W45; out.W8 = o.n8.W; out.W18 = o.n18.W;
     out.V8 = o.n8.V; out.V18 = o.n18.V; out.M8 = o.n8.M; out.M18 = o.n18.M;
+    out.Pm = s.Pm; out.Pt7 = Pt7; out.T7 = s.T7; out.W9 = o.n9.W; out.V9 = o.n9.V; out.M9 = o.n9.M;
     out.Wb25 = Wb25; out.Wb7 = Wb7; out.Wb10 = Wb10; out.Wcust = Wcust; out.Wcool = Wc1 + Wc2;
     out.Tm = s.Tm; out.vsv = s.vsv; out.vsvSched = vsvSched; out.b25 = s.b25; out.n2c = n2c;
     out.fan = o.fan; out.lpc = o.lpc; out.hpc = o.hpc; out.hpt = o.hpt; out.lpt = o.lpt;

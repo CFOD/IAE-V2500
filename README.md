@@ -50,8 +50,11 @@ tests/        physics tests        tools/calibrate.js  prints steady-state table
 docs/PHYSICS.md  how the model works, what it is validated against, known limits
 ```
 
-## Accuracy, honestly
+## Accuracy
 
-See [docs/PHYSICS.md](docs/PHYSICS.md). The thermodynamics are real; the component maps are generic
-shapes scaled to the published V2500 cycle because IAE's actual maps are proprietary. Not for
-training or engineering use. Not affiliated with or endorsed by International Aero Engines.
+See [docs/PHYSICS.md](docs/PHYSICS.md) for the model, the source of every number and the comparison
+table. In short: the V2527-A5's ICAO fuel flows at take-off, climb, approach and idle, its pressure
+ratio, bypass ratio and idle speeds are reproduced within a few percent and asserted by `npm test`.
+What cannot be made exact is IAE's proprietary compressor/turbine maps and FADEC tables, so surge
+margins and schedule break-points are representative. Not for training or engineering use. Not
+affiliated with or endorsed by International Aero Engines.

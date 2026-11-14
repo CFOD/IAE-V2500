@@ -33,7 +33,8 @@ nav button.on { background:#16202b; color:var(--cyan); }
 .toggle { min-width:64px; } .toggle.big { padding:8px 14px; font-size:13px; }
 .tlaWrap { flex:1; display:flex; justify-content:center; gap:10px; min-height:0; padding:2px 0 6px; }
 #tla { writing-mode:vertical-lr; direction:rtl; width:34px; height:100%; accent-color:var(--cyan); }
-.detents { display:flex; flex-direction:column; justify-content:space-between; color:var(--dim); font-size:10px; padding:4px 0; }
+.detents { position:relative; width:90px; color:var(--dim); font-size:10px; margin:8px 0; }
+.detents span { position:absolute; left:0; transform:translateY(-50%); white-space:nowrap; }
 output { color:var(--green); font-weight:600; }
 .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:2px 22px; }
 .ctl { display:grid; grid-template-columns:118px 52px 1fr 104px; align-items:center; gap:8px; height:26px; }
