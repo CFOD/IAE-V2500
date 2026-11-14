@@ -146,6 +146,7 @@ export class Scene3D {
       caps.add(new THREE.Mesh(capGeo(loop, CUT_B), this.capMat), new THREE.Mesh(capGeo(loop, CUT_A), this.capMat));
       cut.add(caps); g.add(cut); g.userData.cutPair = [full, cut];
     }
+    if (o.tag) g.userData.tag = o.tag;
     return this._reg(part, g, parent);
   }
   /** Ring of identical items. Static rings can drop the instances inside the cutaway wedge. */
@@ -192,28 +193,29 @@ export class Scene3D {
     const pipeSteel = new THREE.MeshStandardMaterial({ color: 0xc3c8cc, metalness: 1, roughness: 0.25 });
     const pipeGold = new THREE.MeshStandardMaterial({ color: 0xc79a3b, metalness: 1, roughness: 0.3 });
     const harness = new THREE.MeshStandardMaterial({ color: 0x1b1d20, metalness: 0.1, roughness: 0.7 });
+    this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished }), section: this.capMat };
     const C = (K) => `${(K - 273.15).toFixed(0)} °C`, B = (p) => `${(p / 1e5).toFixed(2)} bar`;
     const A = (d) => this._part(d);
 
     // ---------------- nacelle
     const inlet = A({ id: 'inlet', name: 'Inlet cowl', ex: -1.5, mat: paint, desc: 'Slows and straightens the incoming air for the fan. The inner barrel is a perforated acoustic liner that absorbs fan noise.', live: (o) => `Airflow ${o.W2.toFixed(0)} kg/s · inlet ${C(o.T2)}, ${B(o.P2)}` });
-    this._solid(inlet, [...sample(P.nacelle, -0.69, 0.0, 12), ...sample(offset(P.inletInner, 0.012), -0.69, 0.0, 12).reverse()]);
+    this._solid(inlet, [...sample(P.nacelle, -0.69, 0.0, 12), ...sample(offset(P.inletInner, 0.012), -0.69, 0.0, 12).reverse()], { tag: 'skin' });
     this._solid(inlet, [...sample(offset(P.inletInner, 0.012), -0.66, 0.0, 10), ...sample(P.inletInner, -0.66, 0.0, 10).reverse()], { mat: linerM });
     const lip = A({ id: 'lip', name: 'Inlet lip', ex: -1.7, mat: polished, desc: 'Polished aluminium leading edge, heated with engine bleed air so ice cannot build up and break off into the fan.', live: () => '' });
-    this._solid(lip, [[-0.66, 0.768], [-0.7, 0.772], [-0.745, 0.782], [-0.778, 0.805], [-0.79, 0.84], [-0.778, 0.885], [-0.74, 0.918], [-0.69, 0.93], [-0.69, 0.9], [-0.72, 0.89], [-0.75, 0.862], [-0.757, 0.84], [-0.748, 0.815], [-0.72, 0.798], [-0.66, 0.79]]);
+    this._solid(lip, [[-0.66, 0.768], [-0.7, 0.772], [-0.745, 0.782], [-0.778, 0.805], [-0.79, 0.84], [-0.778, 0.885], [-0.74, 0.918], [-0.69, 0.93], [-0.69, 0.9], [-0.72, 0.89], [-0.75, 0.862], [-0.757, 0.84], [-0.748, 0.815], [-0.72, 0.798], [-0.66, 0.79]], { tag: 'skin' });
     const fanCase = A({ id: 'fancase', name: 'Fan case and outlet guide vanes', ex: -0.55, mat: paint, desc: 'Contains the fan, and a released blade if one ever fails. The outlet guide vanes take the swirl out of the bypass air.', live: (o) => `Bypass ${o.Wbypass.toFixed(0)} kg/s · fan pressure ratio ${o.fan.PR.toFixed(2)} · ${C(o.T13)}` });
-    this._solid(fanCase, band(offset(P.bypOuter, 0.014), P.nacelle, 0.0, 1.2, 14));
+    this._solid(fanCase, band(offset(P.bypOuter, 0.014), P.nacelle, 0.0, 1.2, 14), { tag: 'skin' });
     this._solid(fanCase, band(P.bypOuter, offset(P.bypOuter, 0.014), 0.36, 1.2, 10), { mat: linerM });
     // light blue abradable fan track liner around the blade tips (reference photos)
     this._solid(fanCase, band(P.bypOuter, offset(P.bypOuter, 0.014), 0.0, 0.36, 4), { mat: new THREE.MeshStandardMaterial({ color: 0x9cc9e6, metalness: 0, roughness: 0.8, side: THREE.DoubleSide }) });
     const cna = A({ id: 'cna', name: 'Thrust reverser cowls and common nozzle', ex: 0.2, mat: paint, desc: 'The long duct carries bypass air aft, where it mixes with the core exhaust and leaves through one common nozzle.', live: (o) => `Mixed jet ${o.V9.toFixed(0)} m/s (Mach ${o.M9.toFixed(2)}) · ${C(o.T7)} · ${o.W9.toFixed(0)} kg/s` });
-    this._solid(cna, band(offset(P.bypOuter, 0.012), P.nacelle, 1.2, 2.86, 20));
+    this._solid(cna, band(offset(P.bypOuter, 0.012), P.nacelle, 1.2, 2.86, 20), { tag: 'skin' });
     // unpainted common nozzle at the rear, with a visible step from the painted cowl
-    this._solid(cna, band(offset(P.bypOuter, 0.012), offset(P.nacelle, -0.008), 2.86, 3.55, 10), { mat: new THREE.MeshPhysicalMaterial({ color: 0x8e9499, metalness: 1, roughness: 0.36, roughnessMap: T.brushed, side: THREE.DoubleSide }) });
+    this._solid(cna, band(offset(P.bypOuter, 0.012), offset(P.nacelle, -0.008), 2.86, 3.55, 10), { tag: 'skin', mat: (this.shared.bare = new THREE.MeshPhysicalMaterial({ color: 0x8e9499, metalness: 1, roughness: 0.36, roughnessMap: T.brushed, side: THREE.DoubleSide })) });
     // nacelle strake, high on the side
     const stS = new THREE.Shape(); stS.moveTo(0, 0); stS.lineTo(0.62, 0); stS.lineTo(0.56, 0.1); stS.lineTo(0.2, 0.035); stS.lineTo(0, 0);
     const strake = new THREE.Mesh(new THREE.ExtrudeGeometry(stS, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 2 }).translate(0.25, 1.03, -0.006), fanCase.mat);
-    strake.rotation.x = -0.42; this._reg(fanCase, strake);
+    strake.rotation.x = -0.42; strake.userData.tag = 'skin'; this._reg(fanCase, strake);
     this._solid(cna, band(P.bypOuter, offset(P.bypOuter, 0.012), 1.2, 3.5, 20), { mat: new THREE.MeshPhysicalMaterial({ ...composite, side: THREE.DoubleSide }) });
 
     // ---------------- fan
@@ -446,6 +448,7 @@ export class Scene3D {
     this.cutaway = on;
     this.engine.traverse((n) => { if (n.userData.cutPair) { n.userData.cutPair[0].visible = !on; n.userData.cutPair[1].visible = on; } });
     for (const im of this.cutInst) im.count = on ? im.userData.kept : im.userData.ths.length;
+    this.engine.traverse((n) => { const v = n.userData.variant; if (v) n.visible = (v === 'cut') === on; });
   }
   setExplode(v) { this.explode = v; for (const p of this.parts) for (const ob of p.objs) ob.position.x = ob.userData.home + p.ex * v * 1.5; }
   setRemoved(id, removed) { const p = this.byId[id]; if (!p) return; p.removed = removed; for (const ob of p.objs) ob.visible = !removed; if (removed && this.selected === p) this.selected = null; }
@@ -463,19 +466,33 @@ export class Scene3D {
     const root = gltf.scene; root.scale.setScalar(manifest.scale || 1);
     if (manifest.position) root.position.fromArray(manifest.position);
     if (manifest.rotation) root.rotation.set(...manifest.rotation.map((d) => d * DEG));
-    root.updateMatrixWorld(true);
+    this.scene.add(root); root.updateMatrixWorld(true);
     const taken = [];
     for (const [id, rule] of Object.entries(manifest.parts || {})) {
       const part = this.byId[id]; if (!part) continue;
       const re = new RegExp(rule.match, 'i'), nodes = [];
       root.traverse((n) => { if (n.name && re.test(n.name) && !nodes.some((p) => { for (let a = n.parent; a; a = a.parent) if (a === p) return true; return false; })) nodes.push(n); });
       if (!nodes.length) continue;
-      for (const ob of part.objs) ob.parent.remove(ob);
-      part.objs = []; part.external = true;
+      // drop the generated objects this model replaces (all of them, or only those with a listed tag)
+      part.objs = part.objs.filter((ob) => { const drop = !rule.drop || rule.drop.includes(ob.userData.tag); if (drop) ob.parent.remove(ob); return !drop; });
+      part.external = true; part.extMats = part.extMats || [];
       const parent = rule.spool === 1 ? this.g1 : rule.spool === 2 ? this.g2 : this.engine;
-      for (const n of nodes) { parent.attach(n); this._reg(part, n, parent); n.userData.home = n.position.x; }
+      const holder = new THREE.Group(); holder.name = `ext:${id}`; parent.add(holder);
+      const own = {};
+      for (const n of nodes) {
+        holder.attach(n);
+        n.userData.variant = /__cut$/i.test(n.name) ? 'cut' : nodes.some((m) => m.name === `${n.name}__cut`) ? 'full' : null;
+        n.traverse((m) => {
+          if (!m.isMesh) return;
+          const swap = (mt) => { const sh = this.shared[mt.name]; if (!sh) { mt.side = THREE.DoubleSide; return mt; } if (mt.name === 'section') return sh; return (own[mt.name] ||= (() => { const c = sh.clone(); part.extMats.push(c); return c; })()); };
+          m.material = Array.isArray(m.material) ? m.material.map(swap) : swap(m.material);
+        });
+      }
+      this._reg(part, holder, parent); holder.userData.home = holder.position.x; holder.position.x += part.ex * this.explode * 1.5;
       taken.push(id);
     }
+    this.scene.remove(root);
+    this.setCutaway(this.cutaway);
     return taken;
   }
 
@@ -524,6 +541,7 @@ export class Scene3D {
       if (p.glow) { const k = clamp((p.glow(o) - 800) / 650, 0, 1); r = 2.2 * k; g = (0.2 + 0.75 * k) * k; b = 0.3 * k * k; }
       if (p === this.selected) { r += 0.03; g += 0.16; b += 0.26; } else if (p === this.hover) { r += 0.012; g += 0.07; b += 0.12; }
       if (p.mat.emissive) p.mat.emissive.setRGB(r, g, b);
+      if (p.extMats) for (const m of p.extMats) m.emissive.setRGB(r, g, b);
     }
 
     const fill = (pts, n, fn) => { const pos = pts.geometry.attributes.position.array, col = pts.geometry.attributes.color.array; for (let i = 0; i < n; i++) fn(i, pos, col, i * 3); pts.geometry.attributes.position.needsUpdate = true; pts.geometry.attributes.color.needsUpdate = true; };

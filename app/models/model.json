@@ -1,0 +1,30 @@
+{
+  "file": "v2500.glb",
+  "scale": 1,
+  "parts": {
+    "inlet": {
+      "match": "^inlet_",
+      "drop": [
+        "skin"
+      ]
+    },
+    "lip": {
+      "match": "^lip_",
+      "drop": [
+        "skin"
+      ]
+    },
+    "fancase": {
+      "match": "^fancase_",
+      "drop": [
+        "skin"
+      ]
+    },
+    "cna": {
+      "match": "^cna_",
+      "drop": [
+        "skin"
+      ]
+    }
+  }
+}

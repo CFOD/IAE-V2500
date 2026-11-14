@@ -289,8 +289,17 @@ function tick(now) {
   }
   requestAnimationFrame(tick);
 }
-// An authored model can replace generated components: see docs/MODEL.md
-if (view3d) fetch('assets/model.json').then((r) => (r.ok ? r.json() : null)).then((mf) => mf && view3d.loadExternalModel('assets/', mf)).then((taken) => { if (taken) { logMsg(`External model loaded: ${taken.join(', ') || 'no components matched'}`); window.sim.externalParts = taken; } }).catch(() => {});
+// Authored models replace generated components: the project's own (app/models, built by
+// tools/blender/build_engine.py), then an optional local override (app/assets, see docs/MODEL.md).
+async function loadModels() {
+  const taken = [];
+  for (const dir of ['models/', 'assets/']) {
+    try { const r = await fetch(dir + 'model.json'); if (!r.ok) continue; taken.push(...(await view3d.loadExternalModel(dir, await r.json()))); } catch (e) { console.warn('model load failed', dir, e); }
+  }
+  window.sim.externalParts = taken;
+  if (taken.length) logMsg(`Authored model loaded: ${taken.join(', ')}`);
+}
+if (view3d) loadModels();
 setMode(mode);
 logMsg('Cold and dark. Set ENG MASTER to ON for an automatic start.');
 requestAnimationFrame(tick);
