@@ -1,3 +1,7 @@
 node_modules/
 dist/
 *.log
+
+# local-only authored models (see docs/MODEL.md) - never publish third-party assets
+app/assets/*
+!app/assets/.gitkeep

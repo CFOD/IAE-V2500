@@ -39,6 +39,12 @@ lpshaft hpshaft combcase liner fuel ign corecowl tec agb eec ext`.
 The cutaway wedge applies only to generated geometry. An authored casing is shown whole; split it
 in the model (or hide it with Remove part) to see inside.
 
+## Keeping models local
+
+Everything in `app/assets/` except `.gitkeep` is ignored by git, so a model you drop in stays on
+your machine. Do not publish or release a build containing a model you do not have the right to
+distribute, free or paid.
+
 ## Where to get a model
 
 Checked by web search in November 2026; licences were not verified, read them before buying or shipping.
