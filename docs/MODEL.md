@@ -1,8 +1,33 @@
-# Using an authored 3D model
+# 3D model pipeline
 
-The engine you see is generated in code (`app/scene3d.js`). Any component can be replaced by
-meshes from a glTF model, and it keeps working as that component: it is clickable, removable,
-glows with temperature, moves in the exploded view and turns with its spool.
+Two layers make up the engine you see:
+
+1. **Generated geometry** (`app/scene3d.js`): every component, built in code from the section profiles.
+2. **Authored geometry** that replaces generated components:
+   - `app/models/` is the project's own model, built with Blender by
+     `tools/blender/build_engine.py` (`npm run model`; needs `pip install bpy`) and committed.
+   - `app/assets/` is an optional local override for a model you supply. It is ignored by git.
+
+A replaced component keeps working as that component: clickable, removable, highlighted, moved by
+the exploded view, and turning with its spool.
+
+## Building the project's model
+
+`tools/blender/build_engine.py` runs Blender headless, builds components from the same profiles as
+the simulator, and writes `app/models/v2500.glb` plus `app/models/model.json`. Blender is used for
+what generated geometry does badly: boolean cuts with capped faces, panel gaps, bevelled edges and
+(later) baked textures. Work through `docs/REFERENCE-NOTES.md` to see what is done and what is next.
+
+Conventions the loader understands:
+
+- **Node names** are `<component>_<piece>`. A node whose name ends in `__cut` is shown when the
+  cutaway is on, and its un-suffixed twin when it is off.
+- **Material names** `paint`, `bare`, `lip`, `section` are replaced by the simulator's own materials,
+  so authored and generated parts match. Other materials are used as exported.
+- **`drop`** in `model.json` lists tags of generated objects to remove (currently `skin`). Without
+  it, every generated object of that component is removed.
+
+## Supplying your own model
 
 ## Steps
 

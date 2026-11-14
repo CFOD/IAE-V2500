@@ -42,7 +42,8 @@ Status: [x] reflected in the model, [ ] still to do.
 - [x] Inlet lip is matte bare metal with a visible seam where it meets the painted cowl.
 - [x] Common nozzle at the rear is unpainted metal, with a visible step from the painted cowl.
 - [x] A strake sits high on the cowl side.
-- [ ] Panel lines: inlet cowl / fan cowl doors / reverser halves, with latches along the bottom.
+- [x] Panel lines: inlet cowl / fan cowl / reverser / nozzle gaps and the bottom latch line (Blender build).
+- [ ] Latches along the bottom line; hinge line at the top.
 - [ ] Pressure-relief door and oil-service door on the fan cowl; red hazard stripe and warning placards.
 - [ ] Drain mast and a small fin underneath; pylon fairing blending into the wing.
 - [ ] Overall nacelle is long and nearly cylindrical, slightly drooped at the inlet.
