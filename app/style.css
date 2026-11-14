@@ -1,0 +1,48 @@
+:root { --bg:#0b0f14; --panel:#111821; --line:#243041; --text:#cfd8e3; --dim:#6b7c92; --green:#39d98a; --amber:#ffb020; --red:#ff4d4d; --cyan:#4cc9f0; --mono: ui-monospace, Menlo, Consolas, monospace; }
+* { box-sizing: border-box; }
+html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:12px/1.35 var(--mono); overflow:hidden; user-select:none; }
+header { height:40px; display:flex; align-items:center; gap:18px; padding:0 14px; border-bottom:1px solid var(--line); background:#0d131a; }
+.brand { font-weight:700; font-size:16px; letter-spacing:2px; color:var(--cyan); }
+.brand span { font-size:10px; color:var(--dim); margin-left:8px; letter-spacing:3px; }
+.hgroup { display:flex; gap:6px; align-items:center; }
+.clock { margin-left:auto; color:var(--green); font-size:13px; }
+button, select { font:600 11px var(--mono); color:var(--text); background:#18212c; border:1px solid var(--line); padding:5px 9px; border-radius:3px; cursor:pointer; }
+button:hover { border-color:#3d5270; }
+button.on { background:#143a2a; border-color:var(--green); color:var(--green); }
+button.warn.on { background:#40300c; border-color:var(--amber); color:var(--amber); }
+.seg { display:flex; } .seg button { border-radius:0; margin-left:-1px; } .seg button:first-child { border-radius:3px 0 0 3px; } .seg button:last-child { border-radius:0 3px 3px 0; }
+main { height:calc(100% - 40px); display:flex; flex-direction:column; }
+#view { flex:1 1 55%; position:relative; min-height:0; background:radial-gradient(ellipse at 40% 50%, #121b26 0%, #0b0f14 70%); }
+#cutaway { width:100%; height:100%; display:block; }
+#help { position:absolute; right:12px; bottom:6px; color:var(--dim); font-size:10px; }
+#bottom { flex:0 0 340px; display:flex; gap:8px; padding:8px; border-top:1px solid var(--line); min-height:0; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:8px 10px; min-width:0; }
+h3 { margin:0 0 8px; font-size:11px; letter-spacing:2px; color:var(--cyan); }
+#cockpit { flex:0 0 230px; display:flex; flex-direction:column; }
+#ecamP { flex:0 0 470px; padding:4px; } #ecam { width:100%; height:100%; display:block; }
+#tabsP { flex:1 1 auto; display:flex; flex-direction:column; padding:0; }
+nav { display:flex; border-bottom:1px solid var(--line); }
+nav button { border:0; border-right:1px solid var(--line); border-radius:0; background:transparent; color:var(--dim); padding:7px 11px; }
+nav button.on { background:#16202b; color:var(--cyan); }
+.tab { display:none; flex:1; overflow:auto; padding:8px 10px; min-height:0; }
+.tab.on { display:block; }
+.tab canvas { width:100%; height:100%; display:block; }
+.tab pre { margin:0; font:11px/1.45 var(--mono); color:var(--text); white-space:pre; }
+.row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.row label { flex:0 0 96px; color:var(--dim); font-size:10px; letter-spacing:1px; }
+.toggle { min-width:64px; } .toggle.big { padding:8px 14px; font-size:13px; }
+.tlaWrap { flex:1; display:flex; justify-content:center; gap:10px; min-height:0; padding:2px 0 6px; }
+#tla { writing-mode:vertical-lr; direction:rtl; width:34px; height:100%; accent-color:var(--cyan); }
+.detents { display:flex; flex-direction:column; justify-content:space-between; color:var(--dim); font-size:10px; padding:4px 0; }
+output { color:var(--green); font-weight:600; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:2px 22px; }
+.ctl { display:grid; grid-template-columns:118px 52px 1fr 104px; align-items:center; gap:8px; height:26px; }
+.ctl .name { color:var(--text); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ctl .val { color:var(--green); text-align:right; font-weight:600; white-space:nowrap; overflow:hidden; }
+select { min-width:0; flex:1; width:100%; }
+.ctl.man .val { color:var(--amber); }
+.ctl input[type=range] { width:100%; accent-color:var(--cyan); }
+.ctl.man input[type=range] { accent-color:var(--amber); }
+.ctl button { padding:3px 0; font-size:10px; }
+.note { color:var(--dim); font-size:10.5px; margin:6px 0 2px; grid-column:1/-1; }
+.presets { display:flex; gap:6px; margin:8px 0; flex-wrap:wrap; }

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+<title>V2500 Engine Simulator</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">V2500<span>ENGINE SIMULATOR</span></div>
+  <div class="hgroup">
+    <button id="btnPause" title="Space">❚❚ PAUSE</button>
+    <div class="seg" id="speed"><button data-v="0.25">¼×</button><button data-v="1" class="on">1×</button><button data-v="4">4×</button><button data-v="10">10×</button></div>
+    <button id="btnSound">🔇 SOUND OFF</button>
+    <button id="btnLabels" class="on">LABELS</button>
+  </div>
+  <div class="hgroup">
+    <button id="btnCold">RESET: COLD &amp; DARK</button>
+    <button id="btnIdle">RESET: RUNNING AT IDLE</button>
+  </div>
+  <div class="clock" id="clock">T+ 0:00</div>
+</header>
+<main>
+  <section id="view"><canvas id="cutaway"></canvas><div id="help">↑/↓ thrust lever · M master switch · Space pause · F11 fullscreen</div></section>
+  <section id="bottom">
+    <div class="panel" id="cockpit">
+      <h3>FLIGHT DECK</h3>
+      <div class="row"><label>ENG MASTER</label><button id="master" class="toggle big">OFF</button></div>
+      <div class="row"><label>MAN START</label><button id="manStart" class="toggle">OFF</button></div>
+      <div class="row"><label>RATING</label><select id="rating"></select></div>
+      <div class="tlaWrap">
+        <input type="range" id="tla" min="0" max="1" step="0.005" value="0" orient="vertical">
+        <div class="detents"><span>TOGA</span><span>FLX/MCT</span><span>CLB</span><span></span><span>IDLE</span></div>
+      </div>
+      <div class="row"><label>THRUST LEVER</label><output id="tlaOut">0 %</output></div>
+    </div>
+    <div class="panel" id="ecamP"><canvas id="ecam"></canvas></div>
+    <div class="panel" id="tabsP">
+      <nav id="tabs"><button data-t="ctl" class="on">ENGINEERING</button><button data-t="amb">AMBIENT</button><button data-t="hw">HARDWARE</button><button data-t="maps">MAPS</button><button data-t="trend">TRENDS</button><button data-t="data">DATA</button><button data-t="log">LOG</button></nav>
+      <div class="tab on" id="t-ctl"></div>
+      <div class="tab" id="t-amb"></div>
+      <div class="tab" id="t-hw"></div>
+      <div class="tab" id="t-maps"><canvas id="maps"></canvas></div>
+      <div class="tab" id="t-trend"><canvas id="trend"></canvas></div>
+      <div class="tab" id="t-data"><pre id="data"></pre></div>
+      <div class="tab" id="t-log"><pre id="log"></pre></div>
+    </div>
+  </section>
+</main>
+<script type="module" src="main.js"></script>
+</body>
+</html>
