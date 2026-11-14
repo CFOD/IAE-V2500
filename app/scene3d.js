@@ -182,7 +182,7 @@ export class Scene3D {
   _buildEngine() {
     const T = this.tex;
     const paint = { color: 0xe4e7ea, metalness: 0, roughness: 0.42, clearcoat: 1, clearcoatRoughness: 0.12 };
-    const polished = { color: 0xd8dde2, metalness: 1, roughness: 0.12 };
+    const polished = { color: 0xc9ced3, metalness: 1, roughness: 0.3 }; // matte, not mirror, per photos
     const titanium = { color: 0xa9b0b7, metalness: 1, roughness: 0.34 };
     const caseM = { color: 0x7d858c, metalness: 0.9, roughness: 0.46, roughnessMap: T.brushed };
     const hotM = { color: 0x8a7868, metalness: 0.95, roughness: 0.42, roughnessMap: T.brushed };
@@ -203,19 +203,37 @@ export class Scene3D {
     this._solid(lip, [[-0.66, 0.768], [-0.7, 0.772], [-0.745, 0.782], [-0.778, 0.805], [-0.79, 0.84], [-0.778, 0.885], [-0.74, 0.918], [-0.69, 0.93], [-0.69, 0.9], [-0.72, 0.89], [-0.75, 0.862], [-0.757, 0.84], [-0.748, 0.815], [-0.72, 0.798], [-0.66, 0.79]]);
     const fanCase = A({ id: 'fancase', name: 'Fan case and outlet guide vanes', ex: -0.55, mat: paint, desc: 'Contains the fan, and a released blade if one ever fails. The outlet guide vanes take the swirl out of the bypass air.', live: (o) => `Bypass ${o.Wbypass.toFixed(0)} kg/s · fan pressure ratio ${o.fan.PR.toFixed(2)} · ${C(o.T13)}` });
     this._solid(fanCase, band(offset(P.bypOuter, 0.014), P.nacelle, 0.0, 1.2, 14));
-    this._solid(fanCase, band(P.bypOuter, offset(P.bypOuter, 0.014), 0.0, 1.2, 10), { mat: linerM });
+    this._solid(fanCase, band(P.bypOuter, offset(P.bypOuter, 0.014), 0.36, 1.2, 10), { mat: linerM });
+    // light blue abradable fan track liner around the blade tips (reference photos)
+    this._solid(fanCase, band(P.bypOuter, offset(P.bypOuter, 0.014), 0.0, 0.36, 4), { mat: new THREE.MeshStandardMaterial({ color: 0x9cc9e6, metalness: 0, roughness: 0.8, side: THREE.DoubleSide }) });
     const cna = A({ id: 'cna', name: 'Thrust reverser cowls and common nozzle', ex: 0.2, mat: paint, desc: 'The long duct carries bypass air aft, where it mixes with the core exhaust and leaves through one common nozzle.', live: (o) => `Mixed jet ${o.V9.toFixed(0)} m/s (Mach ${o.M9.toFixed(2)}) · ${C(o.T7)} · ${o.W9.toFixed(0)} kg/s` });
-    this._solid(cna, band(offset(P.bypOuter, 0.012), P.nacelle, 1.2, 3.55, 24));
+    this._solid(cna, band(offset(P.bypOuter, 0.012), P.nacelle, 1.2, 2.86, 20));
+    // unpainted common nozzle at the rear, with a visible step from the painted cowl
+    this._solid(cna, band(offset(P.bypOuter, 0.012), offset(P.nacelle, -0.008), 2.86, 3.55, 10), { mat: new THREE.MeshPhysicalMaterial({ color: 0x8e9499, metalness: 1, roughness: 0.36, roughnessMap: T.brushed, side: THREE.DoubleSide }) });
+    // nacelle strake, high on the side
+    const stS = new THREE.Shape(); stS.moveTo(0, 0); stS.lineTo(0.62, 0); stS.lineTo(0.56, 0.1); stS.lineTo(0.2, 0.035); stS.lineTo(0, 0);
+    const strake = new THREE.Mesh(new THREE.ExtrudeGeometry(stS, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 2 }).translate(0.25, 1.03, -0.006), fanCase.mat);
+    strake.rotation.x = -0.42; this._reg(fanCase, strake);
     this._solid(cna, band(P.bypOuter, offset(P.bypOuter, 0.012), 1.2, 3.5, 20), { mat: new THREE.MeshPhysicalMaterial({ ...composite, side: THREE.DoubleSide }) });
 
     // ---------------- fan
-    const spinner = A({ id: 'spinner', name: 'Spinner', ex: -1.25, mat: { color: 0x1c1f23, metalness: 0.2, roughness: 0.35, clearcoat: 0.8 }, desc: 'Nose cone on the fan disc. The painted swirl makes a turning fan obvious to people on the ground.', live: (o) => `N1 ${o.N1.toFixed(0)} rpm` });
-    this._solid(spinner, [...sample(P.spinner, -0.45, 0.02, 16), [0.02, 0.0]], { parent: this.g1 });
-    const swirlPts = Array.from({ length: 40 }, (_, i) => { const f = i / 39, x = -0.4 + f * 0.36, r = rAt(P.spinner, x) + 0.003, th = f * 5.2; return new THREE.Vector3(x, r * Math.cos(th), r * Math.sin(th)); });
-    this._reg(spinner, new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(swirlPts), 80, 0.011, 6), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5 })), this.g1);
+    // Spinner per reference photos: a long straight cone in two pieces. Dark nose cone with a
+    // white tip and white crescent; light grey rear fairing with recessed bolt pockets.
+    const spinner = A({ id: 'spinner', name: 'Spinner', ex: -1.25, mat: { color: 0x2a2e33, metalness: 0.1, roughness: 0.45, clearcoat: 0.3, clearcoatRoughness: 0.5 }, desc: 'Two-piece nose cone on the fan disc. The white crescent makes a turning fan obvious to people on the ground.', live: (o) => `N1 ${o.N1.toFixed(0)} rpm` });
+    const sr = (x) => rAt(P.spinner, x);
+    const white = new THREE.MeshStandardMaterial({ color: 0xf1f1ee, roughness: 0.55, side: THREE.DoubleSide });
+    const fairing = new THREE.MeshPhysicalMaterial({ color: 0xa9aeb3, metalness: 0.35, roughness: 0.5, side: THREE.DoubleSide });
+    this._solid(spinner, [[-0.5, sr(-0.5)], [-0.19, sr(-0.19)], [-0.19, 0]], { parent: this.g1 });
+    this._solid(spinner, [[-0.56, 0.0008], [-0.5, sr(-0.5)], [-0.5, 0]], { parent: this.g1, mat: white, seg: 48 });
+    this._solid(spinner, [[-0.19, sr(-0.19) + 0.004], [0.02, sr(0.02) + 0.004], [0.02, 0.05], [-0.19, 0.05]], { parent: this.g1, mat: fairing });
+    this._solid(spinner, [[-0.196, sr(-0.196) + 0.001], [-0.186, sr(-0.186) + 0.006], [-0.186, sr(-0.186) - 0.004]], { parent: this.g1, mat: fairing, seg: 96 });
+    const crescent = (x0, x1, a0, len) => this._reg(spinner, new THREE.Mesh(lathe([[x0, sr(x0) + 0.0015], [x1, sr(x1) + 0.0015], [x1, sr(x1) - 0.002], [x0, sr(x0) - 0.002]], 48, a0, len), white), this.g1);
+    crescent(-0.375, -0.305, 0.2, 3.7); crescent(-0.368, -0.312, 0.05, 0.15); crescent(-0.368, -0.312, 3.9, 0.15); crescent(-0.36, -0.32, -0.06, 0.11); crescent(-0.36, -0.32, 4.05, 0.11);
+    const pocket = new THREE.SphereGeometry(0.02, 10, 8); pocket.scale(1.5, 0.45, 1);
+    this._ring(spinner, pocket, 11, (m, th) => { m.makeRotationX(th); m.multiply(new THREE.Matrix4().makeRotationZ(0.405)); m.setPosition(-0.08, (sr(-0.08) + 0.004) * Math.cos(th), (sr(-0.08) + 0.004) * Math.sin(th)); }, { parent: this.g1, mat: new THREE.MeshStandardMaterial({ color: 0x3a3e43, metalness: 0.6, roughness: 0.5 }) });
     const fan = A({ id: 'fan', name: 'Fan — 22 wide-chord blades', ex: -1.0, mat: titanium, desc: 'Hollow titanium wide-chord blades, 1.6 m across. Produces most of the thrust by moving a large mass of bypass air.', live: (o) => `N1 ${o.N1pct.toFixed(1)} % · absorbs ${(o.pwrFan / 1e6).toFixed(1)} MW · efficiency ${(o.fan.eff * 100).toFixed(0)} %` });
     this._row(fan, ROWS[0], 22, this.g1, { chordK: 1.0, rootK: 0.8, tipK: 1.32, stagger: [0.22, 1.02], camber: [0.14, 0.02], thick: [0.085, 0.022], sweep: 0.035, nSpan: 14, nProf: 12 });
-    this._solid(fan, [[0.02, 0.05], [0.02, 0.24], [0.3, 0.268], [0.3, 0.05]], { parent: this.g1 });
+    this._solid(fan, [[0.02, 0.05], [0.02, 0.247], [0.3, 0.27], [0.3, 0.05]], { parent: this.g1, mat: fairing }); // annulus fillers
     this._row(fanCase, ROWS[1], 60, this.engine, { stagger: [-0.3, -0.3], camber: [-0.1, -0.1], thick: [0.07, 0.07], chordK: 1.3, tipK: 1 }, { mat: new THREE.MeshPhysicalMaterial({ ...titanium, color: 0x8c949b }) });
 
     // ---------------- compressors and turbines
@@ -316,6 +334,9 @@ export class Scene3D {
     const ext = A({ id: 'ext', name: 'External pipework and harnesses', ex: 0.1, mat: pipeSteel, desc: 'Fuel, oil, bleed-air and cooling pipes and the electrical harnesses that dress the core. Visible with the core cowl removed.', live: (o) => `Turbine cooling ${o.Wcool.toFixed(1)} kg/s · handling bleed ${(o.Wb7 + o.Wb10).toFixed(1)} kg/s` });
     const run = (th, r0, mat, rad, x0 = 1.15, x1 = 2.9, wob = 6) => this._pipe(ext, Array.from({ length: 9 }, (_, i) => { const f = i / 8, x = lerp(x0, x1, f); return [x, co(x) + r0 + 0.012 * Math.sin(f * 9 + th), th + wob * Math.sin(f * 5 + th * 0.1)]; }), rad, mat);
     [[130, 0.075, pipeSteel, 0.011], [150, 0.07, pipeGold, 0.008], [172, 0.085, harness, 0.013, 0.5], [200, 0.07, pipeSteel, 0.016, 1.5, 2.7], [225, 0.075, harness, 0.009], [246, 0.08, pipeSteel, 0.01], [268, 0.07, pipeGold, 0.007, 1.3, 2.2], [292, 0.085, pipeSteel, 0.014, 1.6, 3.0], [316, 0.07, harness, 0.011, 0.5], [338, 0.075, pipeSteel, 0.009]].forEach((a) => run(...a));
+    // turbine case cooling manifolds (active clearance control): a cage of tube rings round the LPT
+    for (let k = 0; k < 7; k++) { const x = 2.5 + k * 0.075, rr = co(x) + 0.058; this._solid(ext, [[x - 0.008, rr], [x - 0.008, rr + 0.016], [x + 0.008, rr + 0.016], [x + 0.008, rr]], { seg: 72, mat: pipeSteel }); }
+    for (const th of [150, 240, 330]) this._pipe(ext, Array.from({ length: 6 }, (_, i) => { const x = 2.3 + i * 0.135; return [x, co(x) + 0.09, th]; }), 0.014, pipeSteel);
     for (const x of [1.45, 2.0, 2.55]) this._solid(ext, [[x - 0.005, co(x) + 0.095], [x - 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.095]], { seg: 96, mat: harness }); // clamps
     for (const p of this.parts) for (const ob of p.objs) ob.userData.home = ob.position.x;
   }

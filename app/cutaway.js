@@ -12,7 +12,7 @@ export const P = {
   bypInner: [[0.4, 0.47], [0.7, 0.54], [1.3, 0.56], [2.4, 0.54], [3.0, 0.52], [3.12, 0.46]],
   coreOuter: [[0.4, 0.47], [0.85, 0.44], [1.15, 0.3], [1.85, 0.25], [1.92, 0.33], [2.18, 0.33], [2.22, 0.3], [2.42, 0.33], [3.0, 0.48], [3.12, 0.44]],
   coreInner: [[0.3, 0.27], [0.45, 0.33], [0.85, 0.36], [1.15, 0.17], [1.85, 0.215], [1.92, 0.17], [2.18, 0.2], [2.22, 0.235], [2.42, 0.25], [3.0, 0.28], [3.12, 0.27], [3.75, 0]],
-  spinner: [[-0.45, 0], [-0.3, 0.09], [-0.12, 0.19], [0, 0.24], [0.3, 0.27]],
+  spinner: [[-0.56, 0], [0.02, 0.245], [0.3, 0.27]], // long straight cone, per reference photos
 };
 export function rAt(prof, x) {
   if (x <= prof[0][0]) return prof[0][1];
@@ -201,7 +201,7 @@ export class Cutaway {
       solid(band(P.coreOuter, P.bypInner, 0.4, 3.12, s), '#222d3a');
       solid(band(ZERO, P.coreInner, 0.3, 3.75, s), '#18202a');
       // spinner
-      solid(band(ZERO, P.spinner, -0.45, 0.3, s), '#2a3644');
+      solid(band(ZERO, P.spinner, -0.56, 0.3, s), '#2a3644');
     }
     // shafts: LP (through the middle) and HP (drum between HPC and HPT)
     ctx.fillStyle = '#3d6ea8'; ctx.fillRect(tx(0.1), ty(0.045), sc * 2.95, sc * 0.09);
