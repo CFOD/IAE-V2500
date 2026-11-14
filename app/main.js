@@ -17,12 +17,13 @@ try { view3d = new Scene3D($('stage3d')); } catch (e) { console.error('3D view u
 const peaks = { egt: 0, n1: 0, n2: 0 };
 const log = [];
 const active = { drawer: 'ctl', sd: 'maps' };
+const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 let paused = false, speed = 1, evIdx = 0, overTemp = 0, mode = view3d ? '3d' : '2d';
-eng.u.rh = 60; // relative humidity %, only used for the inlet condensation / vortex visuals
+eng.u.rh = 50; // relative humidity %, only used for the inlet condensation / vortex visuals
 window.sim = { eng, fadec, view3d }; // handy from the dev console (F12)
 
 const stamp = () => { const t = eng.s.t; return `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`; };
-function logMsg(m) { log.unshift(`${stamp().padStart(5)}  ${m}`); if (log.length > 200) log.pop(); }
+function logMsg(m) { log.unshift(`<b>${stamp()}</b>${esc(m)}`); if (log.length > 200) log.pop(); }
 
 // ------------------------------------------------------------ inlet weather physics
 /**
@@ -39,7 +40,8 @@ function inletWeather(o) {
   const es = 610.94 * Math.exp((17.625 * Tc) / (Tc + 243.04));
   const e = (eng.u.rh / 100) * es * Math.pow(k, -3.5) * (o.P2 / o.P0); // vapour pressure follows the static pressure drop
   const ln = Math.log(Math.max(e, 1) / 610.94), Td = (243.04 * ln) / (17.625 - ln) + 273.15;
-  const fog = Math.min(1, Math.max(0, (Td - Ts) / 4));
+  // droplets need a few degrees of supercooling below the dew point before they are visible
+  const fog = Math.min(1, Math.max(0, (Td - Ts - 4) / 5));
   // a ground vortex needs a stationary engine close to the ground and a strong sink
   const vortex = eng.u.mach < 0.06 ? Math.min(1, Math.max(0, (V - 70) / 80)) : 0;
   return { M, Ts, V, Td, fog, vortex };
@@ -49,7 +51,7 @@ function inletWeather(o) {
 const rows = [];
 function addRow(parent, d) {
   const el = document.createElement('div'); el.className = 'ctl';
-  el.innerHTML = `<span class="name" title="${d.tip || ''}">${d.name}</span>${d.ovr ? '<button>AUTO</button>' : '<span></span>'}<input type="range" min="${d.min}" max="${d.max}" step="${d.step}"><span class="val"></span>`;
+  el.innerHTML = `<span class="name" title="${d.tip || ''}">${d.name}</span>${d.ovr ? '<button>Auto</button>' : '<span></span>'}<input type="range" min="${d.min}" max="${d.max}" step="${d.step}"><span class="val"></span>`;
   parent.appendChild(el);
   const [, btn, inp, val] = el.children;
   const row = { d, el, inp, val, man: !d.ovr };
@@ -58,7 +60,7 @@ function addRow(parent, d) {
   if (d.ovr) {
     inp.disabled = true;
     btn.addEventListener('click', () => {
-      row.man = !row.man; btn.textContent = row.man ? 'MAN' : 'AUTO'; btn.classList.toggle('on', row.man);
+      row.man = !row.man; btn.textContent = row.man ? 'Manual' : 'Auto'; btn.classList.toggle('on', row.man);
       el.classList.toggle('man', row.man); inp.disabled = !row.man;
       d.set(row.man ? +inp.value : null);
       logMsg(`${d.name}: ${row.man ? 'MANUAL' : 'FADEC AUTO'}`);
@@ -85,14 +87,14 @@ const ctl = $('t-ctl');
   { name: 'Customer bleed', tip: 'Air taken for cabin / anti-ice, % of core flow', min: 0, max: 10, step: 0.1, def: 0, get: () => u.custBleed * 100, set: (v) => (u.custBleed = v / 100), fmt: (v) => `${v.toFixed(1)} % core` },
   { name: 'Power off-take', tip: 'Generator + hydraulic pump load on the HP spool', min: 0, max: 300, step: 5, def: 60, get: () => u.offtakeW / 1000, set: (v) => (u.offtakeW = v * 1000), fmt: (v) => `${v.toFixed(0)} kW` },
 ].forEach((d) => addRow(ctl, d));
-ctl.insertAdjacentHTML('beforeend', '<p class="note">AUTO: the FADEC has authority and the slider follows what it commands. Switch a channel to MAN to take it away from the computer and find out why the schedules exist.</p>');
+ctl.insertAdjacentHTML('beforeend', '<p class="note">On Auto the engine computer (FADEC) has authority and each slider follows what it commands. Switch a channel to Manual to take it away from the computer and find out why the schedules exist.</p>');
 
 const amb = $('t-amb'); amb.innerHTML = '<div class="presets"></div>';
 const ambRows = [
   { name: 'Altitude', min: 0, max: 12500, step: 50, def: 0, get: () => u.alt, set: (v) => (u.alt = v), fmt: (v) => `${(v * 3.28084).toFixed(0)} ft` },
   { name: 'ISA deviation', min: -40, max: 40, step: 1, def: 0, get: () => u.dTisa, set: (v) => (u.dTisa = v), fmt: (v) => `${v > 0 ? '+' : ''}${v.toFixed(0)} K · OAT ${(eng.out.amb.T0 - 273.15).toFixed(0)} °C` },
   { name: 'Mach number', min: 0, max: 0.85, step: 0.01, def: 0, get: () => u.mach, set: (v) => (u.mach = v), fmt: (v) => `M ${v.toFixed(2)}` },
-  { name: 'Relative humidity', tip: 'Drives condensation in the intake. Does not change engine performance in this model.', min: 0, max: 100, step: 1, def: 60, get: () => u.rh, set: (v) => (u.rh = v), fmt: (v) => `${v.toFixed(0)} %` },
+  { name: 'Relative humidity', tip: 'Drives condensation in the intake. Does not change engine performance in this model.', min: 0, max: 100, step: 1, def: 50, get: () => u.rh, set: (v) => (u.rh = v), fmt: (v) => `${v.toFixed(0)} %` },
 ].map((d) => { const r = addRow(amb, d); r.inp.addEventListener('input', () => (ambGoal = null)); return r; });
 let ambGoal = null; // presets slew over a few seconds so the engine is not teleported
 function slewAmbient(dt) {
@@ -101,7 +103,7 @@ function slewAmbient(dt) {
   ambRows.forEach((r, i) => { const cur = r.d.get(), span = r.d.max - r.d.min, d = ambGoal[i] - cur, stepMax = span * dt * 0.12; const nv = Math.abs(d) <= stepMax ? ambGoal[i] : cur + Math.sign(d) * stepMax; if (nv !== ambGoal[i]) done = false; r.d.set(nv); r.inp.value = nv; });
   if (done) ambGoal = null;
 }
-const presets = { 'SEA LEVEL ISA': [0, 0, 0, 60], 'HUMID MORNING': [0, -5, 0, 97], 'HOT DAY +30': [0, 30, 0, 30], 'HOT & HIGH': [2438, 25, 0, 30], 'CLIMB FL200': [6096, 0, 0.6, 40], 'CRUISE FL350': [10668, 0, 0.78, 20] };
+const presets = { 'Sea level, standard day': [0, 0, 0, 50], 'Humid morning': [0, -5, 0, 98], 'Hot day': [0, 30, 0, 30], 'Hot and high': [2438, 25, 0, 30], 'Climb FL200': [6096, 0, 0.6, 40], 'Cruise FL350': [10668, 0, 0.78, 20] };
 for (const [name, v] of Object.entries(presets)) {
   const b = document.createElement('button'); b.textContent = name;
   b.onclick = () => { ambGoal = v; logMsg(`Ambient: ${name}`); };
@@ -109,7 +111,7 @@ for (const [name, v] of Object.entries(presets)) {
 }
 amb.insertAdjacentHTML('beforeend', '<p class="note">This is an altitude test cell, not a flight model: presets slew over a few seconds, sliders act instantly. Fog forms in the intake when the air accelerating into the fan cools below its dew point; a ground vortex forms when the engine is stationary and pulling hard.</p>');
 
-const hw = $('t-hw'); hw.innerHTML = '<div class="presets"><button id="hwReset">RESTORE NEW-ENGINE CONDITION</button></div>';
+const hw = $('t-hw'); hw.innerHTML = '<div class="presets"><button id="hwReset">Restore new-engine condition</button></div>';
 const pct = (v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} %`;
 const effRow = (name, key) => ({ name, tip: 'Isentropic efficiency change (wear, fouling, damage)', min: -15, max: 3, step: 0.1, def: 0, get: () => m[key] * 100, set: (v) => (m[key] = v / 100), fmt: (v) => `${pct(v)} pts` });
 const mulRow = (name, key, lo, hi, tip) => ({ name, tip, min: lo, max: hi, step: 0.5, def: 0, get: () => (m[key] - 1) * 100, set: (v) => (m[key] = 1 + v / 100), fmt: pct });
@@ -124,18 +126,20 @@ $('hwReset').onclick = () => { resetRows(hw); Object.assign(m, defaultMods()); l
 
 // ------------------------------------------------------------ pedestal
 const sel = $('rating');
-for (const k of Object.keys(RATINGS)) sel.add(new Option(`${k}  ${(RATINGS[k].toLbf / 1000).toFixed(1)}k`, k));
+for (const k of Object.keys(RATINGS)) sel.add(new Option(`${k} · ${(RATINGS[k].toLbf / 1000).toFixed(1)}k lbf`, k));
 sel.value = fadec.rating; sel.onchange = () => { fadec.rating = sel.value; logMsg(`Rating ${sel.value}`); };
 const setMaster = (v) => { fadec.master = v; if (v && fadec.phase === 'abort') fadec.phase = 'off'; $('master').setAttribute('aria-pressed', v); logMsg(`ENG MASTER ${v ? 'ON' : 'OFF'}`); };
 $('master').onclick = () => setMaster(!fadec.master);
-$('manStart').onclick = () => { fadec.manStart = !fadec.manStart; $('manStart').classList.toggle('on', fadec.manStart); };
+$('manStart').onclick = () => { fadec.manStart = !fadec.manStart; $('manStart').setAttribute('aria-pressed', fadec.manStart); };
 const tla = $('tla');
-const detent = (t) => (t >= 0.995 ? 'TO GA' : Math.abs(t - 0.85) < 0.012 ? 'FLX MCT' : Math.abs(t - 0.7) < 0.012 ? 'CL' : t < 0.005 ? 'IDLE' : `${(t * 100).toFixed(0)} %`);
+const detent = (t) => (t >= 0.995 ? 'TOGA' : Math.abs(t - 0.85) < 0.012 ? 'Max continuous' : Math.abs(t - 0.7) < 0.012 ? 'Climb' : t < 0.005 ? 'Idle' : `${(t * 100).toFixed(0)} %`);
 const setTla = (v) => { fadec.tla = Math.min(1, Math.max(0, v)); tla.value = fadec.tla; $('tlaOut').textContent = detent(fadec.tla); };
 tla.oninput = () => { let v = +tla.value; for (const d of [0.7, 0.85]) if (Math.abs(v - d) < 0.02) v = d; setTla(v); };
 
 // ------------------------------------------------------------ top bar
-$('btnPause').onclick = () => { paused = !paused; $('btnPause').classList.toggle('on', paused); };
+$('btnPause').onclick = () => { paused = !paused; $('btnPause').classList.toggle('on', paused); $('btnPause').textContent = paused ? 'Resume' : 'Pause'; };
+const QUAL = ['high', 'medium', 'low']; let qi = 0;
+$('btnQ').onclick = () => { qi = (qi + 1) % 3; view3d && view3d.setQuality(QUAL[qi]); $('btnQ').textContent = `Quality: ${QUAL[qi][0].toUpperCase()}${QUAL[qi].slice(1)}`; };
 for (const b of $('speed').children) b.onclick = () => { speed = +b.dataset.v; for (const c of $('speed').children) c.classList.toggle('on', c === b); };
 $('btnSound').onclick = () => { if (audio.on) audio.stop(); else audio.start(); $('btnSound').classList.toggle('on', audio.on); };
 function setMode(v) {
@@ -150,7 +154,7 @@ $('btnCut').onclick = () => { const on = !$('btnCut').classList.contains('on'); 
 $('btnFlow').onclick = () => { const on = !$('btnFlow').classList.contains('on'); $('btnFlow').classList.toggle('on', on); if (view3d) view3d.showFlow = on; };
 $('explode').oninput = () => view3d && view3d.setExplode(+$('explode').value);
 for (const b of $('cams').children) b.onclick = () => view3d && view3d.view(b.dataset.v);
-const frame3d = () => { if (!view3d) return; view3d.offsetX = ($('drawer').classList.contains('shut') ? 0 : 200) - 160; view3d.resize(); };
+const frame3d = () => { if (!view3d) return; const shut = $('drawer').classList.contains('shut'); document.body.classList.toggle('nodrawer', shut); view3d.offsetX = shut ? 0 : 210; view3d.offsetY = 56; view3d.resize(); };
 $('btnDrawer').onclick = () => { const shut = $('drawer').classList.toggle('shut'); $('btnDrawer').classList.toggle('on', !shut); frame3d(); };
 function reset(running) {
   eng.initCold(); eng.events.length = 0; evIdx = 0; fadec._evIdx = 0; fadec.phase = 'off'; fadec.wf = 0; eng.s.fuelUsed = 0;
@@ -163,6 +167,7 @@ $('btnIdle').onclick = () => reset(true);
 for (const nav of document.querySelectorAll('nav.tabs')) for (const b of nav.children) b.onclick = () => {
   active[nav.dataset.group] = b.dataset.t;
   for (const c of nav.children) { c.classList.toggle('on', c === b); $('t-' + c.dataset.t).classList.toggle('on', c === b); }
+  hist = 0;
 };
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'SELECT') return;
@@ -175,11 +180,12 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('resize', () => { view2d.resize(); frame3d(); });
 
 // ------------------------------------------------------------ component inspector
-let selPart = null;
+let selPart = null, hist = 0;
+const HINT = 'Drag to orbit, scroll to zoom, right-drag to pan. Click any part of the engine to inspect it.';
 function showPart(p) {
   selPart = p;
   $('pcName').textContent = p ? p.name : 'Nothing selected';
-  $('pcDesc').textContent = p ? p.desc : 'Drag to orbit, scroll to zoom, right-drag to pan. Click any part of the engine to inspect it.';
+  $('pcDesc').textContent = p ? p.desc : HINT;
   $('pcRemove').hidden = !p;
   if (!p) $('pcLive').textContent = '';
 }
@@ -189,7 +195,7 @@ function refreshRemoved() {
   $('removed').replaceChildren(...gone.map((p) => { const b = document.createElement('button'); b.textContent = p.name; b.onclick = () => { view3d.setRemoved(p.id, false); refreshRemoved(); }; return b; }));
 }
 if (view3d) {
-  view3d.onSelect = showPart;
+  view3d.onSelect = showPart; showPart(null);
   view3d.onHover = (p, e) => { const tip = $('tip'); tip.hidden = !p; if (p) { tip.textContent = p.name; const r = $('stage').getBoundingClientRect(); tip.style.left = `${e.clientX - r.left}px`; tip.style.top = `${e.clientY - r.top}px`; } };
   $('pcRemove').onclick = () => { if (!selPart) return; view3d.setRemoved(selPart.id, true); logMsg(`Removed for inspection: ${selPart.name}`); showPart(null); refreshRemoved(); };
   $('restoreAll').onclick = () => { view3d.restoreAll(); refreshRemoved(); };
@@ -218,26 +224,41 @@ function handleEvents(dt) {
 }
 
 // ------------------------------------------------------------ stations page
-function dataText(o, w) {
-  const C = (T) => `${(T - 273.15).toFixed(0).padStart(5)} °C`, B = (p) => `${(p / 1e5).toFixed(3).padStart(7)} bar`, K = (x) => `${x.toFixed(1).padStart(6)} kg/s`;
-  const MW = (p) => `${(p / 1e6).toFixed(2).padStart(6)} MW`;
-  return [
-    `STATION            Tt          Pt         W        | CYCLE`,
-    `0  ambient      ${C(o.amb.T0)}  ${B(o.P0)}                | bypass ratio ${o.bpr.toFixed(2)}   overall PR ${o.opr.toFixed(1)}`,
-    `2  fan face     ${C(o.T2)}  ${B(o.P2)}  ${K(o.W2)}  | fan PR ${o.fan.PR.toFixed(3)}  LPC ${o.lpc.PR.toFixed(3)}  HPC ${o.hpc.PR.toFixed(2)}`,
-    `13 bypass duct  ${C(o.T13)}  ${B(o.P13)}  ${K(o.Wbypass)}  | fuel/air ${o.far.toFixed(4)}  phi ${o.phi.toFixed(2)}  lean limit ${o.leanLimit.toFixed(4)}`,
-    `25 LPC exit     ${C(o.T25)}  ${B(o.P25)}  ${K(o.Wlpc)}  | combustion eff ${(o.etab * 100).toFixed(1)} %  unburnt ${(o.wfUnburnt * 3600).toFixed(0)} kg/h`,
-    `3  HPC exit     ${C(o.T3)}  ${B(o.P3)}  ${K(o.Wcore)}  | HPT PR ${o.hptPR.toFixed(2)} eff ${(o.hpt.eff * 100).toFixed(0)}%  LPT PR ${o.lptPR.toFixed(2)} eff ${(o.lpt.eff * 100).toFixed(0)}%`,
-    `4  comb. exit   ${C(o.T4)}  ${B(o.P4)}  ${K(o.W4)}  | power  fan ${MW(o.pwrFan)}  LPC ${MW(o.pwrLpc)}`,
-    `45 HPT exit     ${C(o.T45)}  ${B(o.P45)}  ${K(o.W45)}  |        HPC ${MW(o.pwrHpc)}  HPT ${MW(o.pwrHpt)}`,
-    `49 LPT exit     ${C(o.T5)}  ${B(o.P5)}  ${K(o.W8)}  |        LPT ${MW(o.pwrLpt)}`,
-    `7  mixed        ${C(o.T7)}  ${B(o.Pt7)}  ${K(o.W9)}  | mixing plane ${(o.Pm / 1e5).toFixed(3)} bar  core M ${o.M8.toFixed(2)}  bypass M ${o.M18.toFixed(2)}`,
-    ``,
-    `jet ${o.V9.toFixed(0)} m/s (M ${o.M9.toFixed(2)})   turbine metal ${C(o.Tm).trim()}   N1 ${o.N1.toFixed(0)} rpm   N2 ${o.N2.toFixed(0)} rpm`,
-    `bleeds kg/s   2.5: ${o.Wb25.toFixed(2)}   stg7: ${o.Wb7.toFixed(2)}   stg10: ${o.Wb10.toFixed(2)}   customer: ${o.Wcust.toFixed(2)}   cooling: ${o.Wcool.toFixed(2)}`,
-    `inlet  Mach ${w.M.toFixed(2)}  ${w.V.toFixed(0)} m/s   static ${(w.Ts - 273.15).toFixed(1)} °C   dew point ${(w.Td - 273.15).toFixed(1)} °C   fog ${(w.fog * 100).toFixed(0)} %   ground vortex ${(w.vortex * 100).toFixed(0)} %`,
-  ].join('\n');
+function dataHtml(o, w) {
+  const C = (T) => (T - 273.15).toFixed(0), B = (p) => (p / 1e5).toFixed(2), K = (x) => x.toFixed(1), MW = (p) => `${(p / 1e6).toFixed(2)} MW`;
+  const st = [['Ambient', o.amb.T0, o.P0, null], ['2 · Fan face', o.T2, o.P2, o.W2], ['13 · Bypass duct', o.T13, o.P13, o.Wbypass], ['2.5 · LPC exit', o.T25, o.P25, o.Wlpc], ['3 · HPC exit', o.T3, o.P3, o.Wcore], ['4 · Combustor exit', o.T4, o.P4, o.W4], ['4.5 · HPT exit', o.T45, o.P45, o.W45], ['4.9 · LPT exit', o.T5, o.P5, o.W8], ['7 · Mixed exhaust', o.T7, o.Pt7, o.W9]];
+  const kv = [
+    ['Bypass ratio', o.bpr.toFixed(2)], ['Overall pressure ratio', o.opr.toFixed(1)],
+    ['Fan / LPC / HPC pressure ratio', `${o.fan.PR.toFixed(2)} / ${o.lpc.PR.toFixed(2)} / ${o.hpc.PR.toFixed(1)}`],
+    ['Fuel/air ratio (lean limit)', `${o.far.toFixed(4)} (${o.leanLimit.toFixed(4)})`], ['Equivalence ratio', o.phi.toFixed(2)],
+    ['Combustion efficiency', `${(o.etab * 100).toFixed(1)} %`], ['Unburnt fuel', `${(o.wfUnburnt * 3600).toFixed(0)} kg/h`],
+    ['HPT / LPT expansion ratio', `${o.hptPR.toFixed(2)} / ${o.lptPR.toFixed(2)}`],
+    ['Power: fan, LPC, HPC', `${MW(o.pwrFan)}, ${MW(o.pwrLpc)}, ${MW(o.pwrHpc)}`], ['Power: HPT, LPT', `${MW(o.pwrHpt)}, ${MW(o.pwrLpt)}`],
+    ['Jet velocity', `${o.V9.toFixed(0)} m/s · Mach ${o.M9.toFixed(2)}`], ['Mixing plane static pressure', `${B(o.Pm)} bar`],
+    ['Turbine metal', `${C(o.Tm)} °C`], ['N1 / N2', `${o.N1.toFixed(0)} / ${o.N2.toFixed(0)} rpm`],
+    ['Bleeds 2.5 / stg 7 / stg 10', `${o.Wb25.toFixed(1)} / ${o.Wb7.toFixed(1)} / ${o.Wb10.toFixed(1)} kg/s`], ['Turbine cooling air', `${o.Wcool.toFixed(1)} kg/s`],
+    ['Intake Mach / velocity', `${w.M.toFixed(2)} / ${w.V.toFixed(0)} m/s`], ['Intake static temp / dew point', `${(w.Ts - 273.15).toFixed(1)} / ${(w.Td - 273.15).toFixed(1)} °C`],
+    ['Intake fog / ground vortex', `${(w.fog * 100).toFixed(0)} % / ${(w.vortex * 100).toFixed(0)} %`],
+  ];
+  return `<table class="st"><tr><th>Station</th><th>°C</th><th>bar</th><th>kg/s</th></tr>${st.map(([n, T, P, W]) => `<tr><td>${n}</td><td>${C(T)}</td><td>${B(P)}</td><td>${W == null ? '' : K(W)}</td></tr>`).join('')}</table><div class="kv">${kv.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')}</div>`;
 }
+
+// ------------------------------------------------------------ status line
+function statusHtml(o) {
+  const chips = [], egt = o.egt - 273.15, add = (t, c = '') => chips.push(`<span class="${c}">${esc(t)}</span>`);
+  if (o.hpc.stalled || o.lpc.stalled || o.fan.stalled) add('Compressor stall', 'bad');
+  if (egt > RATINGS[fadec.rating].egtTO) add('EGT over limit', 'bad');
+  if (o.N1pct > 100 || o.N2pct > 100) add('Overspeed', 'bad');
+  if (fadec.msg) add(fadec.msg[0] + fadec.msg.slice(1).toLowerCase(), /ABORT|STALL|FLAME|HUNG/.test(fadec.msg) ? 'warn' : 'ok');
+  add(o.lit ? 'Flame on' : 'No flame', o.lit ? 'ok' : '');
+  if (o.ignOn) add('Igniters sparking', 'ok');
+  if (o.tStart > 0) add('Starter engaged', 'ok');
+  if (fadec.master && fadec.limiter) add(`Governing on ${fadec.limiter}`);
+  if (Object.values(fadec.ovr).some((v) => v != null)) add('Manual override active', 'warn');
+  if (peaks.egt > 1) add(`Peak EGT ${peaks.egt.toFixed(0)} °C`);
+  return chips.join('');
+}
+const stateText = (o) => (!fadec.master ? (o.N2pct > 1 ? 'Spooling down' : 'Cold') : fadec.phase === 'run' ? (fadec.tla < 0.01 ? 'Running · idle' : 'Running') : fadec.phase === 'abort' ? 'Start aborted' : 'Starting');
 
 // ------------------------------------------------------------ main loop
 const DT = 1 / 120;
@@ -256,15 +277,20 @@ function tick(now) {
   drawEcam($('ecam'), o, fadec, peaks, RATINGS[fadec.rating].egtTO);
   if (frame++ % 3 === 0) {
     refreshRows();
-    $('clock').textContent = `T+ ${stamp()}`;
+    $('clock').textContent = stamp();
     if (selPart) $('pcLive').textContent = selPart.live(o);
-    if (active.sd === 'maps') drawMaps($('maps'), eng);
-    else if (active.sd === 'trend') drawTrends($('trend'));
-    else if (active.sd === 'data') $('data').textContent = dataText(o, w);
-    else if (active.sd === 'log') $('log').textContent = log.join('\n');
+    $('status').innerHTML = statusHtml(o); $('state').textContent = stateText(o);
+    if (active.drawer === 'mon') {
+      if (active.sd === 'maps') drawMaps($('maps'), eng);
+      else if (active.sd === 'trend') drawTrends($('trend'));
+      else if (active.sd === 'data' && hist++ % 3 === 0) $('data').innerHTML = dataHtml(o, w);
+      else if (active.sd === 'log') $('log').innerHTML = log.join('<br>');
+    }
   }
   requestAnimationFrame(tick);
 }
+// An authored model can replace generated components: see docs/MODEL.md
+if (view3d) fetch('assets/model.json').then((r) => (r.ok ? r.json() : null)).then((mf) => mf && view3d.loadExternalModel('assets/', mf)).then((taken) => { if (taken) { logMsg(`External model loaded: ${taken.join(', ') || 'no components matched'}`); window.sim.externalParts = taken; } }).catch(() => {});
 setMode(mode);
 logMsg('Cold and dark. Set ENG MASTER to ON for an automatic start.');
 requestAnimationFrame(tick);
