@@ -6,16 +6,64 @@ what the fuel schedules, variable stators and bleed valves are actually protecti
 
 Desktop app (Electron) for Windows / macOS / Linux, intended for Steam.
 
-## Run
+## How to run it
+
+You need a Windows, Mac or Linux computer with a reasonably modern graphics card. No programming
+knowledge needed.
+
+### Windows
+
+1. **Install Node.js** (the free program that runs the game). Go to <https://nodejs.org>, download
+   the version marked **LTS**, run the installer and click Next until it finishes. You only do this once.
+2. **Download the game.** On this GitHub page click the green **Code** button, then **Download ZIP**.
+3. **Unzip it.** Right-click the downloaded ZIP, choose **Extract All**, and pick somewhere easy to
+   find, such as your Desktop.
+4. **Open the extracted folder and double-click `Start V2500.bat`.**
+   - The first time, a black window appears and downloads what the game needs. This takes a few
+     minutes and about 500 MB of disk space. Leave it alone until the game window opens.
+   - If Windows shows "Windows protected your PC", click **More info**, then **Run anyway**. It shows
+     this for any file it has not seen before.
+5. From then on, just double-click `Start V2500.bat` whenever you want to play.
+
+To get a newer version later: download the ZIP again, extract it over the old folder (or to a new
+one) and run `Start V2500.bat` again.
+
+### Mac or Linux
+
+1. Install Node.js LTS from <https://nodejs.org>.
+2. Download and unzip the game as above (green **Code** button, **Download ZIP**).
+3. Open a terminal in the unzipped folder and run `./start.sh`.
+
+### If it does not start
+
+| What you see | What to do |
+|---|---|
+| "Node.js is not installed" | Do step 1, then close and reopen the folder and try again. |
+| Setup fails part-way | Check your internet connection and run the start file again. It picks up where it stopped. |
+| The window opens but the engine view is black or very slow | Click **Quality** in the top bar until it says Medium or Low. Update your graphics driver if it stays black. |
+| Anything else | Press **F12** in the game window, click the **Console** tab, and copy the red text into a GitHub issue or back to whoever is helping you. |
+
+Useful keys: **F11** full screen, **Space** pause, **M** master switch, **C** cutaway, up/down arrows
+move the thrust lever.
+
+### First five minutes
+
+1. Flip **Master** on (bottom left). Watch the engine start itself: starter, ignition, light-off, idle.
+2. Drag the **Thrust lever** to TOGA and watch the gauges, the flame and the exhaust.
+3. Drag on the engine to orbit it. Click a part to read about it. Try **Remove part** on the fan cowl doors.
+4. Open **Panel > Control**, switch **Fuel flow** to Manual and push it up quickly. That is a compressor surge.
+5. **Reset at idle** (top right) puts everything back.
+
+### For developers
 
 ```
-npm install
-npm start          # launches the desktop app
+npm install        # once
+npm start          # launch the desktop app
 npm test           # physics regression tests
+npm run serve      # same UI in a browser at http://localhost:5173, without Electron
+npm run model      # rebuild the authored 3D model (needs Python and `pip install bpy`)
 npm run dist       # build an unpacked distributable in dist/ (electron-builder)
 ```
-
-`npm run serve` serves the same UI on http://localhost:5173 for quick development without Electron.
 
 ## Playing
 
