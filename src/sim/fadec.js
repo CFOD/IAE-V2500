@@ -8,7 +8,7 @@
 // Every output channel can be overridden by the player ("manual"), which is
 // how you get to do everything the real control laws exist to prevent.
 
-import { LIMITS, RATINGS, LBF } from './v2500.js';
+import { LIMITS, RATINGS, LBF, MCT_FLAT_ISA } from './v2500.js';
 import { isa } from './gas.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
@@ -65,7 +65,7 @@ export class Fadec {
     const over = Math.max(0, out.amb.T0 - (isaT + r.flatISA));
     const lapse = 1 - 0.0075 * over;
     const to = 1 + (eprForThrust((r.toLbf * LBF) / 1000) - 1) * lapse;
-    const overM = Math.max(0, out.amb.T0 - (isaT + 10));
+    const overM = Math.max(0, out.amb.T0 - (isaT + MCT_FLAT_ISA));
     const mct = Math.min(to, 1 + (eprForThrust((r.mctLbf * LBF) / 1000) - 1) * (1 - 0.0075 * overM));
     return { to, mct, clb: 1 + (mct - 1) * 0.93 };
   }

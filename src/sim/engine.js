@@ -353,7 +353,8 @@ export class Engine {
     const w2 = Math.max(s.N2, 30) * RPM2RAD;
     const accPower = u.offtakeW * Math.min(1, s.N2 / (0.5 * LIMITS.N2_100));
     let tStart = 0;
-    if (u.starterValve) tStart = 440 * (u.starterPsi / 40) * Math.max(0, 1 - s.N2 / (0.72 * LIMITS.N2_100));
+    if (u.starterValve) // stall torque from the data sheet: 637 N.m at the starter pad (0.941 x N2), reached at full duct pressure (~50 psi)
+      tStart = LIMITS.STARTER_TORQUE_MAX * LIMITS.STARTER_GEAR * (u.starterPsi / 50) * Math.max(0, 1 - s.N2 / (0.72 * LIMITS.N2_100));
     const tq2 = o.hpt.torque - hpcTorque - (s.N2 > 1 ? fric2(s.N2) : 0) - accPower / w2 + tStart;
     const tq1 = o.lpt.torque - o.fan.torque - o.lpc.torque - (s.N1 > 1 ? fric1(s.N1) : 0);
 

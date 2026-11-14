@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { cp, tIsentropic, isa } from '../src/sim/gas.js';
 import { Engine } from '../src/sim/engine.js';
 import { Fadec, ratedThrustN } from '../src/sim/fadec.js';
-import { DESIGN, ICAO_V2527 } from '../src/sim/v2500.js';
+import { DESIGN, ICAO_V2527, ICAO } from '../src/sim/v2500.js';
 
 function rig() { const e = new Engine(); const f = new Fadec(e); return { e, f }; }
 function run(e, f, T, each) { const dt = 1 / 60; for (let t = 0; t < T; t += dt) { f.update(dt); e.step(dt); if (each) each(e.out, t); } }
@@ -64,6 +64,17 @@ test('V2527-A5 matches the ICAO databank fuel flows and cycle', () => {
   within('overall pressure ratio', to.opr, ICAO_V2527.opr, 0.03);
   within('bypass ratio', to.bpr, ICAO_V2527.bpr, 0.03);
   within('idle (7 %) fuel flow', at(0.07).wf, ICAO_V2527.idle, 0.08);
+  assert.equal(surges(e), 0);
+});
+
+test('every A5 rating matches its ICAO databank entry at take-off', () => {
+  const { e, f } = idling(); f.rating = 'V2533-A5'; f.tla = 0.5; run(e, f, 20);
+  let wf = e.out.wf;
+  for (const [name, ref] of Object.entries(ICAO)) {
+    for (let k = 0; k < 50; k++) { wf *= 1 + 0.5 * (ref.ratedN - e.out.thrust) / Math.max(ref.ratedN, e.out.thrust); f.ovr.fuel = wf; run(e, f, 3); }
+    const o = e.out, chk = (what, got, want, tol) => assert.ok(Math.abs(got - want) / want < tol, `${name} ${what}: model ${got.toFixed(3)} vs ICAO ${want}`);
+    chk('fuel flow', o.wf, ref.takeoff, 0.04); chk('pressure ratio', o.opr, ref.opr, 0.03); chk('bypass ratio', o.bpr, ref.bpr, 0.03);
+  }
   assert.equal(surges(e), 0);
 });
 

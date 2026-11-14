@@ -85,7 +85,7 @@ const ctl = $('t-ctl');
   { name: 'HPC stage 7 bleeds', tip: 'Three handling bleed valves', ovr: 1, min: 0, max: 3, step: 1, get: () => fadec.auto.bleed7, set: (v) => (ov.bleed7 = v), fmt: (v) => `${v} / 3 open` },
   { name: 'HPC stage 10 bleed', tip: 'Start / handling bleed valve', ovr: 1, min: 0, max: 1, step: 1, get: () => fadec.auto.bleed10, set: (v) => (ov.bleed10 = v), fmt: (v) => (v >= 0.5 ? 'OPEN' : 'CLOSED') },
   { name: 'Customer bleed', tip: 'Air taken for cabin / anti-ice, % of core flow', min: 0, max: 10, step: 0.1, def: 0, get: () => u.custBleed * 100, set: (v) => (u.custBleed = v / 100), fmt: (v) => `${v.toFixed(1)} % core` },
-  { name: 'Power off-take', tip: 'Generator + hydraulic pump load on the HP spool', min: 0, max: 300, step: 5, def: 60, get: () => u.offtakeW / 1000, set: (v) => (u.offtakeW = v * 1000), fmt: (v) => `${v.toFixed(0)} kW` },
+  { name: 'Power off-take', tip: 'Generator + hydraulic pump load on the HP spool. Certified limit 131 kW continuous, 168 kW for 5 minutes.', min: 0, max: 170, step: 5, def: 60, get: () => u.offtakeW / 1000, set: (v) => (u.offtakeW = v * 1000), fmt: (v) => `${v.toFixed(0)} kW` },
 ].forEach((d) => addRow(ctl, d));
 ctl.insertAdjacentHTML('beforeend', '<p class="note">On Auto the engine computer (FADEC) has authority and each slider follows what it commands. Switch a channel to Manual to take it away from the computer and find out why the schedules exist.</p>');
 

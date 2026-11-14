@@ -53,34 +53,40 @@ as on the real engine.
 
 ## Data and where it comes from
 
-Checked in November 2026 by searching the sources below. The primary PDFs could not be downloaded
-from the build environment, so "verified" means the figure was quoted from the named source in a
-search result, not that the document was read end to end. `src/sim/v2500.js` marks each value
-[V] verified or [M] from memory / secondary source.
+Read from the primary documents in November 2026 (`src/sim/v2500.js` tags each value):
 
-| Data | Value | Source | Status |
-|---|---|---|---|
-| 100 % N1 / N2 | 5650 / 14950 rpm | IAE V2500-A1/A5 Engine Operating Instructions | verified |
-| Take-off thrust V2527-A5 | 11,031 daN = 24,800 lbf | EASA TCDS IM.E.069 | verified |
-| Take-off thrust V2533-A5 | 140.56 kN = 31,600 lbf | EASA TCDS / IAE | verified |
-| Take-off thrust V2522 / V2524 | 23,040 / 24,480 lbf | JCAB data sheet, IAE specification | verified, sources not fully consistent |
-| Take-off thrust V2530-A5 | 29,900 lbf | | from memory |
-| Max continuous V2524 / V2527 / V2533 | 19,200 / 22,240 / 26,950 lbf | IAE model specification | verified |
-| Flat rating V2524 / V2527 / V2533 | ISA+40 / +31 / +15 °C | IAE model specification | verified |
-| EGT limits (indicated) | take-off 635 °C (650 °C on V2530/33), max continuous 610 °C, start 635 °C | IAE operating instructions | verified |
-| EGT / EPR sensing | 4 thermocouples and P4.9 rakes in the turbine exhaust case; EPR = P4.9/P2 | V2500 training notes | verified |
-| Handling bleeds | three stage-7 and one stage-10 valves, open for starting | V2500 training notes | verified |
-| Starter cut-out, minimum N2 for fuel | 43 %, 16 % | operating instructions | verified |
-| Ground idle | about N1 21.7 %, N2 60 %, EGT 400 °C, 300-378 kg/h | operating instructions, test-rig paper | verified |
-| ICAO fuel flow, V2527-A5 climb-out | 0.880 kg/s | ICAO emissions databank | verified |
-| ICAO take-off / approach / idle fuel flow, OPR 27.2, BPR 4.82 | 1.053 / 0.319 / 0.128 kg/s | ICAO emissions databank | from memory |
-| V2533-A5 OPR 33.44, BPR 4.46, airflow 848 lb/s | | ICAO / manufacturer | from memory |
+- **[T]** EASA Type-Certificate Data Sheet IM.E.069, issue 05, 20 December 2022
+- **[I]** ICAO Aircraft Engine Emissions Databank v32B, hosted by EASA
+- **[O]** IAE operating instructions and training notes, seen only as search-result excerpts
 
-The well-known 26,600 lbf (V2527) and 33,000 lbf (V2533) figures are bump / marketing ratings, not the
-certified take-off ratings, and are not used.
+| Data | Value | Source |
+|---|---|---|
+| 100 % and maximum N1 / N2 | 5650 / 14950 rpm | T |
+| Take-off thrust V2522 / 24 / 27 / 30 / 33 | 10248 / 10889 / 11031 / 13300 / 14056 daN | T |
+| Maximum continuous thrust | 8540 / 8540 / 9892 / 11987 / 11987 daN | T |
+| Take-off flat rating | ISA+40 (V2522/24), ISA+31 (V2527), ISA+15 (V2530/33); max continuous ISA+10 | T |
+| EGT limits, actual / indicated | take-off 625/635, 635/635, 645/635, 650/650, 670/650 °C; max continuous 610; start 635 | T |
+| Starter | 637 N·m maximum at zero speed, pad turns at 0.941 × N2 | T |
+| Generator off-take | 131 kW continuous | T |
+| Dry weight | 2404 kg | T |
+| Fuel flow at 100 / 85 / 30 / 7 % thrust, pressure ratio, bypass ratio, all five ratings | see `ICAO` table in `v2500.js` | I |
+| Starter cut-out, minimum N2 for fuel | 43 %, 16 % | O |
+| Ground idle | about N1 21.7 %, N2 60 %, EGT 400 °C, 300-378 kg/h | O |
+| Handling bleeds | three stage-7 and one stage-10 valves, open for starting | O |
+| Inlet airflow at take-off | 848 lb/s (385 kg/s) | commonly quoted; not found in a primary source |
+
+Two things worth knowing:
+
+- The well-known 26,600 lbf (V2527) and 33,000 lbf (V2533) figures are marketing / bump ratings, not
+  the certified ratings, and are not used. The manufacturer's product card also quotes pressure
+  ratios of 32.8 and 35.2, which are higher than ICAO's sea-level take-off values (27.2 and 33.44)
+  and presumably refer to a different flight condition; the model is matched to ICAO.
+- The data sheet states that EGT (T4.9) is measured "aft of LPT stage 1". IAE training material
+  places the thermocouples in the turbine exhaust case, at LPT exit, with the P4.9 probes. The model
+  uses LPT exit, because gas after the first LPT stage would be far hotter than the 610-670 °C limits.
 
 Assumed (not published): fan and LPC pressure-ratio split, component efficiencies, cooling flows,
-mixing-plane Mach number, spool inertias, volumes, starter torque, all schedule break-points.
+mixing-plane Mach number, spool inertias, volumes, all schedule break-points.
 
 ## How it compares (`npm test` asserts these; `node tools/calibrate.js` prints them)
 
@@ -92,6 +98,7 @@ mixing-plane Mach number, spool inertias, volumes, starter torque, all schedule 
 | V2527-A5 idle (7 %) fuel flow | 0.127 kg/s | 0.128 |
 | V2527-A5 overall pressure ratio | 27.0 | 27.2 |
 | V2527-A5 bypass ratio | 4.84 | 4.82 |
+| All five ratings at take-off: fuel flow / pressure ratio / bypass ratio | within 4 % / 3 % / 3 % | ICAO databank |
 | V2527-A5 take-off EPR | 1.615 | about 1.6 (crew report) |
 | Ground idle | N1 24 %, N2 58.5 %, 365 kg/h, EGT 381 °C | N1 21.7 (+3.8/-2), N2 60 (±2), 300-378 kg/h, EGT 400 (+90/-25) |
 | V2527-A5 take-off EGT, ISA / ISA+30 | 499 / 582 °C | limit 635 °C |

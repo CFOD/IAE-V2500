@@ -1,41 +1,56 @@
 // Published data for the IAE V2500-A5 family used to size and limit the model.
 //
-// Verification status (web search of the sources, Nov 2026 - the primary PDFs
-// could not be downloaded from the build environment, so "verified" means the
-// figure was quoted from the named source by a search result):
-//   [V] verified   [M] from memory / secondary only - treat as approximate
-//
-// Sources: EASA TCDS IM.E.069 issue 05 (20 Dec 2022); IAE V2500-A1/A5 Engine
-// Operating Instructions; IAE model specification (flat ratings, max continuous);
-// ICAO Aircraft Engine Emissions Databank; V2500 training / component-location notes.
+// Every value below was read from the primary document in November 2026:
+//   [T] EASA Type-Certificate Data Sheet IM.E.069, issue 05, 20 December 2022
+//   [I] ICAO Aircraft Engine Emissions Databank v32B (hosted by EASA), "Gaseous Emissions and Smoke"
+//   [O] IAE V2500-A1/A5 Engine Operating Instructions / training notes (via search result, not read in full)
 
 export const LIMITS = {
-  N1_100: 5650, // rpm = 100 % N1                         [V] operating instructions
-  N2_100: 14950, // rpm = 100 % N2                        [V] operating instructions
-  N1_RED: 100.0, // %                                     [V]
-  N2_RED: 100.0, // %                                     [V]
-  EGT_MCT: 610, // degC indicated, max continuous         [V]
-  EGT_START: 635, // degC, ground and air starts          [V]
-  STARTER_CUTOUT_N2: 43, // %                             [V] (sources give 43-45 %)
-  MIN_START_N2: 16, // % - no fuel below this             [V]
+  N1_100: 5650, // rpm = 100 % N1, also the maximum                [T]
+  N2_100: 14950, // rpm = 100 % N2, also the maximum               [T]
+  N1_RED: 100.0, // %                                              [T]
+  N2_RED: 100.0, // %                                              [T]
+  EGT_MCT: 610, // degC, max continuous (actual and indicated)     [T]
+  EGT_START: 635, // degC, starting                                [T]
+  STARTER_CUTOUT_N2: 43, // %                                      [O] (sources give 43-45 %)
+  MIN_START_N2: 16, // % - no fuel below this                      [O]
+  N1_MIN_ICING: 24.8, // % (1400 rpm) minimum in icing conditions  [T]
+  STARTER_TORQUE_MAX: 637, // N.m at zero rpm, at the starter pad  [T]
+  STARTER_GEAR: 0.941, // starter pad speed / N2                   [T]
+  GENERATOR_MAX_W: 131e3, // continuous electrical off-take        [T]
+  DRY_WEIGHT_KG: 2404, //                                          [T]
 };
 
-// Certified sea-level-static take-off ratings (5 min). The familiar "26,600 lbf"
-// and "33,000 lbf" figures are bump / marketing ratings, not the TCDS ratings.
-//   toLbf   take-off thrust                    mctLbf  maximum continuous thrust
-//   flatISA take-off is flat rated to ISA + this many degC
-//   egtTO   indicated take-off EGT limit (the higher ratings display 650 for an actual 670)
+// Sea-level-static ratings on an ISA day (15 degC, 1013.2 hPa), no bleed or off-take.   all [T]
+//   toDaN / mctDaN  take-off (5 min) and maximum continuous thrust
+//   flatISA         take-off rating is available up to ISA + this (max continuous: ISA + 10 for all)
+//   egtTO           indicated take-off EGT limit; egtTOactual is the true gas temperature limit
+// The familiar "26,600 lbf" and "33,000 lbf" figures are marketing / bump ratings, not these.
 export const RATINGS = {
-  'V2522-A5': { toLbf: 23040, mctLbf: 19200, flatISA: 40, egtTO: 635 }, // TO [V]; MCT, flat [M]
-  'V2524-A5': { toLbf: 24480, mctLbf: 19200, flatISA: 40, egtTO: 635 }, // TO, MCT, flat [V] (sources not fully consistent on TO)
-  'V2527-A5': { toLbf: 24800, mctLbf: 22240, flatISA: 31, egtTO: 635 }, // all [V]  (TCDS 11031 daN)
-  'V2530-A5': { toLbf: 29900, mctLbf: 26950, flatISA: 15, egtTO: 650 }, // egt [V]; TO, MCT, flat [M]
-  'V2533-A5': { toLbf: 31600, mctLbf: 26950, flatISA: 15, egtTO: 650 }, // all [V]  (140.56 kN)
+  'V2522-A5': { toDaN: 10248, mctDaN: 8540, flatISA: 40, egtTO: 635, egtTOactual: 625 },
+  'V2524-A5': { toDaN: 10889, mctDaN: 8540, flatISA: 40, egtTO: 635, egtTOactual: 635 },
+  'V2527-A5': { toDaN: 11031, mctDaN: 9892, flatISA: 31, egtTO: 635, egtTOactual: 645 },
+  'V2530-A5': { toDaN: 13300, mctDaN: 11987, flatISA: 15, egtTO: 650, egtTOactual: 650 },
+  'V2533-A5': { toDaN: 14056, mctDaN: 11987, flatISA: 15, egtTO: 650, egtTOactual: 670 },
 };
+export const MCT_FLAT_ISA = 10;
+for (const r of Object.values(RATINGS)) { r.toLbf = (r.toDaN * 10) / 4.4482216; r.mctLbf = (r.mctDaN * 10) / 4.4482216; }
 
-// ICAO emissions databank, V2527-A5 (rated 111.2 kN): fuel flow kg/s at 100 / 85 / 30 / 7 % thrust.
-// Climb-out 0.880 [V]; the other three [M] (same databank entry). OPR 27.2, BPR 4.82 [M].
-export const ICAO_V2527 = { ratedN: 111.2e3, takeoff: 1.053, climb: 0.880, approach: 0.319, idle: 0.128, opr: 27.2, bpr: 4.82 };
+// ICAO databank entries: rated output [N], bypass ratio, pressure ratio and fuel flow [kg/s]
+// at take-off (100 %), climb-out (85 %), approach (30 %) and idle (7 %) of rated output.   all [I]
+export const ICAO = {
+  'V2522-A5': { uid: '3IA006', ratedN: 102.66e3, bpr: 4.88, opr: 25.6, takeoff: 0.971, climb: 0.817, approach: 0.311, idle: 0.118 },
+  'V2524-A5': { uid: '3IA007', ratedN: 109.06e3, bpr: 4.81, opr: 26.9, takeoff: 1.042, climb: 0.868, approach: 0.328, idle: 0.123 },
+  'V2527-A5': { uid: '1IA003', ratedN: 111.2e3, bpr: 4.82, opr: 27.2, takeoff: 1.053, climb: 0.880, approach: 0.319, idle: 0.128 },
+  'V2530-A5': { uid: '1IA005', ratedN: 133.4e3, bpr: 4.54, opr: 32.1, takeoff: 1.331, climb: 1.077, approach: 0.377, idle: 0.138 },
+  'V2533-A5': { uid: '3IA008', ratedN: 140.56e3, bpr: 4.46, opr: 33.44, takeoff: 1.426, climb: 1.1447, approach: 0.3901, idle: 0.1363 },
+};
+export const ICAO_V2527 = ICAO['V2527-A5'];
+
+// Note on EGT: the data sheet says T4.9 is measured "aft of LPT stage 1", while IAE training
+// material places the four thermocouples in the turbine exhaust case struts (LPT exit), the same
+// station as the P4.9 probes used for EPR. The model uses LPT exit: gas after the first LPT stage
+// would be far hotter than the 610-670 degC limits.
 export const LBF = 4.4482216;
 
 // Geometry / architecture (for the cutaway and for documentation)
@@ -50,14 +65,15 @@ export const ARCH = {
   fuelNozzles: 20,
 };
 
-// Design point used to size the model: V2533-A5 certified take-off, sea-level
-// static ISA (31,600 lbf, OPR 33.44, BPR 4.46 per ICAO [M]; airflow 848 lb/s [M]).
+// Design point used to size the model: V2533-A5 take-off, sea-level static ISA:
+// 14,056 daN [T], pressure ratio 33.44 and bypass ratio 4.46 [I]. Airflow 848 lb/s is the
+// commonly quoted figure and was not found in a primary source.
 // Lower ratings are the same hardware throttled back.
 export const DESIGN = {
   W2: 385, // kg/s total inlet air flow (848 lb/s)
   BPR: 4.46,
   OPR: 33.44,
-  thrustN: 31600 * LBF,
+  thrustN: 140560,
   FPR: 1.78, // fan outer pressure ratio (assumed)
   LPCPR: 2.45, // fan root + 4 booster stages (assumed)
   N1d: 0.95 * 5650,
