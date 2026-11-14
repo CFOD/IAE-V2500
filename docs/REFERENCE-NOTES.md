@@ -30,13 +30,14 @@ Status: [x] reflected in the model, [ ] still to do.
       and under the combustor.
 
 ## Bare-engine dress (visible with cowls open)
-- [ ] Fan case is bare silver metal with several stiffening ribs, not painted.
-- [ ] A large silver duct runs round the fan case circumference from the top to the bottom.
-- [ ] Oil tank: a tall domed cylinder on the side of the fan case.
-- [ ] Accessory gearbox hangs under the fan case (not under the core), wide and flat, with the
-      starter, generator, hydraulic pump and fuel pump on it, and thick harness bundles.
+- [x] Fan case is bare silver metal with several stiffening ribs, not painted (under the fan cowl doors).
+- [x] A large silver duct runs round the fan case circumference from the top to the bottom.
+- [x] Oil tank: a tall domed cylinder on the side of the fan case.
+- [x] Accessory gearbox hangs under the fan case (not under the core), wide and flat, with the
+      starter, generator, hydraulic pump and fuel pump on it, and harness bundles. (First pass: shapes are
+      simple cylinders, not the real castings.)
 - [ ] Core is densely dressed with pipes, with clamps every few hundred millimetres.
-- [ ] EEC box is on the upper side of the fan case.
+- [x] EEC box is on the upper side of the fan case.
 
 ## Nacelle (on-wing photos)
 - [x] Inlet lip is matte bare metal with a visible seam where it meets the painted cowl.
@@ -51,3 +52,8 @@ Status: [x] reflected in the model, [ ] still to do.
 ## Section-view convention
 The museum model leaves cut faces bare grey and uses colour for liners. The simulator currently
 paints cut faces red-orange (another common museum convention). Either is defensible.
+
+## More references
+Wikimedia Commons has about 70 V2500 photos (Category:IAE V2500), including a thrust-reverser-deployed
+shot, on-wing close-ups and the museum cutaway. Its image server rate-limited the build environment,
+so they have not been used yet.

@@ -204,7 +204,8 @@ export class Scene3D {
     const lip = A({ id: 'lip', name: 'Inlet lip', ex: -1.7, mat: polished, desc: 'Polished aluminium leading edge, heated with engine bleed air so ice cannot build up and break off into the fan.', live: () => '' });
     this._solid(lip, [[-0.66, 0.768], [-0.7, 0.772], [-0.745, 0.782], [-0.778, 0.805], [-0.79, 0.84], [-0.778, 0.885], [-0.74, 0.918], [-0.69, 0.93], [-0.69, 0.9], [-0.72, 0.89], [-0.75, 0.862], [-0.757, 0.84], [-0.748, 0.815], [-0.72, 0.798], [-0.66, 0.79]], { tag: 'skin' });
     const fanCase = A({ id: 'fancase', name: 'Fan case and outlet guide vanes', ex: -0.55, mat: paint, desc: 'Contains the fan, and a released blade if one ever fails. The outlet guide vanes take the swirl out of the bypass air.', live: (o) => `Bypass ${o.Wbypass.toFixed(0)} kg/s · fan pressure ratio ${o.fan.PR.toFixed(2)} · ${C(o.T13)}` });
-    this._solid(fanCase, band(offset(P.bypOuter, 0.014), P.nacelle, 0.0, 1.2, 14), { tag: 'skin' });
+    const fanCowl = A({ id: 'fancowl', name: 'Fan cowl doors', ex: -0.55, mat: paint, desc: 'Two hinged doors that close around the fan case. Remove them to see the bare fan case with the oil tank, the accessory gearbox and the pipework that normally hide underneath.', live: () => '' });
+    this._solid(fanCowl, band(offset(P.bypOuter, 0.014), P.nacelle, 0.0, 1.2, 14), { tag: 'skin' });
     this._solid(fanCase, band(P.bypOuter, offset(P.bypOuter, 0.014), 0.36, 1.2, 10), { mat: linerM });
     // light blue abradable fan track liner around the blade tips (reference photos)
     this._solid(fanCase, band(P.bypOuter, offset(P.bypOuter, 0.014), 0.0, 0.36, 4), { mat: new THREE.MeshStandardMaterial({ color: 0x9cc9e6, metalness: 0, roughness: 0.8, side: THREE.DoubleSide }) });
@@ -214,8 +215,8 @@ export class Scene3D {
     this._solid(cna, band(offset(P.bypOuter, 0.012), offset(P.nacelle, -0.008), 2.86, 3.55, 10), { tag: 'skin', mat: (this.shared.bare = new THREE.MeshPhysicalMaterial({ color: 0x8e9499, metalness: 1, roughness: 0.36, roughnessMap: T.brushed, side: THREE.DoubleSide })) });
     // nacelle strake, high on the side
     const stS = new THREE.Shape(); stS.moveTo(0, 0); stS.lineTo(0.62, 0); stS.lineTo(0.56, 0.1); stS.lineTo(0.2, 0.035); stS.lineTo(0, 0);
-    const strake = new THREE.Mesh(new THREE.ExtrudeGeometry(stS, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 2 }).translate(0.25, 1.03, -0.006), fanCase.mat);
-    strake.rotation.x = -0.42; strake.userData.tag = 'skin'; this._reg(fanCase, strake);
+    const strake = new THREE.Mesh(new THREE.ExtrudeGeometry(stS, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 2 }).translate(0.25, 1.03, -0.006), fanCowl.mat);
+    strake.rotation.x = -0.42; strake.userData.tag = 'skin'; this._reg(fanCowl, strake);
     this._solid(cna, band(P.bypOuter, offset(P.bypOuter, 0.012), 1.2, 3.5, 20), { mat: new THREE.MeshPhysicalMaterial({ ...composite, side: THREE.DoubleSide }) });
 
     // ---------------- fan
@@ -325,13 +326,13 @@ export class Scene3D {
     this._ring(tec, strut, 13, (m, th) => { m.makeRotationX(th); m.setPosition(3.065, 0.275 * Math.cos(th), 0.275 * Math.sin(th)); });
 
     // ---------------- accessories and pipework
-    const agb = A({ id: 'agb', name: 'Accessory gearbox, starter, generator, fuel pump', ex: -0.2, mat: { color: 0x8a9198, metalness: 0.9, roughness: 0.45 }, desc: 'Driven from the HP spool. Carries the air turbine starter, the generator, hydraulic and fuel pumps and the fuel metering unit.', live: (o) => `Starter torque ${o.tStart.toFixed(0)} N·m · N2 ${o.N2pct.toFixed(1)} %` });
+    const agb = A({ id: 'agb', name: 'Accessory gearbox, starter, generator, fuel pump', ex: -0.55, mat: { color: 0x8a9198, metalness: 0.9, roughness: 0.45 }, desc: 'Hangs under the fan case inside the cowl and is driven from the HP spool by a long shaft. Carries the air turbine starter, the generator, hydraulic and fuel pumps and the fuel metering unit.', live: (o) => `Starter torque ${o.tStart.toFixed(0)} N·m · N2 ${o.N2pct.toFixed(1)} %` });
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.46).translate(0.7, -1.13, 0), agb.mat); this._reg(agb, box);
     for (const [x, z, rr, l, mt] of [[0.48, 0.2, 0.1, 0.34, pipeSteel], [0.9, -0.17, 0.12, 0.42, agb.mat], [0.92, 0.2, 0.07, 0.3, pipeGold], [0.5, -0.2, 0.085, 0.28, agb.mat]]) {
       const c = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr * 0.9, l, 20).rotateZ(Math.PI / 2).translate(x, -1.22, z), mt); this._reg(agb, c);
     }
     this._pipe(agb, [[0.48, 1.2, 171], [0.48, 1.0, 166], [0.6, 0.86, 160], [1.3, 0.8, 150]], 0.034, pipeSteel); // starter air duct
-    const eec = A({ id: 'eec', name: 'Electronic engine control (FADEC)', ex: -0.4, mat: { color: 0x15181b, metalness: 0.3, roughness: 0.5 }, desc: 'Dual-channel computer on the fan case. Sets fuel flow, stator angle and bleed valves, and protects the engine limits.', live: () => '' });
+    const eec = A({ id: 'eec', name: 'Electronic engine control (FADEC)', ex: -0.55, mat: { color: 0x15181b, metalness: 0.3, roughness: 0.5 }, desc: 'Dual-channel computer on the fan case. Sets fuel flow, stator angle and bleed valves, and protects the engine limits.', live: () => '' });
     const eb = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.09, 0.3), eec.mat); eb.position.set(0.55, -0.62, -0.84); eb.rotation.x = 0.94; this._reg(eec, eb);
     const ext = A({ id: 'ext', name: 'External pipework and harnesses', ex: 0.1, mat: pipeSteel, desc: 'Fuel, oil, bleed-air and cooling pipes and the electrical harnesses that dress the core. Visible with the core cowl removed.', live: (o) => `Turbine cooling ${o.Wcool.toFixed(1)} kg/s · handling bleed ${(o.Wb7 + o.Wb10).toFixed(1)} kg/s` });
     const run = (th, r0, mat, rad, x0 = 1.15, x1 = 2.9, wob = 6) => this._pipe(ext, Array.from({ length: 9 }, (_, i) => { const f = i / 8, x = lerp(x0, x1, f); return [x, co(x) + r0 + 0.012 * Math.sin(f * 9 + th), th + wob * Math.sin(f * 5 + th * 0.1)]; }), rad, mat);

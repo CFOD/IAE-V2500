@@ -14,17 +14,27 @@
         "skin"
       ]
     },
-    "fancase": {
-      "match": "^fancase_",
+    "fancowl": {
+      "match": "^fancowl_",
       "drop": [
         "skin"
       ]
+    },
+    "fancase": {
+      "match": "^fancase_",
+      "drop": []
     },
     "cna": {
       "match": "^cna_",
       "drop": [
         "skin"
       ]
+    },
+    "agb": {
+      "match": "^agb_"
+    },
+    "eec": {
+      "match": "^eec_"
     }
   }
 }
