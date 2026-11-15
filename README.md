@@ -92,6 +92,8 @@ npm run dist       # build an unpacked distributable in dist/ (electron-builder)
 - **Master** on: the FADEC runs an automatic start (starter air valve, ignition at 16 % N2, fuel at
   22 %, starter cut-out at 43 %), reaching ground idle in roughly half a minute.
 - **Thrust lever** (drag, or up/down arrows) with climb, max-continuous and TOGA detents.
+- **Reverse** deploys the thrust reverser: the sleeve slides back, the cascades are uncovered and the
+  blocker doors close the bypass duct. In reverse the thrust lever commands fan speed, up to 80 % N1.
 - **Panel → Control**: every FADEC output has an Auto/Manual switch: fuel flow, igniters,
   starter valve, variable stator vanes, LPC 2.5 bleed, HPC stage 7 and 10 bleeds. Plus starter air
   pressure, customer bleed and power off-take.

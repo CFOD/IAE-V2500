@@ -27,7 +27,8 @@
     "cna": {
       "match": "^cna_",
       "drop": [
-        "skin"
+        "skin",
+        "liner"
       ]
     },
     "agb": {
@@ -35,6 +36,9 @@
     },
     "eec": {
       "match": "^eec_"
+    },
+    "pylon": {
+      "match": "^pylon_"
     }
   }
 }

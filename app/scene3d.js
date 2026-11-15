@@ -183,7 +183,7 @@ export class Scene3D {
 
   _buildEngine() {
     const T = this.tex;
-    const paint = { color: 0xe4e7ea, metalness: 0, roughness: 0.42, clearcoat: 1, clearcoatRoughness: 0.12 };
+    const paint = { color: 0xc9cdd1, metalness: 0, roughness: 0.45, clearcoat: 1, clearcoatRoughness: 0.14 };
     const polished = { color: 0xc9ced3, metalness: 1, roughness: 0.3 }; // matte, not mirror, per photos
     const titanium = { color: 0xa9b0b7, metalness: 1, roughness: 0.34 };
     const caseM = { color: 0x7d858c, metalness: 0.9, roughness: 0.46, roughnessMap: T.brushed };
@@ -359,6 +359,10 @@ export class Scene3D {
     for (let k = 0; k < 7; k++) { const x = 2.5 + k * 0.075, rr = co(x) + 0.058; this._solid(ext, [[x - 0.008, rr], [x - 0.008, rr + 0.016], [x + 0.008, rr + 0.016], [x + 0.008, rr]], { seg: 72, mat: pipeSteel }); }
     for (const th of [150, 240, 330]) this._pipe(ext, Array.from({ length: 6 }, (_, i) => { const x = 2.3 + i * 0.135; return [x, co(x) + 0.09, th]; }), 0.014, pipeSteel);
     for (const x of [1.45, 2.0, 2.55]) this._solid(ext, [[x - 0.005, co(x) + 0.095], [x - 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.095]], { seg: 96, mat: harness }); // clamps
+    // pylon the engine hangs from
+    const pylon = A({ id: 'pylon', name: 'Pylon', ex: 0, mat: paint, desc: 'Carries the engine under the wing and transmits its thrust to the airframe. Fuel, bleed air, electrical and hydraulic lines run through it.', live: (o) => `Thrust carried ${(o.thrust / 1000).toFixed(1)} kN` });
+    { const sh = new THREE.Shape(); sh.moveTo(0.35, 0.98); sh.lineTo(0.2, 1.32); sh.lineTo(3.0, 1.32); sh.lineTo(2.8, 1.02); sh.lineTo(2.2, 0.9); sh.lineTo(0.35, 0.98);
+      this._reg(pylon, new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.2, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 3 }).translate(0, 0, -0.1), pylon.mat)); }
     for (const p of this.parts) for (const ob of p.objs) ob.userData.home = ob.position.x;
   }
 
@@ -368,11 +372,6 @@ export class Scene3D {
     const fade = canvasTex(256, 256, (g) => { const gr = g.createRadialGradient(128, 128, 20, 128, 128, 128); gr.addColorStop(0, '#fff'); gr.addColorStop(1, '#000'); g.fillStyle = gr; g.fillRect(0, 0, 256, 256); });
     const floor = new THREE.Mesh(new THREE.CircleGeometry(22, 64), new THREE.MeshStandardMaterial({ color: 0x131416, metalness: 0.0, roughness: 0.7, alphaMap: fade, transparent: true }));
     floor.rotation.x = -Math.PI / 2; floor.position.set(1.4, FLOOR_Y, 0); floor.receiveShadow = true; s.add(floor);
-    // pylon the engine hangs from
-    const pm = new THREE.MeshPhysicalMaterial({ color: 0x2b2e32, roughness: 0.5, metalness: 0.2, clearcoat: 0.5, clearcoatRoughness: 0.4 });
-    const sh = new THREE.Shape(); sh.moveTo(0.35, 0.98); sh.lineTo(0.2, 1.32); sh.lineTo(3.0, 1.32); sh.lineTo(2.8, 1.02); sh.lineTo(2.2, 0.9); sh.lineTo(0.35, 0.98);
-    const py = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.2, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 3 }).translate(0, 0, -0.1), pm);
-    py.castShadow = true; s.add(py);
   }
 
   // ---------------------------------------------------------------- effects
@@ -420,7 +419,7 @@ export class Scene3D {
     this.ao = new GTAOPass(this.scene, this.camera, 4, 4);
     this.ao.updateGtaoMaterial({ radius: 0.35, distanceExponent: 1.4, thickness: 1.2, scale: 1.15, samples: 12 });
     c.addPass(this.ao);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(4, 4), 0.35, 0.5, 1.35); c.addPass(this.bloom);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(4, 4), 0.32, 0.5, 1.7); c.addPass(this.bloom);
     this.haze = new ShaderPass(HeatHaze); c.addPass(this.haze);
     c.addPass(new OutputPass());
     // Anti-aliasing is layered: multisampling on the scene buffer (geometry edges), supersampling on
@@ -467,7 +466,7 @@ export class Scene3D {
   _reverser(rev) {
     if (rev === this._rev) return; this._rev = rev;
     if (!this.revNodes) { this.revNodes = []; this.engine.traverse((n) => { const k = /^cna_sleeve/i.test(n.name) ? 'sleeve' : /^cna_blocker/i.test(n.name) ? 'door' : null; if (k) { n.userData.rev = { k, x: n.position.x, q: n.quaternion.clone() }; this.revNodes.push(n); } }); }
-    const e = rev * rev * (3 - 2 * rev), qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -e * 1.05);
+    const e = rev * rev * (3 - 2 * rev), qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), e * 1.05); // hinge = door's tangential axis (local Z after the glTF axis conversion)
     for (const n of this.revNodes) { const b = n.userData.rev; n.position.x = b.x + 0.46 * e; if (b.k === 'door') n.quaternion.copy(b.q).multiply(qy); }
   }
 

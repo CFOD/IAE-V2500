@@ -44,6 +44,15 @@ humidity on a 15 °C day. The ground vortex is shown when the engine is static a
 exceeds about 70 m/s; this is a simple threshold, not a vortex-formation correlation, and wind is
 not modelled.
 
+## Thrust reverser
+
+When deployed (about two seconds of travel) the bypass stream is shut off from the mixer and leaves
+through the cascades instead, modelled as a nozzle to ambient whose gross thrust acts 55 % forwards.
+The core still exhausts through the common nozzle. Because the core no longer exhausts against the
+bypass stream, EPR stops tracking thrust, so the FADEC governs reverse on fan speed between idle and
+80 % N1. The cascade area, turning efficiency and the 80 % limit are assumptions; the real limits
+were not found in a public source. Net thrust at maximum reverse is about -18.6 kN at sea level static.
+
 ## Sizing
 
 `sizeEngine()` runs a design-point cycle for the V2533-A5 certified take-off rating (31,600 lbf,
