@@ -75,16 +75,32 @@ function bladeGeo(o) {
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g;
 }
 
+// Every shader here avoids operations that are undefined in GLSL (pow of a negative base,
+// smoothstep with edge0 >= edge1, normalize of a zero vector). Software renderers tolerate
+// them; real GPUs return NaN, and bloom then smears a single NaN pixel into large black blocks.
 const HeatHaze = {
   uniforms: { tDiffuse: { value: null }, uA: { value: new THREE.Vector2() }, uB: { value: new THREE.Vector2() }, uR: { value: 0.1 }, uK: { value: 0 }, uT: { value: 0 }, uAspect: { value: 1 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
   fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 uA,uB; uniform float uR,uK,uT,uAspect; varying vec2 vUv;
-    float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);} 
-    float n(vec2 p){vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);} 
-    void main(){ vec2 as=vec2(uAspect,1.0); vec2 p=vUv*as, a=uA*as, b=uB*as, ab=b-a; float t=clamp(dot(p-a,ab)/max(dot(ab,ab),1e-5),0.0,1.0);
-      float d=length(p-(a+ab*t)); float r=uR*(1.0+1.6*t); float m=smoothstep(r,r*0.15,d)*smoothstep(0.0,0.08,t)*(1.0-t*0.75)*uK;
-      vec2 dir=normalize(ab+1e-5); vec2 q=p*38.0-dir*uT*9.0; vec2 off=vec2(n(q)-0.5,n(q+17.3)-0.5)*0.011*m;
-      gl_FragColor=texture2D(tDiffuse,vUv+off/as); }`,
+    float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+    float n(vec2 p){vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1.0,0.0)),f.x),mix(h(i+vec2(0.0,1.0)),h(i+vec2(1.0,1.0)),f.x),f.y);}
+    void main(){
+      vec2 as=vec2(uAspect,1.0); vec2 p=vUv*as, a=uA*as, b=uB*as, ab=b-a;
+      float len=max(length(ab),1e-4); vec2 dir=ab/len;
+      float t=clamp(dot(p-a,dir)/len,0.0,1.0);
+      float d=length(p-(a+ab*t)); float r=max(uR*(1.0+1.6*t),1e-4);
+      float m=(1.0-smoothstep(r*0.15,r,d))*smoothstep(0.0,0.08,t)*(1.0-t*0.75)*clamp(uK,0.0,1.0);
+      vec2 q=p*38.0-dir*uT*9.0; vec2 off=vec2(n(q)-0.5,n(q+17.3)-0.5)*0.011*m;
+      gl_FragColor=texture2D(tDiffuse,clamp(vUv+off/as,0.0,1.0)); }`,
+};
+// Replaces NaN / infinite pixels with black and caps extreme highlights before they reach bloom.
+const Sanitize = {
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
+    void main(){ vec4 c=texture2D(tDiffuse,vUv);
+      bool bad = !(c.r==c.r) || !(c.g==c.g) || !(c.b==c.b) || abs(c.r)>1e6 || abs(c.g)>1e6 || abs(c.b)>1e6;
+      gl_FragColor = bad ? vec4(0.0,0.0,0.0,1.0) : vec4(clamp(c.rgb,0.0,24.0),1.0); }`,
 };
 
 export class Scene3D {
@@ -109,7 +125,7 @@ export class Scene3D {
     const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(2, -1, 6); scene.add(fill);
     this.flameLight = new THREE.PointLight(0xff8a30, 0, 3.5, 1.6); this.flameLight.position.set(2.05, 0, 0); scene.add(this.flameLight);
 
-    this.cutaway = true; this.explode = 0; this.showFlow = true; this.quality = 'high';
+    this.cutaway = true; this.explode = 0; this.showFlow = true; this.quality = 'medium';
     this.parts = []; this.byId = {}; this.vsvRows = []; this.cutInst = []; this.hover = null; this.selected = null;
     this.sprite = softSprite(); this.tex = { liner: linerTex(), brushed: brushedTex() };
     this.capMat = new THREE.MeshStandardMaterial({ color: 0xb8402a, metalness: 0.1, roughness: 0.7, side: THREE.DoubleSide });
@@ -396,13 +412,14 @@ export class Scene3D {
     const plumeMat = (rgb) => new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
       uniforms: { uT: { value: 0 }, uA: { value: 0 }, uC: { value: new THREE.Color(...rgb) }, uSpeed: { value: 1 } },
-      vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv=uv; vec4 mv=modelViewMatrix*vec4(position,1.0); vN=normalize(normalMatrix*normal); vV=normalize(-mv.xyz); gl_Position=projectionMatrix*mv; }',
+      vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv=uv; vec4 mv=modelViewMatrix*vec4(position,1.0); vN=normalMatrix*normal; vV=-mv.xyz; gl_Position=projectionMatrix*mv; }',
       fragmentShader: `uniform float uT,uA,uSpeed; uniform vec3 uC; varying vec2 vUv; varying vec3 vN; varying vec3 vV;
         float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);} 
         float n(vec2 p){vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);} 
-        void main(){ float along=1.0-vUv.y; float t=uT*uSpeed; float nz=n(vec2(vUv.x*14.0, along*7.0-t*3.0))*0.6+n(vec2(vUv.x*31.0, along*18.0-t*6.0))*0.4;
-          float body=pow(1.0-along,1.6)*smoothstep(0.0,0.06,along); float rimF=pow(abs(dot(vN,vV)),1.4);
-          gl_FragColor=vec4(uC*(0.55+0.9*nz), uA*body*rimF*(0.35+0.75*nz)); }`,
+        void main(){ float along=clamp(1.0-vUv.y,0.0,1.0); float t=uT*uSpeed; float nz=n(vec2(vUv.x*14.0, along*7.0-t*3.0))*0.6+n(vec2(vUv.x*31.0, along*18.0-t*6.0))*0.4;
+          float body=pow(max(1.0-along,1e-4),1.6)*smoothstep(0.0,0.06,along);
+          float nv=dot(vN,vV)/max(length(vN)*length(vV),1e-4); float rimF=pow(clamp(abs(nv),1e-4,1.0),1.4);
+          gl_FragColor=vec4(uC*(0.55+0.9*nz), clamp(uA*body*rimF*(0.35+0.75*nz),0.0,1.0)); }`,
     });
     const cone = (r0, r1, rgb, x) => { const g = new THREE.CylinderGeometry(r1, r0, 1, 48, 24, true); g.translate(0, 0.5, 0); g.rotateZ(-Math.PI / 2); const m = new THREE.Mesh(g, plumeMat(rgb)); m.frustumCulled = false; m.position.x = x; this.scene.add(m); return m; };
     this.plumeOuter = cone(0.6, 0.78, [0.5, 0.7, 1.0], 3.55);
@@ -416,16 +433,18 @@ export class Scene3D {
     const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
     const c = (this.composer = new EffectComposer(this.renderer, rt));
     c.addPass(new RenderPass(this.scene, this.camera));
+    c.addPass(new ShaderPass(Sanitize));
     this.ao = new GTAOPass(this.scene, this.camera, 4, 4);
     this.ao.updateGtaoMaterial({ radius: 0.35, distanceExponent: 1.4, thickness: 1.2, scale: 1.15, samples: 12 });
-    c.addPass(this.ao);
+    this.ao.enabled = false; c.addPass(this.ao);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(4, 4), 0.32, 0.5, 1.7); c.addPass(this.bloom);
     this.haze = new ShaderPass(HeatHaze); c.addPass(this.haze);
+    c.addPass(new ShaderPass(Sanitize));
     c.addPass(new OutputPass());
-    // Anti-aliasing is layered: multisampling on the scene buffer (geometry edges), supersampling on
-    // High when the display is not already high-density (thin blades, pipes, bright highlights), and
-    // SMAA on the final image (edges the post-processing passes re-introduce).
+    // Anti-aliasing is layered: multisampling on the scene buffer (geometry edges), SMAA on the final
+    // image (edges the post-processing passes re-introduce), and optional supersampling on Ultra.
     this.smaa = new SMAAPass(); c.addPass(this.smaa);
+    this.fx = { haze: true };
   }
 
   // ---------------------------------------------------------------- controls
@@ -484,7 +503,18 @@ export class Scene3D {
   setRemoved(id, removed) { const p = this.byId[id]; if (!p) return; p.removed = removed; for (const ob of p.objs) ob.visible = !removed; if (removed && this.selected === p) this.selected = null; }
   restoreAll() { for (const p of this.parts) this.setRemoved(p.id, false); }
   surge(which) { this.flash = 1; this.flashFront = which !== 'hpc'; }
-  setQuality(q) { this.quality = q; this.renderer.shadowMap.enabled = q !== 'low'; this.key.castShadow = q !== 'low'; this.ao.enabled = q === 'high'; this.resize(); }
+  /**
+   * low    : plain render, no post-processing at all (the safe fallback)
+   * medium : shadows, bloom, heat haze, anti-aliasing
+   * high   : + ambient occlusion
+   * ultra  : + supersampling (heavy)
+   */
+  setQuality(q) {
+    this.quality = q;
+    this.renderer.shadowMap.enabled = q !== 'low'; this.key.castShadow = q !== 'low';
+    this.ao.enabled = q === 'high' || q === 'ultra';
+    this.resize();
+  }
 
   /**
    * Replace generated components with an authored glTF model.
@@ -531,7 +561,7 @@ export class Scene3D {
     if (r.width < 2 || r.height < 2) return;
     this.renderer.setSize(r.width, r.height, false);
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const pr = this.quality === 'high' ? Math.max(dpr, 1.5) : dpr;
+    const pr = this.quality === 'ultra' ? Math.max(dpr, 1.5) : dpr;
     this.renderer.setPixelRatio(pr); this.renderer.setSize(r.width, r.height, false);
     this.composer.setPixelRatio(pr); this.composer.setSize(r.width, r.height);
     this.camera.aspect = r.width / r.height;
@@ -547,7 +577,7 @@ export class Scene3D {
     const ce = Math.cos(ob.el);
     this.camera.position.set(ob.target.x + ob.dist * Math.sin(ob.az) * ce, ob.target.y + ob.dist * Math.sin(ob.el), ob.target.z + ob.dist * Math.cos(ob.az) * ce);
     if (this.flash > 0.05) this.camera.position.add(new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, 0).multiplyScalar(0.05 * this.flash));
-    this.camera.lookAt(ob.target);
+    this.camera.lookAt(ob.target); this.camera.updateMatrixWorld();
 
     // spools: display speed is compressed so blades stay readable; the blur disc sells the rest
     const p1 = Math.abs(o.N1pct) / 100, p2 = o.N2pct / 100;
@@ -618,16 +648,24 @@ export class Scene3D {
     // ---- exhaust plume and heat haze
     const thr = clamp(o.Fg / 140e3, 0, 1), hotK = clamp((o.T5 - 400) / 500, 0, 1);
     const L = 1.2 + 5.5 * Math.sqrt(thr);
-    const setPl = (m, len, a, sp) => { m.scale.set(len, 1, 1); m.material.uniforms.uT.value = t; m.material.uniforms.uA.value = a; m.material.uniforms.uSpeed.value = sp; m.visible = a > 0.004; };
-    setPl(this.plumeOuter, L, o.W9 > 5 ? (0.06 + 0.3 * thr) * (1 - 0.8 * (o.rev || 0)) : 0, 0.6 + 2.5 * thr);
-    setPl(this.plumeCore, L * 0.8, (0.2 + 0.6 * thr) * hotK, 0.8 + 3 * thr);
-    setPl(this.plumeHot, L * 0.45, (0.3 + 0.6 * thr) * clamp((o.T5 - 560) / 300, 0, 1), 1 + 3 * thr);
+    const setPl = (m, len, a, sp) => { m.scale.set(len, 1, 1); m.material.uniforms.uT.value = t % 1000; m.material.uniforms.uA.value = a; m.material.uniforms.uSpeed.value = sp; m.visible = a > 0.004; };
+    // Seen end-on (from directly behind or in front) the layered plume would stack into one large
+    // opaque blob over the engine, so it fades out as the view lines up with the engine axis.
+    const fwd = new THREE.Vector3(); this.camera.getWorldDirection(fwd);
+    const endOn = clamp((Math.abs(fwd.x) - 0.7) / 0.25, 0, 1), pk = 1 - endOn * endOn * (3 - 2 * endOn);
+    setPl(this.plumeOuter, L, o.W9 > 5 ? (0.06 + 0.3 * thr) * (1 - 0.8 * (o.rev || 0)) * pk : 0, 0.6 + 2.5 * thr);
+    setPl(this.plumeCore, L * 0.8, (0.2 + 0.6 * thr) * hotK * pk, 0.8 + 3 * thr);
+    setPl(this.plumeHot, L * 0.45, (0.3 + 0.6 * thr) * clamp((o.T5 - 560) / 300, 0, 1) * pk, 1 + 3 * thr);
     this.plumeCore.material.uniforms.uC.value.setRGB(1.0, 0.35 + 0.35 * hotK, 0.12 + 0.2 * hotK);
     const hz = this.haze.uniforms, a = new THREE.Vector3(3.3, 0, 0).project(this.camera), b = new THREE.Vector3(3.6 + L * 1.1, 0.25, 0).project(this.camera);
     const edge = new THREE.Vector3(3.3, 0.62, 0).project(this.camera);
     hz.uA.value.set(a.x * 0.5 + 0.5, a.y * 0.5 + 0.5); hz.uB.value.set(b.x * 0.5 + 0.5, b.y * 0.5 + 0.5);
     hz.uR.value = Math.max(0.02, Math.hypot((edge.x - a.x) * 0.5 * this.camera.aspect, (edge.y - a.y) * 0.5)) * 1.3;
-    hz.uK.value = a.z < 1 && b.z < 1 ? clamp((o.T7 - 310) / 120, 0, 1) * clamp(o.W9 / 60, 0, 1) : 0; hz.uT.value = t * (0.6 + 2 * thr);
+    // only when the whole plume axis is in front of the camera (projection is meaningless behind it)
+    const va = new THREE.Vector3(3.3, 0, 0).applyMatrix4(this.camera.matrixWorldInverse), vb = new THREE.Vector3(3.6 + L * 1.1, 0.25, 0).applyMatrix4(this.camera.matrixWorldInverse);
+    const inFront = va.z < -0.3 && vb.z < -0.3;
+    hz.uR.value = clamp(hz.uR.value, 0.01, 0.3);
+    hz.uK.value = inFront && this.fx.haze && pk > 0.5 ? clamp((o.T7 - 310) / 120, 0, 1) * clamp(o.W9 / 60, 0, 1) : 0; hz.uT.value = (t * (0.6 + 2 * thr)) % 1000;
     this.haze.enabled = hz.uK.value > 0.01;
 
     // ---- inlet condensation and ground vortex (physics in main.js inletWeather)

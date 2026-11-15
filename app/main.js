@@ -139,8 +139,11 @@ tla.oninput = () => { let v = +tla.value; for (const d of [0.7, 0.85]) if (Math.
 
 // ------------------------------------------------------------ top bar
 $('btnPause').onclick = () => { paused = !paused; $('btnPause').classList.toggle('on', paused); $('btnPause').textContent = paused ? 'Resume' : 'Pause'; };
-const QUAL = ['high', 'medium', 'low']; let qi = 0;
-$('btnQ').onclick = () => { qi = (qi + 1) % 3; view3d && view3d.setQuality(QUAL[qi]); $('btnQ').textContent = `Quality: ${QUAL[qi][0].toUpperCase()}${QUAL[qi].slice(1)}`; };
+const QUAL = ['medium', 'high', 'ultra', 'low']; let qi = 0;
+const qLabel = () => { $('btnQ').textContent = `Quality: ${QUAL[qi][0].toUpperCase()}${QUAL[qi].slice(1)}`; };
+$('btnQ').onclick = () => { qi = (qi + 1) % QUAL.length; view3d && view3d.setQuality(QUAL[qi]); qLabel(); try { localStorage.setItem('v2500.quality', QUAL[qi]); } catch (e) { /* ignore */ } };
+try { const saved = localStorage.getItem('v2500.quality'); if (saved && QUAL.includes(saved)) { qi = QUAL.indexOf(saved); view3d && view3d.setQuality(saved); } } catch (e) { /* ignore */ }
+qLabel();
 for (const b of $('speed').children) b.onclick = () => { speed = +b.dataset.v; for (const c of $('speed').children) c.classList.toggle('on', c === b); };
 $('btnSound').onclick = () => { if (audio.on) audio.stop(); else audio.start(); $('btnSound').classList.toggle('on', audio.on); };
 function setMode(v) {
@@ -304,4 +307,5 @@ async function loadModels() {
 if (view3d) loadModels();
 setMode(mode);
 logMsg('Cold and dark. Set ENG MASTER to ON for an automatic start.');
+if (view3d) { try { const gl = view3d.renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); logMsg(`Graphics: ${ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unknown'}`); } catch (e) { /* ignore */ } }
 requestAnimationFrame(tick);

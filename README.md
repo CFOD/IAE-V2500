@@ -40,7 +40,7 @@ one) and run `Start V2500.bat` again.
 |---|---|
 | "Node.js is not installed" | Do step 1, then close and reopen the folder and try again. |
 | Setup fails part-way | Check your internet connection and run the start file again. It picks up where it stopped. |
-| The window opens but the engine view is black or very slow | Click **Quality** in the top bar until it says Medium or Low. Update your graphics driver if it stays black. |
+| The engine view is black, flickers, flashes or is very slow | Click **Quality** in the top bar until it says **Low**, which turns every visual effect off. Then please report it with the graphics card name shown under **Panel > Monitor > Log**. Updating your graphics driver may also help. |
 | Anything else | Press **F12** in the game window, click the **Console** tab, and copy the red text into a GitHub issue or back to whoever is helping you. |
 
 Useful keys: **F11** full screen, **Space** pause, **M** master switch, **C** cutaway, up/down arrows
@@ -70,8 +70,8 @@ npm run dist       # build an unpacked distributable in dist/ (electron-builder)
 **The engine (3D view)**
 - Drag to orbit, scroll to zoom, right-drag (or shift-drag) to pan. Camera presets in the top bar.
 - **Cutaway** (or `C`) removes a wedge of every casing, museum-style, with painted section faces;
-  **Explode** pulls the modules apart along the axis. **Quality** steps down shadows and ambient
-  occlusion for slower graphics cards.
+  **Explode** pulls the modules apart along the axis. **Quality** cycles Medium (default: shadows, bloom,
+  heat haze), High (adds ambient occlusion), Ultra (adds supersampling) and Low (no effects).
 - The model is generated in code. An authored glTF model can replace any component: see
   [docs/MODEL.md](docs/MODEL.md).
 - Click any component to inspect it: what it does and its live numbers. **Remove part** lifts it off
