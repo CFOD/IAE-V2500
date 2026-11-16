@@ -31,6 +31,16 @@ The importer was written from the documented layout of these files and tested wi
 not with a real commercial one. If a pack sounds wrong (silent layers, wrong pitch), the Log line
 and the pack's `sound.cfg` are what is needed to fix it.
 
+## Microsoft Flight Simulator (2020 / 2024) packs
+
+These are different: the audio is inside one compiled Wwise package (`.pck`) and the folder has a
+`sound.xml` instead of a `sound.cfg`. They cannot be dropped in directly yet.
+
+The first step is the inspector. Drag the `.pck` file onto **`Inspect sound pack.bat`** in the game
+folder. It reads the package on your PC, changes nothing, uploads nothing, and writes
+`sound-report.txt` next to the package: what is inside, the audio format, and how the clips link to
+the engine sound events. That report is what is needed to write the converter for the pack.
+
 ## Your own recordings: `sounds.json`
 
 If you have individual recordings, describe them in `app/sounds/sounds.json`. It takes priority over
