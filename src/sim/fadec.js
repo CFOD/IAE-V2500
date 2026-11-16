@@ -33,6 +33,8 @@ export const eprForThrust = (kN) => lerpTable(EPR_VS_THRUST, kN);
 export const RU_STEADY = [[20,0.0314],[45,0.0317],[54.2,0.0308],[64.4,0.0303],[76.2,0.0292],[80.9,0.0294],[86.5,0.0314],[89.8,0.0345],[91.9,0.0365],[93.7,0.0383],[95.3,0.0402],[97,0.0417],[98.1,0.0426],[104.1,0.046]];
 const ACCEL_MARGIN = [[20, 1.25], [36, 1.3], [44, 1.55], [56, 1.45], [62, 1.5], [75, 1.55], [88, 1.45], [97, 1.3]];
 const DECEL_FRAC = 0.5;
+export const DETENT_CL = 25 / 45, DETENT_MCT = 35 / 45;
+export const START_CRANK_S = 30; // automatic start: the EEC motors the engine for 30 s before it opens the fuel (Airbus TTM)
 export const MAX_REVERSE_N1 = 80; // % - reverse thrust is limited well below take-off fan speed (assumed value)
 
 export class Fadec {
@@ -77,12 +79,12 @@ export class Fadec {
     return { to, mct, clb: 1 + (mct - 1) * 0.93 };
   }
 
-  /** Thrust lever -> EPR command through the detents: idle 0, CLB 0.70, FLX/MCT 0.85, TOGA 1. */
+  /** Thrust lever -> EPR command through the detents. The lever travels 0-45 deg: climb at 25, FLX/MCT at 35, TOGA at 45 (Airbus TTM). */
   eprCommand(out) {
     const L = this.eprLimits(out), t = this.tla;
-    if (t >= 0.85) return L.mct + ((L.to - L.mct) * (t - 0.85)) / 0.15;
-    if (t >= 0.7) return L.clb + ((L.mct - L.clb) * (t - 0.7)) / 0.15;
-    return 1 + ((L.clb - 1) * t) / 0.7;
+    if (t >= DETENT_MCT) return L.mct + ((L.to - L.mct) * (t - DETENT_MCT)) / (1 - DETENT_MCT);
+    if (t >= DETENT_CL) return L.clb + ((L.mct - L.clb) * (t - DETENT_CL)) / (DETENT_MCT - DETENT_CL);
+    return 1 + ((L.clb - 1) * t) / DETENT_CL;
   }
 
   idleN2(out) {
@@ -129,7 +131,7 @@ export class Fadec {
           ign = n2 >= LIMITS.MIN_START_N2;
           this.msg = 'START VALVE OPEN';
           this.timer += dt;
-          if (n2 >= 22 || (this.timer > 35 && n2 > 15)) { this.phase = 'lightup'; this.timer = 0; }
+          if (this.timer >= START_CRANK_S && n2 > 15) { this.phase = 'lightup'; this.timer = 0; }
           break;
         case 'lightup':
           starter = true; ign = true; fuelOn = true;
@@ -186,7 +188,7 @@ export class Fadec {
         // tracking thrust. Reverse is governed on fan speed instead, between idle and MAX_REVERSE_N1.
         const reverse = o.rev > 0.05;
         const n1Cmd = 22 + (MAX_REVERSE_N1 - 22) * this.tla;
-        const n1Rated = this.ratedN1(), lever = this.tla >= 0.85 ? 0.93 + 0.07 * (this.tla - 0.85) / 0.15 : this.tla * (0.93 / 0.85);
+        const n1Rated = this.ratedN1(), lever = this.tla >= DETENT_MCT ? 0.93 + 0.07 * (this.tla - DETENT_MCT) / (1 - DETENT_MCT) : this.tla * (0.93 / DETENT_MCT);
         const primary = reverse ? [(n1Cmd - o.N1pct) * 0.06, 'EPR']
           : this.n1Mode ? [(22 + (n1Rated - 22) * lever - o.N1pct) * 0.06, 'N1 mode']
           : [(eprCmd - o.epr) * 3.0, 'EPR'];

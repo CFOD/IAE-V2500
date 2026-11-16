@@ -3,12 +3,16 @@
 // One tank (25 US quarts usable) feeds a gear pump on the gearbox. The oil is cooled first by fan
 // air (air-cooled oil cooler, modulated) and then by fuel (fuel-cooled oil cooler), lubricates the
 // five main bearings and the gearboxes, and is scavenged back to the tank.
-// Layout and the 60 psi low-pressure switch, 25 qt tank and 12 psi filter switch are from the
-// SR Technics component-location booklet; flows, heat loads and failure rates are estimates.
+// Layout and limits are from the Airbus A320-family Technical Training Manual (IAE V2500) and the
+// SR Technics component-location booklet: no pressure regulator, so pressure follows N2; cold-start
+// relief valve at 450 psi; low-pressure warning below 60 psi, amber below 80; temperature advisory
+// above 157 C and warning at 165 C; quantity advisory below 5 qt; filter switch at 12 psi, by-pass at
+// 20 psi. Flows, heat loads and bearing failure times are estimates.
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 
 export const OIL = {
-  TANK_QT: 25, LOW_PRESS_PSI: 60, TEMP_AMBER_C: 155, TEMP_RED_C: 165, QTY_LOW_QT: 5, FILTER_CLOG_PSI: 12,
+  TANK_QT: 25, LOW_PRESS_PSI: 60, AMBER_PRESS_PSI: 80, HIGH_PRESS_PSI: 390, RELIEF_PSI: 450,
+  TEMP_AMBER_C: 157, TEMP_RED_C: 165, QTY_LOW_QT: 5, FILTER_CLOG_PSI: 12, FILTER_BYPASS_PSI: 20,
 };
 
 export class Oil {
@@ -40,8 +44,8 @@ export class Oil {
     if (supply < 1 && supply > 0) supply *= 0.75 + 0.25 * Math.sin(e.s.t * 9) * Math.sin(e.s.t * 2.3); // cavitation: the needle flickers
     if (f.pumpFail) supply = 0;
     const target = (60 * clamp(n2 / 0.3, 0, 1) + 230 * Math.pow(n2, 1.5)) * Math.sqrt(visc) * supply * (1 - 0.5 * s.brg);
-    s.press += (target - s.press) * Math.min(1, dt / 0.6);
-    s.filterDp += ((f.filterClog ? 14 : 2 + 3 * s.chips) * clamp(n2 * 1.3, 0, 1) * visc - s.filterDp) * Math.min(1, dt / 2);
+    s.press += (Math.min(target, OIL.RELIEF_PSI) - s.press) * Math.min(1, dt / 0.6);
+    s.filterDp += ((f.filterClog ? OIL.FILTER_BYPASS_PSI : 2 + 3 * s.chips) * clamp(n2 * 1.3, 0, 1) * visc - s.filterDp) * Math.min(1, dt / 2); s.filterDp = Math.min(s.filterDp, OIL.FILTER_BYPASS_PSI);
 
     // ---- temperature: heat from the bearings, gearbox and the hot core; rejected to fan air and to fuel
     const flow = 0.6 * n2 * supply;                    // kg/s of oil round the circuit

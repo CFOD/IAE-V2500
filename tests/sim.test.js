@@ -210,12 +210,14 @@ test('fuel cut at take-off power rubs the tips; a cool-down at idle first does n
   assert.ok(!has(b.e, 'tip-rub-shutdown') && b.e.wear.effHpt > -1e-6);
 });
 
-test('bowed rotor: a hot engine restarted after ten minutes rubs unless it is motored first', () => {
+test('bowed rotor: a hasty manual start of a hot engine rubs; the automatic start motors for 30 s first and does not', () => {
   const hot = () => { const r = idling(); r.f.tla = 1; run(r.e, r.f, 60); r.f.master = false; run(r.e, r.f, 600); return r; };
   const a = hot(); assert.ok(a.e.damage.d.bow > 0.25, `bow ${a.e.damage.d.bow}`);
-  a.f.master = true; run(a.e, a.f, 60); assert.ok(has(a.e, 'bowed-rotor-rub'));
-  const b = hot(); b.f.manStart = true; run(b.e, b.f, 90); b.f.manStart = false; b.f.master = true; run(b.e, b.f, 60);
-  assert.ok(!has(b.e, 'bowed-rotor-rub') && b.e.out.lit);
+  a.f.manStart = true; run(a.e, a.f, 6); a.f.ovr.ignition = true;
+  for (const w of [220, 280, 340, 400]) { a.f.ovr.fuel = w / 3600; run(a.e, a.f, 4); }
+  assert.ok(has(a.e, 'bowed-rotor-rub'), `fuel after only 6 s of cranking: N2 ${a.e.out.N2pct}, bow ${a.e.damage.d.bow}`);
+  const b = hot(); b.f.master = true; run(b.e, b.f, 90);
+  assert.ok(!has(b.e, 'bowed-rotor-rub') && b.e.out.lit && b.f.phase === 'run');
 });
 
 test('oil system: normal pressures and temperatures; an oil leak ends in a seized bearing', () => {

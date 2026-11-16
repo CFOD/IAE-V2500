@@ -67,7 +67,7 @@ rates are engineering estimates, not IAE data.
 | Overspeed with the protections off | Discs hold to about 120 % of red line, then burst. This is uncontained: the engine is destroyed, seizes and burns. |
 | Surge it repeatedly | After the first few surges each one damages the HP compressor blading; eventually blades fail and go through the core. |
 | Cut the fuel at high power | The flame is out at once, N2 runs down in under a minute and EGT falls to the temperature of the hot metal. The thin casings cool and shrink in seconds while the discs stay hot, so the blade tips cut into their seals: a small permanent efficiency loss. Three minutes at idle first avoids it. |
-| Restart a hot engine | Left standing, a hot core cools unevenly and the HP rotor bows, worst about ten minutes to an hour after shut-down. Started like that, it rubs as it passes about 35 % N2. Dry cranking for a minute or so first straightens it. |
+| Restart a hot engine | Left standing, a hot core cools unevenly and the HP rotor bows, worst about ten minutes to an hour after shut-down. Started in a hurry by hand, it rubs as it passes about 35 % N2. The automatic start motors the engine for 30 s before it opens the fuel, which is enough to straighten it. |
 | Keep feeding fuel to a wrecked core | It burns outside the engine. The fire bottle only works once the fuel is off. |
 
 Vibration is shown in cockpit units (advisory at 5). Reset, or "Restore new-engine condition", repairs everything.
@@ -83,8 +83,8 @@ cooler, modulated) and then by fuel (fuel-cooled oil cooler), and scavenged back
 - **Bearings**: with pressure lost they last about a minute at take-off power and a few minutes at idle. Metal appears on the chip detector, vibration and drag rise, then the HP rotor seizes. Overheated oil (above 165 °C) and oil coked by a hot shut-down do the same more slowly.
 - Faults: external leak, pump drive failure, No. 4 bearing seal failure (oil lost into the gas path, smoke from the exhaust), cooler valve stuck shut, clogged filter.
 
-The tank size, the 60 psi switch and the 12 psi filter switch are from the SR Technics booklet. Flows,
-heat loads, the 155 / 165 °C temperature limits and the failure times are estimates.
+Tank size, pressure, temperature, quantity and filter limits are from the Airbus training manual
+(table under "Data and where it comes from"). Oil flows, heat loads and bearing failure times are estimates.
 
 ## Component maps
 
@@ -131,6 +131,7 @@ Read from the primary documents in November 2026 (`src/sim/v2500.js` tags each v
 - **[T]** EASA Type-Certificate Data Sheet IM.E.069, issue 05, 20 December 2022
 - **[I]** ICAO Aircraft Engine Emissions Databank v32B, hosted by EASA
 - **[O]** IAE operating instructions and training notes, seen only as search-result excerpts
+- **[A]** Airbus Single Aisle Technical Training Manual, T1+T2 (IAE V2500) Lvl 2&3, ATA 70-80, April 2013 (supplied by the project owner; not in the repository)
 
 | Data | Value | Source |
 |---|---|---|
@@ -146,7 +147,15 @@ Read from the primary documents in November 2026 (`src/sim/v2500.js` tags each v
 | Starter cut-out, minimum N2 for fuel | 43 %, 16 % | O |
 | Ground idle | about N1 21.7 %, N2 60 %, EGT 400 °C, 300-378 kg/h | O |
 | Handling bleeds | three stage-7 and one stage-10 valves, open for starting | O |
-| Inlet airflow at take-off | 848 lb/s (385 kg/s) | commonly quoted; not found in a primary source |
+| Inlet airflow at take-off | 770-781 lb/s (V2522/24), 811 (V2527), 858-872 (V2530/33) | A. The model's design point uses 385 kg/s for the V2533 against the manual's 396 |
+| Bypass ratio / climb pressure ratio / cruise sfc | 4.9, 4.8, 4.6-4.5 / 32.8 (35.2 for the A321 ratings) / 0.543 lb/lbf/h | A |
+| Thrust lever | 0-45 deg forward: climb detent 25, FLX/MCT 35, TOGA 45; reverse idle -6, maximum reverse -20 | A |
+| Automatic start | start valve opens with the master switch; fuel and ignition after 30 s of motoring; abort possible up to 50 % N2; starter cut-out 43 % N2 | A |
+| Manual start | 30 s dry crank, then master ON gives fuel and both igniters; no automatic shut-down | A |
+| Oil | no pressure regulator (pressure follows N2); cold-start relief 450 psi; low-pressure warning < 60 psi, amber < 80, advisory > 390; temperature advisory > 157 °C, warning 165 °C; quantity advisory < 5 qt; filter switch 12 psi, by-pass 20 psi; 25 qt tank; six scavenge pumps | A, SR Technics booklet |
+| Handling bleeds | 2.5 bleed fully modulating: open for start, deceleration and reverse, closed at take-off and cruise; stage 7 and 10 valves two-position, spring-loaded open | A |
+| Vibration | displayed 0-10 units, 1 unit = 0.3 in/s | A |
+| Reverser | two translating sleeves, four actuators (lower pair locking), ten blocker doors, ten rods, cascades round the nacelle | A |
 
 Two things worth knowing:
 
@@ -177,7 +186,7 @@ mixing-plane Mach number, spool inertias, volumes, all schedule break-points.
 | V2527-A5 take-off EGT, ISA / ISA+30 | 515 / 591 °C | limit 635 °C |
 | Cruise TSFC, FL350 M0.78 | 0.572 lb/lbf/h | about 0.54-0.58 (unverified) |
 | Idle to 95 % take-off thrust | about 6.4 s | certification requires <= 5 s from flight idle |
-| Start to idle / peak start EGT | 27 s / 528 °C | limit 635 °C; time not checked against a published figure |
+| Start to idle / peak start EGT | 43 s / 515 °C | limit 635 °C; time not checked against a published figure |
 
 The approach point is the weakest (4.8 % low). Ground-idle fuel flow is slightly above the quoted
 range. Fan speed at 1.05 EPR is about 36 %; crews stabilise at 1.05 EPR where CFM crews use 50 % N1,
@@ -192,6 +201,6 @@ which suggests the real figure may be somewhat higher.
 - **FADEC rating tables are not IAE's.** Take-off is flat rated to the published corner temperature and
   max-continuous / climb use the published thrusts, but the real altitude-Mach-temperature EPR tables
   and the bleed / stator schedule break-points are proprietary; the ones here are tuned to this model.
-- Start time (about 35 s to idle) and peak start EGT are not checked against a published figure.
+- Start time (about 43 s to idle, 30 s of it motoring before fuel) and peak start EGT are not checked against a published figure.
 - No Reynolds-number effects, active clearance control, fuel system components, humidity or icing; one lumped heat-soak mass.
 - Ambient changes are a test-cell step, not a flight model.

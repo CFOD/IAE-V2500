@@ -1,6 +1,6 @@
 // Game shell: owns the simulation loop and wires UI <-> sim <-> views.
 import { Engine, defaultMods } from '../src/sim/engine.js';
-import { Fadec } from '../src/sim/fadec.js';
+import { Fadec, DETENT_CL, DETENT_MCT } from '../src/sim/fadec.js';
 import { RATINGS } from '../src/sim/v2500.js';
 import { Cutaway } from './cutaway.js';
 import { Scene3D } from './scene3d.js';
@@ -184,9 +184,9 @@ $('manStart').onclick = () => { fadec.manStart = !fadec.manStart; $('manStart').
 $('agent').onclick = () => { const out = eng.damage.extinguish(); logMsg(out ? 'Fire agent discharged - fire out' : 'Fire agent discharged - STILL BURNING: shut the fuel off first'); };
 $('reverser').onclick = () => { eng.u.reverser = !eng.u.reverser; $('reverser').setAttribute('aria-pressed', eng.u.reverser); logMsg(`Thrust reverser ${eng.u.reverser ? 'deploy' : 'stow'}`); };
 const tla = $('tla');
-const detent = (t) => (t >= 0.995 ? 'TOGA' : Math.abs(t - 0.85) < 0.012 ? 'Max continuous' : Math.abs(t - 0.7) < 0.012 ? 'Climb' : t < 0.005 ? 'Idle' : `${(t * 100).toFixed(0)} %`);
+const detent = (t) => (t >= 0.995 ? 'TOGA' : Math.abs(t - DETENT_MCT) < 0.012 ? 'FLX / MCT' : Math.abs(t - DETENT_CL) < 0.012 ? 'Climb' : t < 0.005 ? 'Idle' : `${(t * 100).toFixed(0)} %`);
 const setTla = (v) => { fadec.tla = Math.min(1, Math.max(0, v)); tla.value = fadec.tla; $('tlaOut').textContent = detent(fadec.tla); };
-tla.oninput = () => { let v = +tla.value; for (const d of [0.7, 0.85]) if (Math.abs(v - d) < 0.02) v = d; setTla(v); };
+tla.oninput = () => { let v = +tla.value; for (const d of [DETENT_CL, DETENT_MCT]) if (Math.abs(v - d) < 0.02) v = d; setTla(v); };
 
 // ------------------------------------------------------------ top bar
 $('btnPause').onclick = () => { paused = !paused; $('btnPause').classList.toggle('on', paused); $('btnPause').textContent = paused ? 'Resume' : 'Pause'; };
@@ -348,8 +348,8 @@ function statusHtml(o) {
   if (o.N1pct > 100 || o.N2pct > 100) add('Overspeed', 'bad');
   const dm = eng.damage.d;
   if (o.fire) add('ENGINE FIRE', 'bad');
-  if (o.oilLowP) add('OIL LO PR - shut the engine down', 'bad');
-  if (o.oilT > 165) add(`OIL HI TEMP ${o.oilT.toFixed(0)} °C`, 'bad'); else if (o.oilT > 155) add(`Oil temperature ${o.oilT.toFixed(0)} °C`, 'warn');
+  if (o.oilLowP) add('OIL LO PR - shut the engine down', 'bad'); else if (o.N2pct > 20 && o.oilP < 80) add(`Oil pressure ${o.oilP.toFixed(0)} psi`, 'warn'); else if (o.oilP > 390) add(`Oil pressure high ${o.oilP.toFixed(0)} psi`, 'warn');
+  if (o.oilT >= 165) add(`OIL HI TEMP ${o.oilT.toFixed(0)} °C`, 'bad'); else if (o.oilT > 157) add(`Oil temperature ${o.oilT.toFixed(0)} °C`, 'warn');
   if (o.oilQ < 5 && o.N2pct > 20) add(`Oil quantity ${o.oilQ.toFixed(1)} qt`, o.oilQ < 2.5 ? 'bad' : 'warn');
   if (o.oilFilterDp > 12) add('Oil filter clogged', 'warn');
   if (o.oilChips) add('Chip detector: metal in the oil', 'bad');

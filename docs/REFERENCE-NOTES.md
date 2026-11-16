@@ -100,3 +100,11 @@ The booklet itself is not in the repository (training material, not ours to publ
 - [x] Hot section and exhaust: cage of thin cooling tubes round both turbine cases with axial manifolds, case ribs and bosses, bolt circles, bronze centre body and exhaust case, golden-brown LP turbine blading (rear-view photo).
 - [x] Nacelle: starter valve access and oil-cooler outlet louvre on the right-hand fan cowl, anti-ice exhaust slot, interphone panel and hoist points on the nose cowl; wing stub above the pylon (hidden with the cutaway on).
 - [x] Reverser doors stop on the core cowl at full deploy (swing reduced from 60 to about 32 degrees; real geometry not known).
+
+## From the Airbus Single Aisle Technical Training Manual, IAE V2500 (ATA 70-80, April 2013), supplied by the project owner
+Not in the repository. Read as text (all 434 pages) plus selected figures.
+- [x] Reverser: ten blocker doors hinged on the sleeve at their forward edge, ten rods to hinges on the core cowl, four actuators, two sleeves. (The doors previously hinged the wrong way round.)
+- [x] Exhaust cone held by 13 bolts; common nozzle by 56. P4.9 ports in exhaust-case struts 4, 7 and 10.
+- [x] Fluid disconnect panel on the left of the upper fan case, electrical connector panel on the right.
+- [ ] Zone 1 ventilation scoop on top of the intake cowl and two vent grilles at the bottom of each fan cowl door; strakes on the inboard side only; forward mount with two thrust links, beam and cross beam; aft mount with two side links and a centre link on the exhaust-case lugs; ten BSBV support arms; No. 1 to 5 bearing types; fuel flow transmitter low on the left of the fan case.
+- [ ] Figures not yet gone through page by page (about 200 diagram pages).

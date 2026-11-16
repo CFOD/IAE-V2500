@@ -117,7 +117,7 @@ npm run dist       # build an unpacked distributable in dist/ (electron-builder)
 
 ### Starting by hand (Master stays off)
 
-1. Switch **Crank** on. The starter spins the core; wait for N2 to pass about 20 %.
+1. Switch **Crank** on and let the starter spin the core for 30 seconds (the real procedure: it clears fuel vapour and straightens a hot rotor).
 2. **Panel → Control**: set **Igniters** to Manual and ON, set **Fuel flow** to Manual at about 200 kg/h.
    The engine lights within a few seconds.
 3. Ease the fuel up towards 390 kg/h over about 30 seconds, watching EGT. Too fast and it runs hot.
@@ -138,7 +138,7 @@ The engine fails the way a real one would (details in [docs/PHYSICS.md](docs/PHY
 - **Overspeed it** with the protections off (Panel → Control) and a rotor bursts. That engine is finished.
 - **Fuel a stalled compressor** and the combustor burns through: engine fire. Shut the fuel off, then press **Agent**.
 - **Cut the fuel at take-off power** and the casings shrink onto the hot rotors (tip rub). Let it idle three minutes first.
-- **Restart it ten minutes after a hot shut-down** and the bowed rotor rubs. Crank it dry for a minute first.
+- **Restart it by hand ten minutes after a hot shut-down without the 30-second crank** and the bowed rotor rubs. The automatic start cranks for 30 seconds first, like the real one.
 
 - **Lose the oil** (Panel → Faults: leak, pump failure, seal failure) and the pressure goes, metal shows on the chip detector, and a main bearing seizes. Shut down when OIL LO PR comes on and it survives.
 

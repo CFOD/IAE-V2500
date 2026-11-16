@@ -511,7 +511,7 @@ export class Scene3D {
     this._solid(tec, band(CO, offset(CO, 0.02), 3.02, 3.12, 3));
     // bolt circles on the plug and the outer ring, borescope and probe bosses, rear mount lugs at the top
     { const bolt = new THREE.CylinderGeometry(0.006, 0.006, 0.014, 6); bolt.rotateZ(Math.PI / 2);
-      this._ring(tec, bolt, 24, (m, th) => m.makeTranslation(3.135, 0.2 * Math.cos(th), 0.2 * Math.sin(th)), { mat: this.boltMat });
+      this._ring(tec, bolt, 13, (m, th) => m.makeTranslation(3.135, 0.2 * Math.cos(th), 0.2 * Math.sin(th)), { mat: this.boltMat });
       this._ring(tec, bolt, 56, (m, th) => m.makeTranslation(3.02, (co(3.02) + 0.035) * Math.cos(th), (co(3.02) + 0.035) * Math.sin(th)), { mat: this.boltMat });
       this._solid(tec, [[3.013, co(3.02) + 0.018], [3.013, co(3.02) + 0.05], [3.027, co(3.02) + 0.05], [3.027, co(3.02) + 0.018]], { seg: 96 });
       const boss = new THREE.CylinderGeometry(0.018, 0.022, 0.03, 10);
@@ -570,7 +570,7 @@ export class Scene3D {
       this.dragLinks[1].userData.variant = 'full';
       for (const im of this.dragLinks) this._reg(this.byId.cna, im); }
     // P4.9 pressure rakes in three exhaust-case struts, joined by a small-bore manifold
-    for (const th of [90, 180, 270]) { const rk = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 8), pipeGold); onCore(tec, rk, 3.03, th, 0.37); }
+    for (const k of [4, 7, 10]) { const th = ((k - 1) * 360) / 13, rk = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 8), pipeGold); onCore(tec, rk, 3.03, th, 0.37); } // struts 4, 7 and 10
     this._pipe(tec, Array.from({ length: 16 }, (_, i) => [3.0, co(3.0) + 0.07, 120 + i * 15]), 0.004, pipeGold);
     // lower and upper bifurcations: the walls where the two C-ducts meet, splitting the bypass duct at 6 and 12 o'clock
     { const bi = (th, full) => { const sh = new THREE.Shape(); const xs = [1.22, 1.32, 2.6, 2.86]; sh.moveTo(xs[0], rAt(P.bypInner, xs[0])); sh.lineTo(xs[1], rAt(P.bypOuter, xs[1]) - 0.004); sh.lineTo(xs[2], rAt(P.bypOuter, xs[2]) - 0.004); sh.lineTo(xs[3], rAt(P.bypInner, xs[3]) + 0.02); sh.lineTo(2.4, rAt(P.bypInner, 2.4)); sh.lineTo(1.6, rAt(P.bypInner, 1.6)); sh.lineTo(xs[0], rAt(P.bypInner, xs[0]));
@@ -813,10 +813,10 @@ export class Scene3D {
   _reverser(rev) {
     if (rev === this._rev) return; this._rev = rev;
     if (!this.revNodes) { this.revNodes = []; this.engine.traverse((n) => { const k = /^cna_sleeve/i.test(n.name) ? 'sleeve' : /^cna_blocker/i.test(n.name) ? 'door' : null; if (k) { n.userData.rev = { k, x: n.position.x, q: n.quaternion.clone() }; this.revNodes.push(n); } }); }
-    const e = rev * rev * (3 - 2 * rev), qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), e * 0.55); // hinge = door's tangential axis (local Z after the glTF axis conversion)
+    const e = rev * rev * (3 - 2 * rev), qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -e * 0.61); // hinge = door's tangential axis (local Z after the glTF axis conversion)
     if (this.dragLinks) {
-      // door attach point 0.2 m ahead of its hinge; anchor on the core cowl
-      const a = e * 0.55, px = 2.2 + 0.46 * e - 0.2 * Math.cos(a), pr = 0.744 + 0.013 * (1 - e) - 0.2 * Math.sin(a), ax = 2.21, ar = rAt(P.bypInner, 2.21), ex = this.byId.cna.ex * this.explode * 1.5;
+      // ten rods: each runs from a hinge on the core cowl to the aft part of its door and pulls the door down as the sleeve slides aft
+      const a = e * 0.61, px = 1.8 + 0.46 * e + 0.34 * Math.cos(a), pr = 0.759 - 0.012 * (1 - e) - 0.34 * Math.sin(a), ax = 2.29, ar = rAt(P.bypInner, 2.29), ex = this.byId.cna.ex * this.explode * 1.5;
       const len = Math.hypot(px - ax, pr - ar), ang = Math.atan2(px - ax, pr - ar), m = new THREE.Matrix4(), q = new THREE.Quaternion(), qz = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -ang), ax1 = new THREE.Vector3(1, 0, 0);
       for (const im of this.dragLinks) { im.userData.ths.forEach((th, i) => { const mx = (px + ax) / 2, mr = (pr + ar) / 2; q.setFromAxisAngle(ax1, th).multiply(qz); m.compose(new THREE.Vector3(mx, mr * Math.cos(th), mr * Math.sin(th)), q, new THREE.Vector3(1, len, 1)); im.setMatrixAt(i, m); }); im.instanceMatrix.needsUpdate = true; }
     }

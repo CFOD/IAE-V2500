@@ -427,14 +427,14 @@ def build():
         for lst in ([cas_full] if in_cut(th) else [cas_full, cas_cut]):
             lst.append(box('s', th_pos(1.99, th, rm), (0.46, 0.012, OML(2.0) - duct(2.0) - 0.07), th, comp))
     made.extend([join('cna_cascades', cas_full), join('cna_cascades__cut', cas_cut)])
-    # blocker doors: stowed flush in the sleeve's inner wall, hinged at their aft edge
+    # ten blocker doors: stowed flush in the sleeve's inner wall, hinged at their forward edge
     from mathutils import Matrix
     for k in range(10):
-        th = k * 36 + 18; L = 0.4; xh = 2.2; rh = duct(xh) - 0.006
-        hw0 = math.pi * rh / 10 * 0.94; hw1 = math.pi * (duct(xh - L) - 0.006) / 10 * 0.94
+        th = k * 36 + 18; L = 0.4; xh = 1.8; rh = duct(xh) - 0.006   # hinge line at the door's forward edge
+        hw0 = math.pi * rh / 10 * 0.94; hw1 = math.pi * (duct(xh + L) - 0.006) / 10 * 0.94
         bm = bmesh.new()
-        slope = (duct(xh - L) - duct(xh))  # door follows the duct wall when stowed
-        vs = [bm.verts.new(v) for v in [(0, -hw0, 0), (0, hw0, 0), (-L, hw1, slope), (-L, -hw1, slope), (0, -hw0, -0.012), (0, hw0, -0.012), (-L, hw1, slope - 0.012), (-L, -hw1, slope - 0.012)]]
+        slope = (duct(xh + L) - duct(xh))  # door follows the duct wall when stowed
+        vs = [bm.verts.new(v) for v in [(0, -hw0, 0), (0, hw0, 0), (L, hw1, slope), (L, -hw1, slope), (0, -hw0, -0.012), (0, hw0, -0.012), (L, hw1, slope - 0.012), (L, -hw1, slope - 0.012)]]
         for f in [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)]: bm.faces.new([vs[i] for i in f])
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         nm = f'cna_blocker_{k:02d}' + ('__full' if in_cut(th) else '')
