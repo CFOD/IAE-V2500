@@ -102,6 +102,14 @@ npm run dist       # build an unpacked distributable in dist/ (electron-builder)
 - **Panel → Control**: every FADEC output has an Auto/Manual switch: fuel flow, igniters,
   starter valve, variable stator vanes, LPC 2.5 bleed, HPC stage 7 and 10 bleeds. Plus starter air
   pressure, customer bleed and power off-take.
+- **Component cards carry their own controls.** Click the fuel nozzles to set fuel flow, the HPC case
+  for the stator vanes and bleed valves, the gearbox for the starter, a turbine for its efficiency,
+  and so on.
+- **FADEC protections** (bottom of Panel > Control) can each be switched off: EGT, N1 and N2 limiters,
+  acceleration and deceleration schedules, surge recovery, hot-start abort. There is also an EPR /
+  rated-N1 thrust mode switch.
+- **Faults** tab: bird strike, debris through the core, turbine burn-through, contaminated fuel,
+  jammed stators, stuck bleed and start valves, loss of EPR sensing, flame-out.
 - **Ambient**: altitude, ISA deviation, Mach number, humidity. **Hardware**: component efficiencies,
   flow capacities, nozzle areas, cooling air, fuel heating value.
 - **Monitor**: compressor maps with live operating point and surge line, trends, station table,

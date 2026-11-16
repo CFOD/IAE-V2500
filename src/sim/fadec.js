@@ -55,7 +55,13 @@ export class Fadec {
     this._prevN2 = 0;
     this._evIdx = 0;
     this.auto = {};
+    // Protections the player can switch off (Panel > Control). All on = normal FADEC behaviour.
+    this.prot = { egt: true, n1: true, n2: true, accel: true, decel: true, surge: true, startAbort: true };
+    this.n1Mode = false; // rated-N1 reversion: thrust is set on fan speed instead of EPR (used when EPR sensing is lost)
   }
+
+  /** Fan speed that gives the selected rating's take-off thrust at sea level (fitted to this model). */
+  ratedN1() { return 95 - (140.56 - (RATINGS[this.rating].toDaN / 100)) * 0.235; }
 
   /** EPR limits for the selected rating: take-off and max continuous. */
   eprLimits(out) {
@@ -130,7 +136,7 @@ export class Fadec {
           this.msg = 'STARTING';
           this.timer += dt;
           if (!o.lit) { this.phase = 'lightup'; this.timer = 0; }
-          if (egtC > LIMITS.EGT_START) { this.phase = 'abort'; this.msg = 'HOT START - ABORTED'; this.timer = 0; }
+          if (egtC > LIMITS.EGT_START && this.prot.startAbort) { this.phase = 'abort'; this.msg = 'HOT START - ABORTED'; this.timer = 0; }
           else if (n2 >= idle - 1) { this.phase = 'run'; this.msg = ''; }
           else if (this.timer > 90) this.msg = 'HUNG START';
           break;
@@ -152,6 +158,7 @@ export class Fadec {
     const ruSS = lerpTable(RU_STEADY, n2c);
     let ruAcc = ruSS * lerpTable(ACCEL_MARGIN, n2c);
     const ruDec = ruSS * DECEL_FRAC;
+    if (!this.prot.surge) this.surgeHold = 0;
     if (this.surgeHold > 0) ruAcc *= 0.8;
     let wf = 0;
     this.limiter = '';
@@ -171,22 +178,25 @@ export class Fadec {
         // tracking thrust. Reverse is governed on fan speed instead, between idle and MAX_REVERSE_N1.
         const reverse = o.rev > 0.05;
         const n1Cmd = 22 + (MAX_REVERSE_N1 - 22) * this.tla;
-        const cand = [
-          reverse ? [(n1Cmd - o.N1pct) * 0.06, 'EPR'] : [(eprCmd - o.epr) * 3.0, 'EPR'],
-          [(LIMITS.N1_RED - 0.5 - o.N1pct) * 0.15, 'N1 limit'],
-          [(LIMITS.N2_RED - 0.5 - n2) * 0.25, 'N2 limit'],
-          [(egtLim - 5 - egtC) * 0.012, 'EGT limit'],
-        ];
+        const n1Rated = this.ratedN1(), lever = this.tla >= 0.85 ? 0.93 + 0.07 * (this.tla - 0.85) / 0.15 : this.tla * (0.93 / 0.85);
+        const primary = reverse ? [(n1Cmd - o.N1pct) * 0.06, 'EPR']
+          : this.n1Mode ? [(22 + (n1Rated - 22) * lever - o.N1pct) * 0.06, 'N1 mode']
+          : [(eprCmd - o.epr) * 3.0, 'EPR'];
+        const cand = [primary];
+        if (this.prot.n1) cand.push([(LIMITS.N1_RED - 0.5 - o.N1pct) * 0.15, 'N1 limit']);
+        if (this.prot.n2) cand.push([(LIMITS.N2_RED - 0.5 - n2) * 0.25, 'N2 limit']);
+        if (this.prot.egt) cand.push([(egtLim - 5 - egtC) * 0.012, 'EGT limit']);
         let e = cand[0];
         for (const cnd of cand) if (cnd[0] < e[0]) e = cnd;
         const eIdle = (idle - n2) * 0.25 - n2dot * 0.08;
-        if (eIdle > e[0] && e[1] === 'EPR') e = [eIdle, 'idle'];
+        if (eIdle > e[0] && (e[1] === 'EPR' || e[1] === 'N1 mode')) e = [eIdle, 'idle'];
         this.limiter = e[1] === 'EPR' && reverse ? 'N1 (reverse)' : e[1];
         const scale = Math.max(this.wf, 0.05);
         wf = this.wf + clamp(e[0], -1.5, 1.5) * scale * dt;
         const hi = ruAcc * p3bar, lo = Math.max(ruDec * p3bar, 0.022);
-        if (wf > hi) { wf = hi; this.limiter = 'accel sched'; }
-        if (wf < lo) { wf = lo; this.limiter = 'decel sched'; }
+        if (wf > hi && this.prot.accel) { wf = hi; this.limiter = 'accel sched'; }
+        if (wf < lo && this.prot.decel) { wf = lo; this.limiter = 'decel sched'; }
+        wf = Math.max(wf, 0);
       }
     }
     this.wf = wf;

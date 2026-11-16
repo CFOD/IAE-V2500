@@ -38,15 +38,17 @@
   <h2 id="pcName">Nothing selected</h2>
   <p id="pcDesc"></p>
   <div id="pcLive"></div>
+  <div id="pcCtl"></div>
   <button id="pcRemove" class="btn" hidden>Remove part</button>
   <div id="removedWrap" hidden><div class="eyebrow">Removed</div><div id="removed"></div><button id="restoreAll" class="btn ghost">Refit all</button></div>
 </aside>
 
 <aside id="drawer" class="glass">
-  <nav class="tabs" data-group="drawer"><button data-t="ctl" class="on">Control</button><button data-t="amb">Ambient</button><button data-t="hw">Hardware</button><button data-t="mon">Monitor</button></nav>
+  <nav class="tabs" data-group="drawer"><button data-t="ctl" class="on">Control</button><button data-t="amb">Ambient</button><button data-t="hw">Hardware</button><button data-t="flt">Faults</button><button data-t="mon">Monitor</button></nav>
   <div class="tab on" id="t-ctl"></div>
   <div class="tab" id="t-amb"></div>
   <div class="tab" id="t-hw"></div>
+  <div class="tab" id="t-flt"></div>
   <div class="tab" id="t-mon">
     <nav class="tabs sub" data-group="sd"><button data-t="maps" class="on">Compressor maps</button><button data-t="trend">Trends</button><button data-t="data">Stations</button><button data-t="log">Log</button></nav>
     <div class="tab on" id="t-maps"><canvas id="maps"></canvas></div>

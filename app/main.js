@@ -49,44 +49,60 @@ function inletWeather(o) {
 
 // ------------------------------------------------------------ control rows
 const rows = [];
+/**
+ * A slider row. Rows with `key` belong to a FADEC channel: Auto follows the computer, Manual overrides it.
+ * State lives in the simulation, not the row, so the same control can appear in the panel and on a component card.
+ */
 function addRow(parent, d) {
   const el = document.createElement('div'); el.className = 'ctl';
-  el.innerHTML = `<span class="name" title="${d.tip || ''}">${d.name}</span>${d.ovr ? '<button>Auto</button>' : '<span></span>'}<input type="range" min="${d.min}" max="${d.max}" step="${d.step}"><span class="val"></span>`;
+  el.innerHTML = `<span class="name" title="${d.tip || ''}">${d.name}</span>${d.key ? '<button>Auto</button>' : '<span></span>'}<input type="range" min="${d.min}" max="${d.max}" step="${d.step}"><span class="val"></span>`;
   parent.appendChild(el);
   const [, btn, inp, val] = el.children;
-  const row = { d, el, inp, val, man: !d.ovr };
+  const row = { d, el, inp, val, btn };
   inp.value = d.get();
-  inp.addEventListener('input', () => { if (row.man) d.set(+inp.value); });
-  if (d.ovr) {
-    inp.disabled = true;
-    btn.addEventListener('click', () => {
-      row.man = !row.man; btn.textContent = row.man ? 'Manual' : 'Auto'; btn.classList.toggle('on', row.man);
-      el.classList.toggle('man', row.man); inp.disabled = !row.man;
-      d.set(row.man ? +inp.value : null);
-      logMsg(`${d.name}: ${row.man ? 'MANUAL' : 'FADEC AUTO'}`);
-    });
-  }
+  inp.addEventListener('input', () => { if (!d.key || fadec.ovr[d.key] != null) d.set(+inp.value); });
+  if (d.key) btn.addEventListener('click', () => { const man = fadec.ovr[d.key] == null; d.set(man ? +inp.value : null); logMsg(`${d.name}: ${man ? 'manual' : 'FADEC auto'}`); });
   rows.push(row);
   return row;
 }
-function refreshRows() { for (const r of rows) { if (!r.man) r.inp.value = r.d.get(); r.val.textContent = r.d.fmt(+r.inp.value); } }
-function resetRows(tabEl) { for (const r of rows) if (tabEl.contains(r.el) && r.man && !r.d.ovr) { r.inp.value = r.d.def; r.d.set(r.d.def); } }
+function refreshRows() {
+  for (let i = rows.length - 1; i >= 0; i--) if (!rows[i].el.isConnected) rows.splice(i, 1);
+  for (const r of rows) {
+    const d = r.d, man = d.key ? fadec.ovr[d.key] != null : true;
+    if (d.key) { r.btn.textContent = man ? 'Manual' : 'Auto'; r.btn.classList.toggle('on', man); r.el.classList.toggle('man', man); r.inp.disabled = !man; }
+    if (document.activeElement !== r.inp) r.inp.value = d.key && man ? d.mv() : d.get();
+    r.val.textContent = d.fmt(+r.inp.value);
+  }
+}
+function resetRows(tabEl) { for (const r of rows) if (tabEl.contains(r.el) && !r.d.key && r.d.def != null) { r.inp.value = r.d.def; r.d.set(r.d.def); } }
 
 const ov = fadec.ovr, u = eng.u, m = eng.mods;
 const onoff = (v) => (v >= 0.5 ? 'ON' : 'OFF');
 const ctl = $('t-ctl');
-[
-  { name: 'Fuel flow', tip: 'Metered fuel flow. Needs ENG MASTER on (fuel shut-off valve).', ovr: 1, min: 0, max: 8000, step: 10, get: () => fadec.auto.fuel * 3600 || 0, set: (v) => (ov.fuel = v == null ? null : v / 3600), fmt: (v) => `${v.toFixed(0)} kg/h` },
-  { name: 'Igniters', ovr: 1, min: 0, max: 1, step: 1, get: () => +!!fadec.auto.ignition, set: (v) => (ov.ignition = v == null ? null : v >= 0.5), fmt: onoff },
-  { name: 'Starter air valve', ovr: 1, min: 0, max: 1, step: 1, get: () => +!!fadec.auto.starter, set: (v) => (ov.starter = v == null ? null : v >= 0.5), fmt: (v) => (v >= 0.5 ? 'OPEN' : 'CLOSED') },
-  { name: 'Starter air pressure', tip: 'APU / ground cart duct pressure', min: 0, max: 60, step: 1, def: 40, get: () => u.starterPsi, set: (v) => (u.starterPsi = v), fmt: (v) => `${v.toFixed(0)} psi` },
-  { name: 'Variable stator vanes', tip: 'HPC inlet guide vanes + 3 stator rows. Degrees closed.', ovr: 1, min: -10, max: 50, step: 0.5, get: () => eng.out.vsvSched, set: (v) => (ov.vsv = v), fmt: (v) => `${v.toFixed(1)}° shut` },
-  { name: 'LPC 2.5 bleed ring', tip: 'Booster bleed ring, dumps into bypass duct', ovr: 1, min: 0, max: 1, step: 0.01, get: () => fadec.auto.bleed25, set: (v) => (ov.bleed25 = v), fmt: (v) => `${(v * 100).toFixed(0)} % open` },
-  { name: 'HPC stage 7 bleeds', tip: 'Three handling bleed valves', ovr: 1, min: 0, max: 3, step: 1, get: () => fadec.auto.bleed7, set: (v) => (ov.bleed7 = v), fmt: (v) => `${v} / 3 open` },
-  { name: 'HPC stage 10 bleed', tip: 'Start / handling bleed valve', ovr: 1, min: 0, max: 1, step: 1, get: () => fadec.auto.bleed10, set: (v) => (ov.bleed10 = v), fmt: (v) => (v >= 0.5 ? 'OPEN' : 'CLOSED') },
-  { name: 'Customer bleed', tip: 'Air taken for cabin / anti-ice, % of core flow', min: 0, max: 10, step: 0.1, def: 0, get: () => u.custBleed * 100, set: (v) => (u.custBleed = v / 100), fmt: (v) => `${v.toFixed(1)} % core` },
-  { name: 'Power off-take', tip: 'Generator + hydraulic pump load on the HP spool. Certified limit 131 kW continuous, 168 kW for 5 minutes.', min: 0, max: 170, step: 5, def: 60, get: () => u.offtakeW / 1000, set: (v) => (u.offtakeW = v * 1000), fmt: (v) => `${v.toFixed(0)} kW` },
-].forEach((d) => addRow(ctl, d));
+const onOff = (v) => (v >= 0.5 ? 'On' : 'Off');
+const prot = (name, k, tip) => ({ name, tip, min: 0, max: 1, step: 1, def: 1, get: () => +fadec.prot[k], set: (v) => { fadec.prot[k] = v >= 0.5; }, fmt: onOff });
+const D = {
+  fuel: { name: 'Fuel flow', tip: 'Metered fuel flow. Needs Master on (fuel shut-off valve).', key: 'fuel', min: 0, max: 8000, step: 10, get: () => fadec.auto.fuel * 3600 || 0, mv: () => ov.fuel * 3600, set: (v) => (ov.fuel = v == null ? null : v / 3600), fmt: (v) => `${v.toFixed(0)} kg/h` },
+  ign: { name: 'Igniters', key: 'ignition', min: 0, max: 1, step: 1, get: () => +!!fadec.auto.ignition, mv: () => +ov.ignition, set: (v) => (ov.ignition = v == null ? null : v >= 0.5), fmt: onoff },
+  starter: { name: 'Starter air valve', key: 'starter', min: 0, max: 1, step: 1, get: () => +!!fadec.auto.starter, mv: () => +ov.starter, set: (v) => (ov.starter = v == null ? null : v >= 0.5), fmt: (v) => (v >= 0.5 ? 'OPEN' : 'CLOSED') },
+  starterPsi: { name: 'Starter air pressure', tip: 'APU / ground cart duct pressure', min: 0, max: 60, step: 1, def: 40, get: () => u.starterPsi, set: (v) => (u.starterPsi = v), fmt: (v) => `${v.toFixed(0)} psi` },
+  vsv: { name: 'Variable stator vanes', tip: 'HPC inlet guide vanes + 3 stator rows. Degrees closed.', key: 'vsv', min: -10, max: 50, step: 0.5, get: () => eng.out.vsvSched, mv: () => ov.vsv, set: (v) => (ov.vsv = v), fmt: (v) => `${v.toFixed(1)}° shut` },
+  b25: { name: 'LPC 2.5 bleed ring', tip: 'Booster bleed ring, dumps into bypass duct', key: 'bleed25', min: 0, max: 1, step: 0.01, get: () => fadec.auto.bleed25, mv: () => ov.bleed25, set: (v) => (ov.bleed25 = v), fmt: (v) => `${(v * 100).toFixed(0)} % open` },
+  b7: { name: 'HPC stage 7 bleeds', tip: 'Three handling bleed valves', key: 'bleed7', min: 0, max: 3, step: 1, get: () => fadec.auto.bleed7, mv: () => ov.bleed7, set: (v) => (ov.bleed7 = v), fmt: (v) => `${v} / 3 open` },
+  b10: { name: 'HPC stage 10 bleed', tip: 'Start / handling bleed valve', key: 'bleed10', min: 0, max: 1, step: 1, get: () => fadec.auto.bleed10, mv: () => ov.bleed10, set: (v) => (ov.bleed10 = v), fmt: (v) => (v >= 0.5 ? 'OPEN' : 'CLOSED') },
+  cust: { name: 'Customer bleed', tip: 'Air taken for cabin / anti-ice, % of core flow', min: 0, max: 10, step: 0.1, def: 0, get: () => u.custBleed * 100, set: (v) => (u.custBleed = v / 100), fmt: (v) => `${v.toFixed(1)} % core` },
+  offtake: { name: 'Power off-take', tip: 'Generator + hydraulic pump load on the HP spool. Certified limit 131 kW continuous, 168 kW for 5 minutes.', min: 0, max: 170, step: 5, def: 60, get: () => u.offtakeW / 1000, set: (v) => (u.offtakeW = v * 1000), fmt: (v) => `${v.toFixed(0)} kW` },
+  n1mode: { name: 'Thrust setting mode', tip: 'EPR (normal) or rated-N1 reversion', min: 0, max: 1, step: 1, def: 0, get: () => +fadec.n1Mode, set: (v) => { fadec.n1Mode = v >= 0.5; }, fmt: (v) => (v >= 0.5 ? 'N1 mode' : 'EPR mode') },
+  pEgt: prot('EGT limiter', 'egt', 'Off: the FADEC no longer cuts fuel to hold EGT inside its limit'),
+  pN1: prot('N1 overspeed limiter', 'n1'), pN2: prot('N2 overspeed limiter', 'n2'),
+  pAccel: prot('Acceleration schedule', 'accel', 'Fuel limit that keeps the HP compressor out of surge during accelerations'),
+  pDecel: prot('Deceleration schedule', 'decel', 'Fuel floor that keeps the flame alight during decelerations'),
+  pSurge: prot('Surge recovery', 'surge', 'On a surge: bleeds open, ignition on, acceleration fuel reduced'),
+  pAbort: prot('Hot-start abort', 'startAbort', 'Automatic start abort above the starting EGT limit'),
+};
+['fuel', 'ign', 'starter', 'starterPsi', 'vsv', 'b25', 'b7', 'b10', 'cust', 'offtake'].forEach((k) => addRow(ctl, D[k]));
+ctl.insertAdjacentHTML('beforeend', '<h4>FADEC protections</h4>');
+['n1mode', 'pEgt', 'pN1', 'pN2', 'pAccel', 'pDecel', 'pSurge', 'pAbort'].forEach((k) => addRow(ctl, D[k]));
 ctl.insertAdjacentHTML('beforeend', '<p class="note">On Auto the engine computer (FADEC) has authority and each slider follows what it commands. Switch a channel to Manual to take it away from the computer and find out why the schedules exist.</p>');
 
 const amb = $('t-amb'); amb.innerHTML = '<div class="presets"></div>';
@@ -121,8 +137,37 @@ const mulRow = (name, key, lo, hi, tip) => ({ name, tip, min: lo, max: hi, step:
   mulRow('Final nozzle area', 'a9', -30, 30, 'Common exhaust nozzle. Smaller = fan pushed towards surge'), mulRow('Core mixer area', 'a8', -30, 30, 'Core stream area at the mixing plane'), mulRow('Bypass mixer area', 'a18', -30, 30, 'Bypass stream area at the mixing plane'),
   mulRow('Turbine cooling air', 'cooling', -100, 50, 'Cooling air taken from the HPC'),
   { name: 'Fuel heating value', tip: 'Lower heating value. Jet A ≈ 43.1 MJ/kg', min: 25, max: 50, step: 0.1, def: 43.1, get: () => m.lhv / 1e6, set: (v) => (m.lhv = v * 1e6), fmt: (v) => `${v.toFixed(1)} MJ/kg` },
-].forEach((d) => addRow(hw, d));
-$('hwReset').onclick = () => { resetRows(hw); Object.assign(m, defaultMods()); logMsg('Hardware restored to new condition'); };
+].forEach((d) => { D[d.name] = d; addRow(hw, d); });
+$('hwReset').onclick = () => { resetRows(hw); Object.assign(m, defaultMods()); for (const f of FAULTS) if (f.active && f.mods) { f.active = false; } refreshFaults(); logMsg('Hardware restored to new condition'); };
+
+// ------------------------------------------------------------ faults
+const FAULTS = [
+  { id: 'bird', name: 'Bird strike', desc: 'Bent fan blades: fan efficiency -8 points, airflow -6 %. Thrust falls at the same lever position and the fan runs closer to surge.', mods: { effFan: -0.08, flowFan: 0.94 }, bang: 'surge-fan' },
+  { id: 'fod', name: 'Debris through the core', desc: 'HP compressor damage: efficiency -6 points, flow -5 %. Surge margin shrinks.', mods: { effHpc: -0.06, flowHpc: 0.95 }, bang: 'surge-hpc' },
+  { id: 'hpt', name: 'Turbine blade burn-through', desc: 'HP turbine efficiency -7 points. EGT rises sharply for the same thrust.', mods: { effHpt: -0.07 } },
+  { id: 'fuelq', name: 'Contaminated fuel', desc: 'Fuel heating value down 20 %. More fuel flow for the same thrust.', mods: { lhv: 0.8 } },
+  { id: 'vsv', name: 'Stator vanes jammed', desc: 'Variable stators freeze where they are now.', on: () => { ov.vsv = eng.out.vsv; }, off: () => { ov.vsv = null; } },
+  { id: 'b25', name: '2.5 bleed stuck closed', desc: 'The booster bleed ring cannot open. Risk of LP compressor surge at low power and on decelerations.', on: () => { ov.bleed25 = 0; }, off: () => { ov.bleed25 = null; } },
+  { id: 'startv', name: 'Start valve stuck open', desc: 'The starter stays engaged above its cut-out speed.', on: () => { ov.starter = true; }, off: () => { ov.starter = null; } },
+  { id: 'epr', name: 'EPR sensing lost', desc: 'P4.9 / P2 signal fails. The FADEC reverts to rated-N1 mode.', on: () => { fadec.n1Mode = true; }, off: () => { fadec.n1Mode = false; } },
+  { id: 'flame', name: 'Flame-out', desc: 'Blow the flame out now (momentary). With protections on the FADEC relights it.', once: () => { eng.s.lit = false; eng.events.push({ t: eng.s.t, type: 'flameout-lean' }); } },
+];
+const applyMods = (mods, undo) => { for (const [k, v] of Object.entries(mods)) { if (k.startsWith('eff')) m[k] += undo ? -v : v; else m[k] = undo ? m[k] / v : m[k] * v; } };
+function refreshFaults() { for (const f of FAULTS) if (f.btn) { f.btn.classList.toggle('on', !!f.active); f.btn.textContent = f.once ? 'Trigger' : f.active ? 'Clear' : 'Inject'; } }
+const flt = $('t-flt');
+for (const f of FAULTS) {
+  const el = document.createElement('div'); el.className = 'fault'; el.innerHTML = `<b>${f.name}</b><button></button><span>${f.desc}</span>`; flt.appendChild(el);
+  f.btn = el.querySelector('button');
+  f.btn.onclick = () => {
+    if (f.once) { f.once(); logMsg(`Fault: ${f.name}`); return; }
+    f.active = !f.active;
+    if (f.mods) applyMods(f.mods, !f.active); else (f.active ? f.on : f.off)();
+    if (f.active && f.bang) eng.events.push({ t: eng.s.t, type: f.bang });
+    logMsg(`Fault ${f.active ? 'injected' : 'cleared'}: ${f.name}`); refreshFaults();
+  };
+}
+refreshFaults();
+flt.insertAdjacentHTML('beforeend', '<p class="note">Faults stack with whatever you have set under Hardware and Control. Restore new-engine condition (Hardware tab) clears the damage-type faults.</p>');
 
 // ------------------------------------------------------------ pedestal
 const sel = $('rating');
@@ -166,6 +211,8 @@ const frame3d = () => { if (!view3d) return; const shut = $('drawer').classList.
 $('btnDrawer').onclick = () => { const shut = $('drawer').classList.toggle('shut'); $('btnDrawer').classList.toggle('on', !shut); frame3d(); };
 function reset(running) {
   eng.initCold(); eng.events.length = 0; evIdx = 0; fadec._evIdx = 0; fadec.phase = 'off'; fadec.wf = 0; eng.s.fuelUsed = 0;
+  for (const k of Object.keys(ov)) ov[k] = null; Object.assign(fadec.prot, { egt: true, n1: true, n2: true, accel: true, decel: true, surge: true, startAbort: true }); fadec.n1Mode = false;
+  for (const f of FAULTS) if (f.active) { if (f.mods) applyMods(f.mods, true); f.active = false; } refreshFaults();
   peaks.egt = peaks.n1 = peaks.n2 = 0; setTla(0); setMaster(running); eng.u.reverser = false; $('reverser').setAttribute('aria-pressed', false);
   if (running) { for (let i = 0; i < 100 * 60; i++) { fadec.update(1 / 60); eng.step(1 / 60); } eng.s.t = 0; eng.s.fuelUsed = 0; eng.events.length = 0; fadec._evIdx = 0; }
   log.length = 0; logMsg(running ? 'Reset: engine running at ground idle' : 'Reset: cold and dark');
@@ -190,8 +237,16 @@ window.addEventListener('resize', () => { view2d.resize(); frame3d(); });
 // ------------------------------------------------------------ component inspector
 let selPart = null, hist = 0;
 const HINT = 'Drag to orbit, scroll to zoom, right-drag to pan. Click any part of the engine to inspect it.';
+// controls that belong to each component, shown on its card
+const PART_CTL = {
+  fuel: ['fuel'], ign: ['ign'], liner: ['fuel', 'Fuel heating value'], hpccase: ['vsv', 'b7', 'b10'], lpccase: ['b25'], agb: ['starter', 'starterPsi', 'offtake'],
+  eec: ['n1mode', 'pEgt', 'pAccel', 'pDecel'], combcase: ['cust'], fan: ['Fan efficiency'], lpc: ['LPC efficiency'], hpc: ['HPC efficiency', 'HPC flow capacity'],
+  hpt: ['HPT efficiency', 'Turbine cooling air'], hptcase: ['HPT nozzle area'], lpt: ['LPT efficiency'], lptcase: ['LPT nozzle area'], cna: ['Final nozzle area', 'Bypass mixer area'], tec: ['Core mixer area'],
+};
 function showPart(p) {
   selPart = p;
+  $('pcCtl').replaceChildren();
+  if (p) for (const k of PART_CTL[p.id] || []) if (D[k]) addRow($('pcCtl'), D[k]);
   $('pcName').textContent = p ? p.name : 'Nothing selected';
   $('pcDesc').textContent = p ? p.desc : HINT;
   $('pcRemove').hidden = !p;
