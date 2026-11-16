@@ -48,6 +48,57 @@ const puffSprite = () => { const t = canvasTex(128, 128, (g) => { g.clearRect(0,
   for (let i = 0; i < 26; i++) { const x = 64 + (r() - 0.5) * 56, y = 64 + (r() - 0.5) * 56, rad = 16 + r() * 26, gr = g.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, 'rgba(255,255,255,0.20)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); }
   const m = g.createRadialGradient(64, 64, 30, 64, 64, 64); m.addColorStop(0, 'rgba(0,0,0,0)'); m.addColorStop(1, 'rgba(0,0,0,1)'); g.globalCompositeOperation = 'destination-out'; g.fillStyle = m; g.fillRect(0, 0, 128, 128); }); t.colorSpace = THREE.SRGBColorSpace; return t; };
 
+// ---- procedural surface textures (u = round the engine, v = along it)
+/** Painted cowl: rivet rows along panel edges and frames, faint dirt and oil streaks. Returns colour + bump maps. */
+function paintTextures() {
+  const W = 2048, H = 512; let s = 11; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const rows = [0.035, 0.965, 0.33, 0.66], cols = Array.from({ length: 12 }, (_, i) => (i + 0.5) / 12);
+  const col = canvasTex(W, H, (g) => {
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(110,115,120,${0.012 + r() * 0.02})`; const x = r() * W, y = r() * H; g.fillRect(x, y, 30 + r() * 160, 2 + r() * 6); }   // faint mottling
+    // grime and fluid streaks collect along the bottom (u = 0.5) and run aft
+    for (let i = 0; i < 90; i++) { const u = 0.5 + (r() - 0.5) * 0.22, v0 = r() * 0.7, len = 0.1 + r() * 0.3; const gr = g.createLinearGradient(0, v0 * H, 0, (v0 + len) * H); gr.addColorStop(0, `rgba(60,55,45,${0.05 + r() * 0.1})`); gr.addColorStop(1, 'rgba(60,55,45,0)'); g.fillStyle = gr; g.fillRect(u * W, v0 * H, 2 + r() * 7, len * H); }
+    g.fillStyle = 'rgba(70,75,80,0.5)';
+    for (const v of rows) for (let x = 4; x < W; x += 10) { g.beginPath(); g.arc(x, v * H, 1.5, 0, 7); g.fill(); }
+    for (const u of cols) for (let y = 6; y < H; y += 10) { g.beginPath(); g.arc(u * W, y, 1.3, 0, 7); g.fill(); }
+  });
+  col.colorSpace = THREE.SRGBColorSpace;
+  const bump = canvasTex(W, H, (g) => {
+    g.fillStyle = '#808080'; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 9000; i++) { const v = 122 + r() * 12; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(r() * W, r() * H, 3, 3); }        // orange peel
+    g.fillStyle = '#d8d8d8';
+    for (const v of rows) for (let x = 4; x < W; x += 10) { g.beginPath(); g.arc(x, v * H, 2, 0, 7); g.fill(); }
+    for (const u of cols) for (let y = 6; y < H; y += 10) { g.beginPath(); g.arc(u * W, y, 1.8, 0, 7); g.fill(); }
+  });
+  return { col, bump };
+}
+/** Polished concrete for the floor: mottled, with faint expansion joints. */
+const concreteTex = () => { let s = 5; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; }; const t = canvasTex(512, 512, (g) => { g.fillStyle = '#8a8a8a'; g.fillRect(0, 0, 512, 512); for (let i = 0; i < 5000; i++) { const v = 105 + r() * 70; g.fillStyle = `rgba(${v},${v},${v},0.25)`; const d = 2 + r() * 14; g.fillRect(r() * 512, r() * 512, d, d); } g.strokeStyle = 'rgba(40,40,40,0.6)'; g.lineWidth = 2; g.strokeRect(1, 1, 510, 510); }, [14, 14]); t.colorSpace = THREE.SRGBColorSpace; return t; };
+
+/**
+ * Heat discolouration, added to a standard material's shader. Metal that has run hot goes straw,
+ * then bronze, purple and blue; the tint follows position along the engine with a patchy edge.
+ * x0..x1 is the axial range over which the colour develops (cold end to hot end).
+ */
+function heatTint(mat, x0, x1, strength = 1) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uHeatX = { value: new THREE.Vector2(x0, x1) }; sh.uniforms.uHeatK = { value: strength };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vEngP;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n#ifdef USE_INSTANCING\n vEngP = (instanceMatrix * vec4(transformed, 1.0)).xyz;\n#else\n vEngP = transformed;\n#endif');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>\nvarying vec3 vEngP; uniform vec2 uHeatX; uniform float uHeatK;\n${NOISE}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        { float span = max(abs(uHeatX.y - uHeatX.x), 1e-3);
+          float h = clamp((vEngP.x - uHeatX.x) / (uHeatX.y - uHeatX.x + 1e-5 * sign(uHeatX.y - uHeatX.x + 1e-6)), 0.0, 1.0);
+          float ang = atan(vEngP.y, vEngP.z);
+          h = clamp(h + (fbm(vec2(ang * 3.0, vEngP.x * 9.0)) - 0.5) * 0.35, 0.0, 1.0);
+          vec3 straw = vec3(0.86, 0.72, 0.44), bronze = vec3(0.62, 0.42, 0.28), purple = vec3(0.46, 0.34, 0.56), blue = vec3(0.36, 0.48, 0.68);
+          vec3 tint = mix(vec3(1.0), straw, smoothstep(0.05, 0.3, h)); tint = mix(tint, bronze, smoothstep(0.3, 0.55, h)); tint = mix(tint, purple, smoothstep(0.55, 0.78, h)); tint = mix(tint, blue, smoothstep(0.78, 1.0, h));
+          diffuseColor.rgb *= mix(vec3(1.0), tint, clamp(uHeatK, 0.0, 1.0)) * (0.92 + 0.16 * vnoise(vec2(ang * 40.0, vEngP.x * 60.0))); }`);
+  };
+  mat.customProgramCacheKey = () => `heat:${x0}:${x1}:${strength}`;
+  return mat;
+}
+
 const sample = (prof, x0, x1, n = 14) => Array.from({ length: n + 1 }, (_, i) => { const x = lerp(x0, x1, i / n); return [x, rAt(prof, x)]; });
 const CONST = (r) => [[-9, r], [9, r]];
 const offset = (prof, d) => prof.map(([x, r]) => [x, r + d]);
@@ -141,7 +192,7 @@ export class Scene3D {
 
     this.cutaway = true; this.explode = 0; this.showFlow = true; this.quality = 'medium';
     this.parts = []; this.byId = {}; this.vsvRows = []; this.cutInst = []; this.hover = null; this.selected = null;
-    this.sprite = softSprite(); this.tex = { liner: linerTex(), brushed: brushedTex() };
+    this.sprite = softSprite(); this.tex = { liner: linerTex(), brushed: brushedTex(), paint: paintTextures(), concrete: concreteTex() };
     this.capMat = new THREE.MeshStandardMaterial({ color: 0xb8402a, metalness: 0.1, roughness: 0.7, side: THREE.DoubleSide });
     this.t = 0; this.flash = 0;
     this.engine = new THREE.Group(); scene.add(this.engine);
@@ -217,14 +268,14 @@ export class Scene3D {
     const polished = { color: 0xc9ced3, metalness: 1, roughness: 0.3 }; // matte, not mirror, per photos
     const titanium = { color: 0xa9b0b7, metalness: 1, roughness: 0.34 };
     const caseM = { color: 0x7d858c, metalness: 0.9, roughness: 0.46, roughnessMap: T.brushed };
-    const hotM = { color: 0x8a7868, metalness: 0.95, roughness: 0.42, roughnessMap: T.brushed };
+    const hotM = { color: 0xb4aea6, metalness: 0.95, roughness: 0.42, roughnessMap: T.brushed };
     const composite = { color: 0x24272b, metalness: 0.1, roughness: 0.55, clearcoat: 0.4, clearcoatRoughness: 0.5 };
     const linerM = new THREE.MeshPhysicalMaterial({ color: 0x8f959b, metalness: 0.5, roughness: 0.75, map: T.liner, side: THREE.DoubleSide });
     this.boltMat = new THREE.MeshStandardMaterial({ color: 0xbfc5ca, metalness: 1, roughness: 0.3 });
     const pipeSteel = new THREE.MeshStandardMaterial({ color: 0xc3c8cc, metalness: 1, roughness: 0.25 });
     const pipeGold = new THREE.MeshStandardMaterial({ color: 0xc79a3b, metalness: 1, roughness: 0.3 });
     const harness = new THREE.MeshStandardMaterial({ color: 0x1b1d20, metalness: 0.1, roughness: 0.7 });
-    this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished }), section: this.capMat };
+    this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughnessMap: T.brushed }), section: this.capMat };
     const C = (K) => `${(K - 273.15).toFixed(0)} °C`, B = (p) => `${(p / 1e5).toFixed(2)} bar`;
     const A = (d) => this._part(d);
 
@@ -243,7 +294,7 @@ export class Scene3D {
     const cna = A({ id: 'cna', name: 'Thrust reverser cowls and common nozzle', ex: 0.2, mat: paint, desc: 'The long duct carries bypass air aft, where it mixes with the core exhaust and leaves through one common nozzle.', live: (o) => `Mixed jet ${o.V9.toFixed(0)} m/s (Mach ${o.M9.toFixed(2)}) · ${C(o.T7)} · ${o.W9.toFixed(0)} kg/s` });
     this._solid(cna, band(offset(P.bypOuter, 0.012), P.nacelle, 1.2, 2.86, 20), { tag: 'skin' });
     // unpainted common nozzle at the rear, with a visible step from the painted cowl
-    this._solid(cna, band(offset(P.bypOuter, 0.012), offset(P.nacelle, -0.008), 2.86, 3.55, 10), { tag: 'skin', mat: (this.shared.bare = new THREE.MeshPhysicalMaterial({ color: 0x8e9499, metalness: 1, roughness: 0.36, roughnessMap: T.brushed, side: THREE.DoubleSide })) });
+    this._solid(cna, band(offset(P.bypOuter, 0.012), offset(P.nacelle, -0.008), 2.86, 3.55, 10), { tag: 'skin', mat: (this.shared.bare = heatTint(new THREE.MeshPhysicalMaterial({ color: 0xa2a7ab, metalness: 1, roughness: 0.36, roughnessMap: T.brushed, side: THREE.DoubleSide }), 2.75, 3.6, 0.8)) });
     // nacelle strake, high on the side
     const stS = new THREE.Shape(); stS.moveTo(0, 0); stS.lineTo(0.62, 0); stS.lineTo(0.56, 0.1); stS.lineTo(0.2, 0.035); stS.lineTo(0, 0);
     const strake = new THREE.Mesh(new THREE.ExtrudeGeometry(stS, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 2 }).translate(0.25, 1.03, -0.006), fanCowl.mat);
@@ -393,6 +444,10 @@ export class Scene3D {
     const pylon = A({ id: 'pylon', name: 'Pylon', ex: 0, mat: paint, desc: 'Carries the engine under the wing and transmits its thrust to the airframe. Fuel, bleed air, electrical and hydraulic lines run through it.', live: (o) => `Thrust carried ${(o.thrust / 1000).toFixed(1)} kN` });
     { const sh = new THREE.Shape(); sh.moveTo(0.35, 0.98); sh.lineTo(0.2, 1.32); sh.lineTo(3.0, 1.32); sh.lineTo(2.8, 1.02); sh.lineTo(2.2, 0.9); sh.lineTo(0.35, 0.98);
       this._reg(pylon, new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.2, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 3 }).translate(0, 0, -0.1), pylon.mat)); }
+    // heat discolouration on everything downstream of the combustor
+    heatTint(this.byId.hptcase.mat, 2.0, 2.5, 0.9); heatTint(this.byId.lptcase.mat, 2.3, 3.1, 0.9); heatTint(this.byId.tec.mat, 2.7, 3.5, 1.0);
+    heatTint(this.byId.hpt.mat, 2.0, 2.45, 0.8); heatTint(this.byId.lpt.mat, 2.3, 3.05, 0.7); heatTint(this.byId.combcase.mat, 1.75, 2.6, 0.5); heatTint(this.byId.liner.mat, 1.9, 2.25, 0.9);
+    this.byId.hpc.mat.roughness = 0.46;
     for (const p of this.parts) for (const ob of p.objs) ob.userData.home = ob.position.x;
   }
 
@@ -400,7 +455,7 @@ export class Scene3D {
     const s = this.scene;
     // seamless studio floor that fades into the background
     const fade = canvasTex(256, 256, (g) => { const gr = g.createRadialGradient(128, 128, 20, 128, 128, 128); gr.addColorStop(0, '#fff'); gr.addColorStop(1, '#000'); g.fillStyle = gr; g.fillRect(0, 0, 256, 256); });
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(22, 64), new THREE.MeshStandardMaterial({ color: 0x131416, metalness: 0.0, roughness: 0.7, alphaMap: fade, transparent: true }));
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(22, 64), new THREE.MeshStandardMaterial({ color: 0x2a2c2f, map: this.tex.concrete, metalness: 0.0, roughness: 0.78, alphaMap: fade, transparent: true }));
     floor.rotation.x = -Math.PI / 2; floor.position.set(1.4, FLOOR_Y, 0); floor.receiveShadow = true; s.add(floor);
   }
 
@@ -614,7 +669,7 @@ export class Scene3D {
         n.userData.variant = /__cut$/i.test(n.name) ? 'cut' : /__full$/i.test(n.name) || nodes.some((m) => m.name === `${n.name}__cut`) ? 'full' : null;
         n.traverse((m) => {
           if (!m.isMesh) return;
-          const swap = (mt) => { const sh = this.shared[mt.name]; if (!sh) { mt.side = THREE.DoubleSide; return mt; } if (mt.name === 'section') return sh; return (own[mt.name] ||= (() => { const c = sh.clone(); part.extMats.push(c); return c; })()); };
+          const swap = (mt) => { const sh = this.shared[mt.name]; if (!sh) { mt.side = THREE.DoubleSide; return mt; } if (mt.name === 'section') return sh; return (own[mt.name] ||= (() => { const c = sh.clone(); c.onBeforeCompile = sh.onBeforeCompile; c.customProgramCacheKey = sh.customProgramCacheKey; part.extMats.push(c); return c; })()); };
           m.material = Array.isArray(m.material) ? m.material.map(swap) : swap(m.material);
         });
       }

@@ -47,6 +47,15 @@ def material(name, color, metallic=0.0, rough=0.5, coat=0.0):
     if 'Coat Weight' in b.inputs: b.inputs['Coat Weight'].default_value = coat
     return m
 
+def cyl_uv(bm):
+    """UVs for bodies of revolution: u = angle round the engine (0-1), v = position along its length (0-1)."""
+    uv = bm.loops.layers.uv.verify()
+    xs = [v.co.x for v in bm.verts]; x0, x1 = min(xs), max(xs)
+    for f in bm.faces:
+        us = [(math.atan2(-l.vert.co.y, l.vert.co.z) / (2 * math.pi)) % 1.0 for l in f.loops]
+        if max(us) - min(us) > 0.5: us = [u + 1 if u < 0.5 else u for u in us]   # face straddles the seam
+        for l, u in zip(f.loops, us): l[uv].uv = (u, (l.vert.co.x - x0) / (x1 - x0 + 1e-9))
+
 def link(obj):
     bpy.context.scene.collection.objects.link(obj); return obj
 
@@ -57,6 +66,7 @@ def revolve(name, loop, mat, steps=144):
     bmesh.ops.spin(bm, geom=vs + es, cent=(0, 0, 0), axis=(1, 0, 0), angle=2 * math.pi, steps=steps, use_duplicate=False)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    cyl_uv(bm)
     me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
     for p in me.polygons: p.use_smooth = True
     obj = link(bpy.data.objects.new(name, me)); me.materials.append(mat)
@@ -101,6 +111,7 @@ def arc_solid(name, loop, th0, th1, mat, steps=48):
     bmesh.ops.spin(bm, geom=vs + es, cent=(0, 0, 0), axis=(1, 0, 0), angle=math.radians(th1 - th0), steps=steps, use_duplicate=False)
     bmesh.ops.holes_fill(bm, edges=bm.edges, sides=len(loop) + 2)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    cyl_uv(bm)
     me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
     for p in me.polygons: p.use_smooth = True
     obj = link(bpy.data.objects.new(name, me)); me.materials.append(mat)
@@ -194,6 +205,7 @@ def loft(name, stations, mat, n=16):
         for k in range(n): bm.faces.new((a[k], a[(k + 1) % n], b[(k + 1) % n], b[k]))
     bm.faces.new(rings[0]); bm.faces.new(list(reversed(rings[-1])))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    cyl_uv(bm)
     me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
     for p in me.polygons: p.use_smooth = True
     obj = link(bpy.data.objects.new(name, me)); me.materials.append(mat)
