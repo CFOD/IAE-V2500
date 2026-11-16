@@ -240,6 +240,12 @@ export class Scene3D {
     this._buildEngine();
     this._buildEffects();
     this._buildPost();
+    // Transparent effects (plume, flames, smoke, mist, fan blur) must stay out of the ambient-occlusion
+    // pre-pass. That pass redraws the scene with a plain opaque material, so an effect quad or plume
+    // shell would be treated as a solid surface and show up as a black square or dark rings.
+    this.scene.traverse((n) => { if ((n.isMesh || n.isPoints || n.isLine) && n.material && n.material.transparent && n.material.depthWrite === false) n.layers.set(1); });
+    this.camera.layers.enable(1);
+    { const ao = this.ao, render = ao.render.bind(ao), cam = this.camera; ao.render = (...a) => { cam.layers.disable(1); try { render(...a); } finally { cam.layers.enable(1); } }; }
     this._controls();
     this.setCutaway(true);
     this.resize();
@@ -968,7 +974,7 @@ export class Scene3D {
     // ---- exhaust plume and heat haze
     const thr = clamp(o.Fg / 140e3, 0, 1), hotK = clamp((o.T5 - 400) / 500, 0, 1);
     const L = 1.2 + 5.5 * Math.sqrt(thr);
-    const setPl = (m, len, a, sp) => { m.scale.set(len, 1, 1); m.material.uniforms.uT.value = t % 1000; m.material.uniforms.uA.value = a; m.material.uniforms.uSpeed.value = sp; m.visible = a > 0.004; };
+    const setPl = (m, len, a, sp) => { m.scale.set(len, 1, 1); m.material.uniforms.uT.value = t % 1000; a *= 0.3; m.material.uniforms.uA.value = a; m.material.uniforms.uSpeed.value = sp; m.visible = a > 0.004; };
     // Seen end-on (from directly behind or in front) the layered plume would stack into one large
     // opaque blob over the engine, so it fades out as the view lines up with the engine axis.
     const fwd = new THREE.Vector3(); this.camera.getWorldDirection(fwd);
