@@ -176,9 +176,14 @@ def patch(name, x0, x1, th0, th1, mat, surf, lift=0.0018, nx=8, nt=10):
     for i in range(nx + 1):
         x = x0 + (x1 - x0) * i / nx
         grid.append([bm.verts.new(th_pos(x, th0 + (th1 - th0) * j / nt, surf(x) + lift)) for j in range(nt + 1)])
+    uv = bm.loops.layers.uv.verify(); where = {}
+    for i in range(nx + 1):
+        for j in range(nt + 1): where[grid[i][j]] = (i / nx, 1 - j / nt)
     for i in range(nx):
         for j in range(nt): bm.faces.new((grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    for f in bm.faces:
+        for l in f.loops: l[uv].uv = where[l.vert]
     me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
     for p in me.polygons: p.use_smooth = True
     obj = link(bpy.data.objects.new(name, me)); me.materials.append(mat)
@@ -375,6 +380,8 @@ def build():
     line = material('panelline', (0.12, 0.13, 0.14), 0.0, 0.6)
     red = material('hazard', (0.72, 0.05, 0.05), 0.0, 0.5)
     placard = material('placard', (0.93, 0.93, 0.9), 0.0, 0.55)
+    # A material named "txt:..." is replaced on load by a label with that text ("txt:R:" = white on red).
+    label = lambda text: material('txt:' + text, (0.93, 0.93, 0.9), 0.0, 0.55)
     black = material('marking', (0.03, 0.03, 0.03), 0.0, 0.6)
     surf = OML
     marks = []
@@ -382,11 +389,12 @@ def build():
     marks += outline('m', 0.92, 1.08, 150, 158, line, surf)           # oil service door
     marks += outline('m', 0.2, 0.42, 197, 208, line, surf)            # starter valve access
     marks.append(patch('m', 0.13, 0.15, 128, 166, red, surf))         # hazard stripe: stay clear of the intake
-    marks.append(patch('m', 0.2, 0.3, 131, 137, placard, surf)); marks.append(patch('m', 0.215, 0.285, 132, 136, red, surf, lift=0.0026))
-    marks.append(patch('m', 0.2, 0.36, 140, 145, placard, surf)); marks += [patch('m', 0.215 + 0.03 * k, 0.235 + 0.03 * k, 141, 144, black, surf, lift=0.0026, nx=1, nt=2) for k in range(5)]
-    marks.append(patch('m', 0.56, 0.76, 156, 158.5, placard, surf, lift=0.0026)); marks.append(patch('m', 0.95, 1.05, 152.5, 154, placard, surf, lift=0.0026))
+    marks.append(patch('m', 0.19, 0.31, 130.5, 137.5, label('R:DANGER'), surf))
+    marks.append(patch('m', 0.19, 0.45, 139, 146.5, label('STAND CLEAR OF HAZARD|AREAS WHILE ENGINE|IS RUNNING'), surf))
+    marks.append(patch('m', 0.54, 0.78, 155.5, 158.5, label('PRESSURE RELIEF DOOR'), surf, lift=0.0026)); marks.append(patch('m', 0.93, 1.07, 152, 154.2, label('OIL SERVICE'), surf, lift=0.0026))
+    marks.append(patch('m', 0.22, 0.4, 200, 202.6, label('STARTER VALVE ACCESS'), surf, lift=0.0026)); marks.append(patch('m', 0.56, 0.78, 121, 124.5, label('NO STEP'), surf))
     made.append(join('fancowl_markings', marks))
-    rmarks = outline('m', 1.3, 1.6, 150, 162, line, surf) + [patch('m', 1.34, 1.5, 153, 155, placard, surf, lift=0.0026)]
+    rmarks = outline('m', 1.3, 1.6, 150, 162, line, surf) + [patch('m', 1.32, 1.58, 152.5, 155.5, label('THRUST REVERSER|ACTUATOR ACCESS'), surf, lift=0.0026), patch('m', 2.0, 2.3, 128, 133, label('R:REVERSER HAZARD AREA'), surf)]
     made.append(join('cna_markings', rmarks))
     # latches along the bottom centreline, and the drain mast
     lat = [box('latch', th_pos(x, 180, OML(x) + 0.001), (0.09, 0.032, 0.007), 180, bare) for x in (0.2, 0.6, 1.0)]

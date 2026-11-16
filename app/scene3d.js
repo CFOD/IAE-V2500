@@ -72,6 +72,21 @@ function paintTextures() {
   });
   return { col, bump };
 }
+/** Placard with lettering. "R:" prefix = white on red (danger); "|" separates lines. */
+function labelMaterial(spec) {
+  const danger = spec.startsWith('R:'), lines = (danger ? spec.slice(2) : spec).split('|');
+  const W = 512, H = Math.max(96, Math.round(64 + lines.length * 62));
+  const tex = canvasTex(W, H, (g) => {
+    g.fillStyle = danger ? '#c8161d' : '#f1f0ea'; g.fillRect(0, 0, W, H);
+    g.strokeStyle = danger ? '#ffffff' : '#1a1a1a'; g.lineWidth = 6; g.strokeRect(8, 8, W - 16, H - 16);
+    g.fillStyle = danger ? '#ffffff' : '#141414'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    let px = 64; g.font = `700 ${px}px Inter, Arial, sans-serif`;
+    const widest = Math.max(...lines.map((l) => g.measureText(l).width)); px = Math.min(64, Math.floor((64 * (W - 44)) / widest), Math.floor((H - 30) / lines.length)); g.font = `700 ${px}px Inter, Arial, sans-serif`;
+    lines.forEach((l, i) => g.fillText(l, W / 2, H / 2 + (i - (lines.length - 1) / 2) * px * 1.08));
+  });
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping; tex.colorSpace = THREE.SRGBColorSpace; tex.flipY = false; // glTF UV convention
+  return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, metalness: 0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+}
 /** Polished concrete for the floor: mottled, with faint expansion joints. */
 const concreteTex = () => { let s = 5; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; }; const t = canvasTex(512, 512, (g) => { g.fillStyle = '#8a8a8a'; g.fillRect(0, 0, 512, 512); for (let i = 0; i < 5000; i++) { const v = 105 + r() * 70; g.fillStyle = `rgba(${v},${v},${v},0.25)`; const d = 2 + r() * 14; g.fillRect(r() * 512, r() * 512, d, d); } g.strokeStyle = 'rgba(40,40,40,0.6)'; g.lineWidth = 2; g.strokeRect(1, 1, 510, 510); }, [14, 14]); t.colorSpace = THREE.SRGBColorSpace; return t; };
 
@@ -439,6 +454,20 @@ export class Scene3D {
     // turbine case cooling manifolds (active clearance control): a cage of tube rings round the LPT
     for (let k = 0; k < 7; k++) { const x = 2.5 + k * 0.075, rr = co(x) + 0.058; this._solid(ext, [[x - 0.008, rr], [x - 0.008, rr + 0.016], [x + 0.008, rr + 0.016], [x + 0.008, rr]], { seg: 72, mat: pipeSteel }); }
     for (const th of [150, 240, 330]) this._pipe(ext, Array.from({ length: 6 }, (_, i) => { const x = 2.3 + i * 0.135; return [x, co(x) + 0.09, th]; }), 0.014, pipeSteel);
+    // a pigtail from the fuel manifold to every nozzle
+    for (let k = 0; k < 20; k++) { const th = k * 18 + 9; this._pipe(noz, [[1.917, 0.43, th], [1.892, 0.468, th + 3], [1.862, 0.452, th + 6.5], [1.878, 0.405, th + 8]], 0.0045); }
+    // more pipe runs: oil feed and scavenge, cooling air, sense lines
+    [[118, 0.1, pipeGold, 0.006, 1.2, 2.1, 3], [139, 0.098, pipeSteel, 0.007, 1.5, 2.95, 4], [160, 0.1, harness, 0.008, 0.6, 2.6, 3], [186, 0.095, pipeSteel, 0.012, 1.2, 2.4, 2], [212, 0.1, pipeGold, 0.006, 1.7, 2.9, 5],
+     [236, 0.098, pipeSteel, 0.008, 0.7, 2.2, 4], [257, 0.1, harness, 0.007, 1.2, 3.0, 3], [280, 0.098, pipeSteel, 0.009, 0.6, 1.9, 4], [304, 0.1, pipeGold, 0.007, 1.9, 3.0, 3], [327, 0.098, harness, 0.01, 1.2, 2.5, 4], [346, 0.1, pipeSteel, 0.006, 0.9, 2.8, 5]].forEach((a) => run(...a));
+    // brackets holding the pipework off the cases
+    { const pts = []; for (let th = 118; th < 350; th += 13) for (const x of [1.3, 1.62, 1.95, 2.3, 2.66, 2.92]) if (((th * 7 + x * 31) | 0) % 3 !== 0) pts.push([x, th]);
+      const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.022, 0.07, 0.012), pipeSteel, pts.length), mm = new THREE.Matrix4();
+      pts.forEach(([x, th], i) => { mm.makeRotationX(th * DEG - Math.PI / 2); const r = co(x) + 0.055; mm.setPosition(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); im.setMatrixAt(i, mm); });
+      this._reg(ext, im); }
+    // ignition exciters, fuel distribution valve and cooling-air control valve on the core
+    for (const [x, th, sx, sy, sz, mt] of [[1.45, 205, 0.16, 0.05, 0.11, harness], [1.45, 228, 0.16, 0.05, 0.11, harness], [1.72, 190, 0.11, 0.07, 0.09, pipeSteel], [2.38, 250, 0.1, 0.07, 0.08, pipeSteel], [2.38, 145, 0.1, 0.07, 0.08, pipeSteel]]) {
+      const bx = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mt); const r = co(x) + 0.09; bx.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); bx.rotation.x = th * DEG - Math.PI / 2; this._reg(ext, bx);
+    }
     for (const x of [1.45, 2.0, 2.55]) this._solid(ext, [[x - 0.005, co(x) + 0.095], [x - 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.095]], { seg: 96, mat: harness }); // clamps
     // pylon the engine hangs from
     const pylon = A({ id: 'pylon', name: 'Pylon', ex: 0, mat: paint, desc: 'Carries the engine under the wing and transmits its thrust to the airframe. Fuel, bleed air, electrical and hydraulic lines run through it.', live: (o) => `Thrust carried ${(o.thrust / 1000).toFixed(1)} kN` });
@@ -669,7 +698,7 @@ export class Scene3D {
         n.userData.variant = /__cut$/i.test(n.name) ? 'cut' : /__full$/i.test(n.name) || nodes.some((m) => m.name === `${n.name}__cut`) ? 'full' : null;
         n.traverse((m) => {
           if (!m.isMesh) return;
-          const swap = (mt) => { const sh = this.shared[mt.name]; if (!sh) { mt.side = THREE.DoubleSide; return mt; } if (mt.name === 'section') return sh; return (own[mt.name] ||= (() => { const c = sh.clone(); c.onBeforeCompile = sh.onBeforeCompile; c.customProgramCacheKey = sh.customProgramCacheKey; part.extMats.push(c); return c; })()); };
+          const swap = (mt) => { if (/^txt:/.test(mt.name)) return (this._labels ||= {})[mt.name] ||= labelMaterial(mt.name.slice(4)); const sh = this.shared[mt.name]; if (!sh) { mt.side = THREE.DoubleSide; return mt; } if (mt.name === 'section') return sh; return (own[mt.name] ||= (() => { const c = sh.clone(); c.onBeforeCompile = sh.onBeforeCompile; c.customProgramCacheKey = sh.customProgramCacheKey; part.extMats.push(c); return c; })()); };
           m.material = Array.isArray(m.material) ? m.material.map(swap) : swap(m.material);
         });
       }

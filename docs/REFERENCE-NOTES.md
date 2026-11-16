@@ -36,7 +36,7 @@ Status: [x] reflected in the model, [ ] still to do.
 - [x] Accessory gearbox hangs under the fan case (not under the core), wide and flat, with the
       starter, generator, hydraulic pump and fuel pump on it, and harness bundles. Accessories are flanged,
       finned and bolted bodies with their pipes; still simplified against the photos.
-- [ ] Core is densely dressed with pipes, with clamps every few hundred millimetres.
+- [x] Core is densely dressed with pipes on brackets, fuel pigtails to each nozzle, exciter and valve boxes.
 - [x] EEC box is on the upper side of the fan case.
 
 ## Nacelle (on-wing photos)
@@ -46,8 +46,7 @@ Status: [x] reflected in the model, [ ] still to do.
 - [x] Panel lines: inlet cowl / fan cowl / reverser / nozzle gaps and the bottom latch line (Blender build).
 - [x] Latches along the bottom line.
 - [ ] Hinge line at the top.
-- [x] Pressure-relief door and oil-service door outlines on the fan cowl; red hazard stripe and placards
-      (placards are plain blocks, no lettering).
+- [x] Pressure-relief door and oil-service door outlines on the fan cowl; red hazard stripe and lettered placards.
 - [x] Drain mast underneath; pylon fairing. (No wing to blend into.)
 - [ ] Overall nacelle is long and nearly cylindrical, slightly drooped at the inlet.
 
@@ -60,7 +59,8 @@ Status: [x] reflected in the model, [ ] still to do.
 ## Still generated, not yet rebuilt
 - [ ] HPC rotor shown as a plain drum (the drawing shows stacked discs with webs).
 - [ ] Bearing compartments, shaft detail, oil pipes inside the core.
-- [ ] Nothing is textured: no rivets, heat discolouration, wear or lettering.
+- [x] Textures: riveted and weathered paint, heat discolouration on the hot section and nozzle, lettering.
+- [ ] Fan blades, compressor blades and castings are still plain material with no surface detail.
 
 ## Section-view convention
 The museum model leaves cut faces bare grey and uses colour for liners. The simulator currently
