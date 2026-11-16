@@ -457,13 +457,15 @@ export class Scene3D {
     const hpShaft = A({ id: 'hpshaft', name: 'HP shaft', ex: 0.02, mat: { color: 0x858b91, metalness: 1, roughness: 0.3 }, desc: 'Short hollow shaft joining the HP turbine to the HP compressor. The accessory gearbox is driven from it.', live: (o) => `${o.N2.toFixed(0)} rpm · net torque ${o.tq2.toFixed(0)} N·m · starter ${o.tStart.toFixed(0)} N·m` });
     this._solid(hpShaft, [[1.9, 0.078], [1.9, 0.092], [2.3, 0.092], [2.3, 0.078]], { deep: true, seg: 48 });
     // ---------------- bearings
-    const brg = A({ id: 'bearings', name: 'Main bearings and supports', ex: 0, mat: { color: 0x5d6770, metalness: 0.9, roughness: 0.4 }, desc: 'Five main bearings carry the two shafts: a ball and a roller bearing for the fan shaft and a ball bearing for the HP spool in the front compartment, a roller bearing under the combustor and one in the turbine exhaust case. Each sits in a sealed, oil-fed compartment.', live: (o) => `N1 ${o.N1.toFixed(0)} rpm · N2 ${o.N2.toFixed(0)} rpm` });
+    const brg = A({ id: 'bearings', name: 'Main bearings and supports', ex: 0, mat: { color: 0x5d6770, metalness: 0.9, roughness: 0.4 }, desc: 'Five main bearings carry the two shafts. Nos 1, 2 and 3 share the front compartment at the centre of the intermediate case: No. 1 locates the LP shaft and takes its thrust, No. 2 supports it, No. 3 locates the HP shaft. No. 4 supports the HP shaft under the combustor and No. 5 the LP shaft in the turbine exhaust case. Each sits in a sealed, oil-fed compartment.', live: (o) => `N1 ${o.N1.toFixed(0)} rpm · N2 ${o.N2.toFixed(0)} rpm` });
     const race = new THREE.MeshStandardMaterial({ color: 0xc4c9cd, metalness: 1, roughness: 0.18 }); // polished bearing steel
-    for (const [x, r0, r1, wB] of [[0.5, 0.05, 0.1, 0.05], [0.98, 0.05, 0.098, 0.04], [1.1, 0.05, 0.1, 0.04], [2.07, 0.096, 0.128, 0.05], [3.06, 0.05, 0.1, 0.05]]) {
+    for (const [x, r0, r1, wB] of [[0.93, 0.05, 0.1, 0.05], [1.01, 0.05, 0.095, 0.035], [1.1, 0.1, 0.15, 0.04], [2.07, 0.096, 0.128, 0.05], [3.06, 0.05, 0.1, 0.05]]) {
       this._solid(brg, [[x - wB / 2, r0 + 0.016], [x - wB / 2, r1], [x + wB / 2, r1], [x + wB / 2, r0 + 0.016]], { deep: true, seg: 48 });
       this._solid(brg, [[x - wB / 3, r0], [x - wB / 3, r0 + 0.016], [x + wB / 3, r0 + 0.016], [x + wB / 3, r0]], { deep: true, seg: 48, mat: race });
     }
-    this._solid(brg, [[0.525, 0.092], [0.525, 0.1], [1.0, 0.168], [1.12, 0.168], [1.12, 0.16], [1.0, 0.16]], { deep: true, seg: 64 });   // front bearing support cone from the intermediate case
+    this._solid(brg, [[0.9, 0.094], [0.9, 0.102], [0.96, 0.162], [1.13, 0.168], [1.13, 0.16], [0.97, 0.154]], { deep: true, seg: 64 });
+    this._solid(brg, [[1.075, 0.146], [1.075, 0.154], [1.13, 0.162], [1.13, 0.154]], { deep: true, seg: 64 });
+    this._solid(hpc, [[1.09, 0.086], [1.09, 0.1], [1.2, 0.1], [1.2, 0.086]], { deep: true, seg: 48 }); // HP stub shaft into No. 3 bearing   // front bearing support cone from the intermediate case
     this._solid(brg, [[3.085, 0.09], [3.085, 0.1], [3.12, 0.255], [3.13, 0.255]], { deep: true, seg: 64 });                              // rear bearing support in the exhaust case
 
     // ---------------- combustor
@@ -526,6 +528,22 @@ export class Scene3D {
       const bx = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mt); const r = co(x) + 0.09; bx.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); bx.rotation.x = th * DEG - Math.PI / 2; this._reg(ext, bx);
     }
     for (const x of [1.45, 2.0, 2.55]) this._solid(ext, [[x - 0.005, co(x) + 0.095], [x - 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.095]], { seg: 96, mat: harness }); // clamps
+    // oil feed, scavenge and vent pipes to the bearing compartments, run through struts at the bottom of the engine
+    for (const [pts, rad, mt] of [
+      [[[1.02, 0.17, 176], [1.02, 0.3, 177], [1.0, 0.44, 178], [0.95, 0.56, 180], [0.85, 0.66, 182]], 0.009, pipeSteel], [[[1.06, 0.17, 186], [1.06, 0.3, 185], [1.05, 0.46, 184], [1.0, 0.58, 183]], 0.012, pipeGold],
+      [[[2.06, 0.135, 150], [2.05, 0.2, 150], [2.03, 0.3, 151], [2.0, 0.4, 153], [1.9, 0.44, 158], [1.6, 0.42, 168]], 0.008, pipeSteel], [[[2.09, 0.135, 158], [2.09, 0.22, 158], [2.1, 0.33, 158], [2.12, 0.41, 160], [2.3, 0.44, 166]], 0.011, pipeGold],
+      [[[3.06, 0.105, 180], [3.065, 0.2, 180], [3.065, 0.3, 180], [3.06, 0.47, 180], [2.9, 0.54, 180], [2.5, 0.5, 182]], 0.008, pipeSteel], [[[3.07, 0.105, 196], [3.07, 0.3, 196], [3.06, 0.47, 196], [2.85, 0.53, 194]], 0.01, pipeGold]]) this._pipe(brg, pts, rad, mt);
+    // EGT thermocouples in the exhaust case struts (about 2, 4.30, 7.30 and 9.30 o'clock) with their harness ring; rear mount at top dead centre of the LPT case
+    for (const th of [60, 135, 225, 285]) { const pr = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 10), pipeSteel), r = co(3.07) + 0.05; pr.position.set(3.07, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); pr.rotation.x = th * DEG; const o2 = this._reg(tec, pr); if (inCut(th * DEG)) o2.userData.variant = 'full'; }
+    this._pipe(tec, Array.from({ length: 22 }, (_, i) => [3.1, co(3.1) + 0.085, 118 + i * 11]), 0.007, harness);
+    { const rm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.09, 0.26), new THREE.MeshStandardMaterial({ color: 0x8a9096, metalness: 1, roughness: 0.4 })); rm.position.set(2.72, co(2.72) + 0.11, 0); const o2 = this._reg(this.byId.lptcase, rm); o2.userData.variant = 'full';
+      for (const z of [-0.1, 0.1]) { const lk = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.2, 10), pipeSteel); lk.position.set(2.72, co(2.72) + 0.25, z * 0.7); lk.rotation.x = z * 2; this._reg(this.byId.lptcase, lk).userData.variant = 'full'; } }
+    // thrust reverser drag links: one per blocker door, from the core cowl across the duct to the door. They pull the doors down as the sleeve slides aft.
+    { const g = new THREE.CylinderGeometry(0.008, 0.008, 1, 8), mk = (ths) => { const im = new THREE.InstancedMesh(g, pipeSteel, ths.length); im.userData.ths = ths; return im; };
+      const all = Array.from({ length: 10 }, (_, k) => (k * 36 + 18) * DEG);
+      this.dragLinks = [mk(all.filter((t) => !inCut(t))), mk(all.filter((t) => inCut(t)))];
+      this.dragLinks[1].userData.variant = 'full';
+      for (const im of this.dragLinks) this._reg(this.byId.cna, im); }
     // ---- upper half of the core. This is the sector the cutaway removes, so it is only shown with the cutaway closed.
     const top = (ob) => { ob.userData.variant = 'full'; return ob; };
     const runT = (...a) => top(run(...a));
@@ -738,6 +756,12 @@ export class Scene3D {
     if (rev === this._rev) return; this._rev = rev;
     if (!this.revNodes) { this.revNodes = []; this.engine.traverse((n) => { const k = /^cna_sleeve/i.test(n.name) ? 'sleeve' : /^cna_blocker/i.test(n.name) ? 'door' : null; if (k) { n.userData.rev = { k, x: n.position.x, q: n.quaternion.clone() }; this.revNodes.push(n); } }); }
     const e = rev * rev * (3 - 2 * rev), qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), e * 1.05); // hinge = door's tangential axis (local Z after the glTF axis conversion)
+    if (this.dragLinks) {
+      // door attach point 0.2 m ahead of its hinge; anchor on the core cowl
+      const a = e * 1.05, px = 2.2 + 0.46 * e - 0.2 * Math.cos(a), pr = 0.744 + 0.013 * (1 - e) - 0.2 * Math.sin(a), ax = 2.24, ar = rAt(P.bypInner, 2.24), ex = this.byId.cna.ex * this.explode * 1.5;
+      const len = Math.hypot(px - ax, pr - ar), ang = Math.atan2(px - ax, pr - ar), m = new THREE.Matrix4(), q = new THREE.Quaternion(), qz = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -ang), ax1 = new THREE.Vector3(1, 0, 0);
+      for (const im of this.dragLinks) { im.userData.ths.forEach((th, i) => { const mx = (px + ax) / 2, mr = (pr + ar) / 2; q.setFromAxisAngle(ax1, th).multiply(qz); m.compose(new THREE.Vector3(mx, mr * Math.cos(th), mr * Math.sin(th)), q, new THREE.Vector3(1, len, 1)); im.setMatrixAt(i, m); }); im.instanceMatrix.needsUpdate = true; }
+    }
     for (const n of this.revNodes) { const b = n.userData.rev; n.position.x = b.x + 0.46 * e; if (b.k === 'door') n.quaternion.copy(b.q).multiply(qy); }
   }
 

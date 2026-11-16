@@ -272,9 +272,9 @@ def build():
 
     R_CASE = 0.87  # outer surface of the fan case
     # oil tank: tall domed cylinder on the side of the case
-    tank = cylinder('tank', th_pos(0.52, 141, 0.955), th_pos(0.52, 119, 0.955), 0.085, 0.085, cast, dome=0.05)
-    cap = cylinder('cap', th_pos(0.52, 118, 0.99), th_pos(0.52, 116.5, 1.0), 0.03, 0.03, gold)
-    strap = [cylinder('strap', th_pos(0.52, a, 0.955), th_pos(0.52, a - 1.2, 0.955), 0.089, 0.089, steel) for a in (136, 125)]
+    tank = cylinder('tank', th_pos(0.52, 149, 0.955), th_pos(0.52, 129, 0.955), 0.085, 0.085, cast, dome=0.05)
+    cap = cylinder('cap', th_pos(0.52, 128, 0.99), th_pos(0.52, 126.5, 1.0), 0.03, 0.03, gold)
+    strap = [cylinder('strap', th_pos(0.52, a, 0.955), th_pos(0.52, a - 1.2, 0.955), 0.089, 0.089, steel) for a in (145, 134)]
     made.append(finish(join('fancase_oiltank', [tank, cap] + strap), 0))
     # large duct wrapped round the case, top to bottom
     made.append(tube('fancase_duct', [(0.86, a, 0.945 + 0.012 * math.sin(a / 9)) for a in range(114, 181, 6)] + [(0.8, 184, 0.95), (0.7, 186, 0.965)], 0.05, steel))
@@ -317,9 +317,9 @@ def build():
     acc += [
         # permanent magnet alternator, de-oiler, oil lines up to the tank, gearbox mount links to the fan case
         stack('pma', 0.36, 186, R + 0.012, [(0.01, 0.036, 0.036), (0.05, 0.03, 0.03), (0.02, 0.022, 0.018)], dark, -1),
-        stack('deoiler', 0.78, 160, R - 0.01, [(0.01, 0.04, 0.04), (0.06, 0.034, 0.034), (0.03, 0.02, 0.014)], cast),
-        tube('oil', [(0.42, 179, 1.0), (0.44, 168, 1.01), (0.5, 152, 0.99), (0.52, 143, 0.975)], 0.012, steel),
-        tube('oil', [(0.7, 183, 1.0), (0.66, 170, 1.012), (0.6, 154, 0.995), (0.56, 143, 0.98)], 0.010, gold),
+        stack('deoiler', 0.36, 172, R + 0.008, [(0.01, 0.036, 0.036), (0.06, 0.03, 0.03), (0.03, 0.02, 0.014)], cast, -1),
+        tube('oil', [(0.42, 179, 1.0), (0.44, 168, 1.01), (0.5, 156, 0.995), (0.52, 151, 0.985)], 0.012, steel),
+        tube('oil', [(0.7, 183, 1.0), (0.66, 170, 1.012), (0.6, 157, 0.998), (0.56, 151, 0.988)], 0.010, gold),
         tube('drain', [(0.6, 180, 1.0), (0.7, 180, 1.03), (0.86, 180, 1.03)], 0.006, steel),
     ]
     for th in (154, 206):
@@ -376,6 +376,7 @@ def build():
     # forward engine mount: yoke on the fan frame at the top, two links up to the pylon
     put(0, box('mount', th_pos(1.12, 0, 0.93), (0.12, 0.3, 0.07), 0, cast))
     for dth in (-9, 9): put(dth % 360, cylinder('link', th_pos(1.12, dth, 0.93), th_pos(1.12, dth * 0.45, 1.03), 0.022, 0.022, steel, seg=12))
+    put(4, box('p2t2', th_pos(-0.2, 4, r_at(P['inletInner'], -0.2) - 0.035), (0.06, 0.012, 0.07), 4, steel))
     made.append(finish(join('fancase_dressing', kept), 0))
     made.append(finish(join('fancase_dressing2__full', full), 0))
     # ---- thrust reverser: fixed torque box, translating sleeve, cascades, blocker doors

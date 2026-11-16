@@ -54,7 +54,7 @@ Status: [x] reflected in the model, [ ] still to do.
 - [x] Fixed torque box, translating sleeve, cascade ring, ten blocker doors hinged in the sleeve's inner wall.
 - [x] Sleeve travel and door swing are driven by the simulation's reverser state.
 - [ ] Check proportions, cascade count and door linkage against a reverser-deployed photo.
-- [x] Four hydraulic actuators in the cascade bay. [ ] Drag links from the doors to the core cowl.
+- [x] Four hydraulic actuators in the cascade bay; a drag link from the core cowl to each blocker door, moving with the reverser.
 
 ## Still generated, not yet rebuilt
 - [x] Rotors are stacked discs (rim, web, bore) and are sectioned in the lower part of the cutaway.
@@ -76,3 +76,13 @@ so they have not been used yet.
 - EEC with cooling fins, feet, connectors and looms; gearbox mount links, oil lines, alternator, de-oiler.
 - Pylon: leading-edge fairing, box, aft fairing, panel lines and access panels. Sectioned with the cutaway.
 - Upper core: stage 7 and stage 10 bleed ducts and valves, fuel feed, harness trunk.
+
+## From IAE / operator training notes (search-result excerpts, November 2026; the documents themselves could not be opened)
+- [x] Bearings 1, 2 and 3 share the front compartment at the centre of the intermediate case; No. 4 is in the diffuser / combustor case; No. 5 in the turbine exhaust case.
+- [x] Oil tank on the left of the external gearbox, about 7 o'clock on the fan case. EEC on the right side of the fan case.
+- [x] Gearbox front face: starter, hydraulic pump, oil pressure pump, de-oiler, dedicated alternator.
+- [x] Front mount at the rear of the intermediate case; rear mount on the LPT case at top dead centre.
+- [x] EGT probes in the exhaust case struts at about 2, 4.30, 7.30 and 9.30 o'clock. P2/T2 sensor near 12 o'clock in the inlet.
+- [x] 20 fuel nozzles fed in pairs from ten manifolds; two igniters on the diffuser case; three stage-7 and one stage-10 handling bleed valves.
+- [x] Reverser: four hydraulic actuators (upper pair non-locking, lower pair locking).
+- [ ] Not found: number of blocker doors and cascade segments, fan outlet guide vane count, clock positions of the bleed and ACC valves. The model's values for these are assumptions.
