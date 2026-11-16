@@ -115,7 +115,19 @@ npm run dist       # build an unpacked distributable in dist/ (electron-builder)
 - **Monitor**: compressor maps with live operating point and surge line, trends, station table,
   event log.
 
-Things to try: a manual start (Crank + manual fuel and igniters), introducing fuel too early for a
+### Starting by hand (Master stays off)
+
+1. Switch **Crank** on. The starter spins the core; wait for N2 to pass about 20 %.
+2. **Panel → Control**: set **Igniters** to Manual and ON, set **Fuel flow** to Manual at about 200 kg/h.
+   The engine lights within a few seconds.
+3. Ease the fuel up towards 390 kg/h over about 30 seconds, watching EGT. Too fast and it runs hot.
+   The starter drops out by itself at 43 % N2.
+4. At about 58 % N2 it is idling on your fuel. Switch Crank off and Igniters back to Auto.
+5. To hand over to the computer, switch **Master** on, then set Fuel flow back to Auto.
+
+Switching Master off always shuts the fuel, manual or not. **Reset cold** switches everything off.
+
+Things to try: introducing fuel too early for a
 hot start, slamming manual fuel at idle (HPC surge), opening the stators at low speed, closing the 2.5
 bleed during a decel, starving the starter of air, a hot-and-high take-off, fouling the HPC.
 Running above the EGT red line permanently costs HPT efficiency.

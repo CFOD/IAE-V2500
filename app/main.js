@@ -82,7 +82,7 @@ const ctl = $('t-ctl');
 const onOff = (v) => (v >= 0.5 ? 'On' : 'Off');
 const prot = (name, k, tip) => ({ name, tip, min: 0, max: 1, step: 1, def: 1, get: () => +fadec.prot[k], set: (v) => { fadec.prot[k] = v >= 0.5; }, fmt: onOff });
 const D = {
-  fuel: { name: 'Fuel flow', tip: 'Metered fuel flow. Needs Master on (fuel shut-off valve).', key: 'fuel', min: 0, max: 8000, step: 10, get: () => fadec.auto.fuel * 3600 || 0, mv: () => ov.fuel * 3600, set: (v) => (ov.fuel = v == null ? null : v / 3600), fmt: (v) => `${v.toFixed(0)} kg/h` },
+  fuel: { name: 'Fuel flow', tip: 'Metered fuel flow. In Manual it flows even with Master off (manual start); switching Master off shuts it.', key: 'fuel', min: 0, max: 8000, step: 10, get: () => fadec.auto.fuel * 3600 || 0, mv: () => ov.fuel * 3600, set: (v) => (ov.fuel = v == null ? null : v / 3600), fmt: (v) => `${v.toFixed(0)} kg/h` },
   ign: { name: 'Igniters', key: 'ignition', min: 0, max: 1, step: 1, get: () => +!!fadec.auto.ignition, mv: () => +ov.ignition, set: (v) => (ov.ignition = v == null ? null : v >= 0.5), fmt: onoff },
   starter: { name: 'Starter air valve', key: 'starter', min: 0, max: 1, step: 1, get: () => +!!fadec.auto.starter, mv: () => +ov.starter, set: (v) => (ov.starter = v == null ? null : v >= 0.5), fmt: (v) => (v >= 0.5 ? 'OPEN' : 'CLOSED') },
   starterPsi: { name: 'Starter air pressure', tip: 'APU / ground cart duct pressure', min: 0, max: 60, step: 1, def: 40, get: () => u.starterPsi, set: (v) => (u.starterPsi = v), fmt: (v) => `${v.toFixed(0)} psi` },
@@ -173,7 +173,7 @@ flt.insertAdjacentHTML('beforeend', '<p class="note">Faults stack with whatever 
 const sel = $('rating');
 for (const k of Object.keys(RATINGS)) sel.add(new Option(`${k} · ${(RATINGS[k].toLbf / 1000).toFixed(1)}k lbf`, k));
 sel.value = fadec.rating; sel.onchange = () => { fadec.rating = sel.value; logMsg(`Rating ${sel.value}`); };
-const setMaster = (v) => { fadec.master = v; if (v && fadec.phase === 'abort') fadec.phase = 'off'; $('master').setAttribute('aria-pressed', v); logMsg(`ENG MASTER ${v ? 'ON' : 'OFF'}`); };
+const setMaster = (v) => { fadec.master = v; if (v && fadec.phase === 'abort') fadec.phase = 'off'; if (!v && fadec.ovr.fuel != null) { fadec.ovr.fuel = null; logMsg('Fuel flow: manual released (master off)'); } $('master').setAttribute('aria-pressed', v); logMsg(`ENG MASTER ${v ? 'ON' : 'OFF'}`); };
 $('master').onclick = () => setMaster(!fadec.master);
 $('manStart').onclick = () => { fadec.manStart = !fadec.manStart; $('manStart').setAttribute('aria-pressed', fadec.manStart); };
 $('reverser').onclick = () => { eng.u.reverser = !eng.u.reverser; $('reverser').setAttribute('aria-pressed', eng.u.reverser); logMsg(`Thrust reverser ${eng.u.reverser ? 'deploy' : 'stow'}`); };
@@ -210,15 +210,16 @@ for (const b of $('cams').children) b.onclick = () => view3d && view3d.view(b.da
 const frame3d = () => { if (!view3d) return; const shut = $('drawer').classList.contains('shut'); document.body.classList.toggle('nodrawer', shut); view3d.offsetX = shut ? 0 : 210; view3d.offsetY = 56; view3d.resize(); };
 $('btnDrawer').onclick = () => { const shut = $('drawer').classList.toggle('shut'); $('btnDrawer').classList.toggle('on', !shut); frame3d(); };
 function reset(running) {
-  eng.initCold(); eng.events.length = 0; evIdx = 0; fadec._evIdx = 0; fadec.phase = 'off'; fadec.wf = 0; eng.s.fuelUsed = 0;
-  for (const k of Object.keys(ov)) ov[k] = null; Object.assign(fadec.prot, { egt: true, n1: true, n2: true, accel: true, decel: true, surge: true, startAbort: true }); fadec.n1Mode = false;
+  fadec.reset(); $('manStart').setAttribute('aria-pressed', false);
+  eng.initCold(); eng.events.length = 0; evIdx = 0; eng.s.fuelUsed = 0;
+  Object.assign(fadec.prot, { egt: true, n1: true, n2: true, accel: true, decel: true, surge: true, startAbort: true }); fadec.n1Mode = false;
   for (const f of FAULTS) if (f.active) { if (f.mods) applyMods(f.mods, true); f.active = false; } refreshFaults();
   peaks.egt = peaks.n1 = peaks.n2 = 0; setTla(0); setMaster(running); eng.u.reverser = false; $('reverser').setAttribute('aria-pressed', false);
   if (running) { for (let i = 0; i < 100 * 60; i++) { fadec.update(1 / 60); eng.step(1 / 60); } eng.s.t = 0; eng.s.fuelUsed = 0; eng.events.length = 0; fadec._evIdx = 0; }
   log.length = 0; logMsg(running ? 'Reset: engine running at ground idle' : 'Reset: cold and dark');
 }
-$('btnCold').onclick = () => reset(false);
-$('btnIdle').onclick = () => reset(true);
+$('btnCold').onclick = (e) => { reset(false); e.currentTarget.blur(); };
+$('btnIdle').onclick = (e) => { reset(true); e.currentTarget.blur(); };
 for (const nav of document.querySelectorAll('nav.tabs')) for (const b of nav.children) b.onclick = () => {
   active[nav.dataset.group] = b.dataset.t;
   for (const c of nav.children) { c.classList.toggle('on', c === b); $('t-' + c.dataset.t).classList.toggle('on', c === b); }
@@ -322,7 +323,7 @@ function statusHtml(o) {
   if (peaks.egt > 1) add(`Peak EGT ${peaks.egt.toFixed(0)} °C`);
   return chips.join('');
 }
-const stateText = (o) => (!fadec.master ? (o.N2pct > 1 ? 'Spooling down' : 'Cold') : fadec.phase === 'run' ? (fadec.tla < 0.01 ? 'Running · idle' : 'Running') : fadec.phase === 'abort' ? 'Start aborted' : 'Starting');
+const stateText = (o) => (!fadec.master ? (o.lit ? 'Running · manual fuel' : fadec.manStart && o.N2pct > 1 ? 'Cranking' : o.N2pct > 1 ? 'Spooling down' : 'Cold') : fadec.phase === 'run' ? (fadec.tla < 0.01 ? 'Running · idle' : 'Running') : fadec.phase === 'abort' ? 'Start aborted' : 'Starting');
 
 // ------------------------------------------------------------ main loop
 const DT = 1 / 120;

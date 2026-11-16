@@ -156,3 +156,21 @@ test('thrust reverser: net thrust goes negative, fan stays out of surge, stows c
   assert.ok(e.out.rev === 0 && e.out.thrust > 0 && e.out.lit);
   assert.equal(surges(e), 0);
 });
+
+test('manual start with the master off, hand-over to the FADEC, shut-down and reset', () => {
+  const { e, f } = rig();
+  f.manStart = true; run(e, f, 25);
+  assert.ok(e.out.N2pct > 20 && !e.out.lit, `dry crank N2 ${e.out.N2pct}`);
+  f.ovr.ignition = true;
+  for (const w of [200, 240, 280, 320, 360, 390]) { f.ovr.fuel = w / 3600; run(e, f, 6); }
+  f.manStart = false; f.ovr.ignition = null; run(e, f, 20);
+  assert.ok(e.out.lit && e.out.N2pct > 55 && e.out.N2pct < 62, `idling on manual fuel: N2 ${e.out.N2pct}`);
+  f.master = true; run(e, f, 2); f.ovr.fuel = null; run(e, f, 20);
+  assert.equal(f.phase, 'run');
+  assert.equal(surges(e), 0);
+  f.master = false; run(e, f, 30);
+  assert.ok(!e.out.lit && e.out.N2pct < 15, 'master off shuts the engine down');
+  f.master = true; run(e, f, 60); f.manStart = true; f.ovr.fuel = 0.1;
+  f.reset(); e.initCold(); run(e, f, 20);
+  assert.ok(!e.out.lit && e.out.N2pct < 0.1 && f.phase === 'off' && !e.u.starterValve, 'reset leaves the engine cold and stopped');
+});

@@ -89,6 +89,14 @@ export class Fadec {
     return clamp(58.5 * Math.sqrt(out.T2 / 288.15), 54, 68);
   }
 
+  /** Back to cold and dark: switches off, manual overrides released, start sequence forgotten. */
+  reset() {
+    this.master = false; this.manStart = false; this.tla = 0;
+    for (const k of Object.keys(this.ovr)) this.ovr[k] = null;
+    this.phase = 'off'; this.wf = 0; this.msg = ''; this.timer = 0; this.surgeHold = 0; this.limiter = ''; this.cutout = false;
+    this._prevN2 = 0; this._evIdx = 0;
+  }
+
   update(dt) {
     const eng = this.eng, o = eng.out, u = eng.u;
     const theta = Math.sqrt(o.T2 / 288.15);
@@ -214,9 +222,10 @@ export class Fadec {
 
     // ---------------- apply, honouring manual overrides
     const ov = this.ovr;
-    // The master switch is the HP fuel shut-off valve: no fuel passes with it off, manual or not.
-    u.wfCmd = this.master ? (ov.fuel != null ? ov.fuel : wf) : 0;
-    if (ov.fuel != null && this.master) this.wf = ov.fuel; // bumpless transfer back to auto
+    // The master switch shuts off the FADEC's own fuel. Fuel set by hand still flows, which is what
+    // makes a fully manual start possible; the UI drops manual fuel when the master is switched off.
+    u.wfCmd = ov.fuel != null ? ov.fuel : this.master ? wf : 0;
+    if (ov.fuel != null) this.wf = ov.fuel; // bumpless transfer back to auto
     u.ignition = ov.ignition != null ? ov.ignition : ign;
     u.starterValve = ov.starter != null ? ov.starter : starter;
     u.vsv = ov.vsv; // null -> schedule
