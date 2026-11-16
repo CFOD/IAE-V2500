@@ -324,14 +324,15 @@ export class Scene3D {
     const paint = { color: 0xc9cdd1, metalness: 0, roughness: 0.45, clearcoat: 1, clearcoatRoughness: 0.14 };
     const polished = { color: 0xc9ced3, metalness: 1, roughness: 0.3 }; // matte, not mirror, per photos
     const titanium = { color: 0xa9b0b7, metalness: 1, roughness: 0.34 };
-    const caseM = { color: 0x7d858c, metalness: 0.9, roughness: 0.5, roughnessMap: T.brushed, bumpMap: T.cast, bumpScale: 0.35 };
+    const caseM = { color: 0x8496a8, metalness: 0.4, roughness: 0.52, bumpMap: T.cast, bumpScale: 0.35 }; // compressor and diffuser cases are painted blue-grey
     const hotM = { color: 0xb4aea6, metalness: 0.95, roughness: 0.46, roughnessMap: T.brushed, bumpMap: T.cast, bumpScale: 0.3 };
     const composite = { color: 0x24272b, metalness: 0.1, roughness: 0.55, clearcoat: 0.4, clearcoatRoughness: 0.5 };
     const linerM = new THREE.MeshPhysicalMaterial({ color: 0x8f959b, metalness: 0.5, roughness: 0.75, map: T.liner, side: THREE.DoubleSide });
     this.boltMat = new THREE.MeshStandardMaterial({ color: 0xbfc5ca, metalness: 1, roughness: 0.3 });
     const pipeSteel = new THREE.MeshStandardMaterial({ color: 0xc3c8cc, metalness: 1, roughness: 0.25 });
-    const pipeGold = new THREE.MeshStandardMaterial({ color: 0xa8997c, metalness: 1, roughness: 0.34 }); // cadmium-plated / bronze fittings and small-bore lines
-    const harness = new THREE.MeshStandardMaterial({ color: 0x1b1d20, metalness: 0.1, roughness: 0.7 });
+    const pipeGold = new THREE.MeshStandardMaterial({ color: 0xb0914e, metalness: 0.95, roughness: 0.38 }); // cadmium-plated / bronze fittings and small-bore lines
+    const harness = new THREE.MeshStandardMaterial({ color: 0xd9d6cc, metalness: 0, roughness: 0.92 }); // looms are sleeved in white braid (SR Technics component photos)
+    const conduit = new THREE.MeshStandardMaterial({ color: 0x1b1d20, metalness: 0.1, roughness: 0.7 });
     this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughnessMap: T.brushed }), section: this.capMat };
     const C = (K) => `${(K - 273.15).toFixed(0)} °C`, B = (p) => `${(p / 1e5).toFixed(2)} bar`;
     const A = (d) => this._part(d);
@@ -435,17 +436,17 @@ export class Scene3D {
       const arm = new THREE.BoxGeometry(0.03, 0.045, 0.005); arm.translate(0.012, 0.045 + co(x), 0);
       this._ring(hpcCase, arm, 34, (m, th) => { m.makeRotationX(th); m.setPosition(x - 0.012, 0, 0); }, { mat: pipeSteel });
     }
-    // handling bleed valves: three on stage 7, one on stage 10
-    const valve = new THREE.CylinderGeometry(0.035, 0.03, 0.07, 14); valve.translate(0, 0.33, 0);
-    this._ring(hpcCase, valve, 3, (m, th) => { m.makeRotationX(th); m.setPosition(1.62, 0, 0); }, { phase: 2.6, cut: false, mat: pipeSteel });
-    this._ring(hpcCase, valve, 1, (m, th) => { m.makeRotationX(th); m.setPosition(1.8, 0, 0); }, { phase: 4.0, cut: false, mat: pipeGold });
+    // Handling bleed valves: large perforated domes sealed to the core cowl by orange silicone rings.
+    // 7A, 7B and stage 10 on the right of the HPC case, 7C on the left beside the VSV actuator.
+    const orange = new THREE.MeshStandardMaterial({ color: 0xc8502a, roughness: 0.6 }), perf = new THREE.MeshStandardMaterial({ color: 0x6c6a64, metalness: 0.9, roughness: 0.55, map: T.liner });
+    const onCore = (part, ob, x, th, r, variantCheck = true) => { ob.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); ob.rotation.x = th * DEG; const o2 = this._reg(part, ob); if (variantCheck && inCut(th * DEG)) o2.userData.variant = 'full'; return o2; };
+    for (const [x, th] of [[1.6, 262], [1.6, 302], [1.8, 282], [1.6, 128]]) {
+      const g = new THREE.Group(), neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.1, 20), pipeSteel), dome = new THREE.Mesh(new THREE.SphereGeometry(0.066, 20, 10, 0, TAU, 0, Math.PI / 2), perf), seal = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.012, 8, 28), orange), rim = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.012, 24), pipeGold);
+      neck.position.y = 0.05; rim.position.y = 0.1; dome.position.y = 0.1; dome.scale.y = 0.45; seal.rotation.x = Math.PI / 2; seal.position.y = 0.105; g.add(neck, rim, dome, seal);
+      onCore(hpcCase, g, x, th, co(x) + 0.03);
+    }
     // structural struts of the intermediate case, crossing the swan-neck duct
     this._row(lpcCase, { x0: 0.94, x1: 1.08, kind: 'stator', lo: P.coreInner, hi: P.coreOuter }, 9, this.engine, { stagger: [0, 0], camber: [0, 0], thick: [0.2, 0.2], chordK: 1, tipK: 1 });
-    // blanked bleed ports
-    const port = new THREE.CylinderGeometry(0.045, 0.05, 0.09, 18); port.translate(0, 0.33, 0);
-    const capG = new THREE.CylinderGeometry(0.052, 0.052, 0.012, 18); capG.translate(0, 0.38, 0);
-    const orange = new THREE.MeshStandardMaterial({ color: 0x9aa0a5, metalness: 1, roughness: 0.35 }); // blanking plates
-    for (const [x, ph] of [[1.74, 2.55], [1.74, 4.3], [2.1, 3.4]]) for (const [g, mt] of [[port, pipeSteel], [capG, orange]]) this._ring(x > 2 ? hptCase : hpcCase, g, 1, (m, th) => { m.makeRotationX(th - Math.PI / 2); m.setPosition(x, 0, 0); }, { phase: ph, cut: false, mat: mt });
     this._solid(hptCase, band(CO, offset(CO, 0.028), 2.2, 2.45, 6));
     for (const x of [2.21, 2.44]) this._flange(hptCase, x, co(x) + 0.026, 48);
     this._solid(lptCase, band(CO, offset(CO, 0.022), 2.45, 3.02, 10));
@@ -544,6 +545,24 @@ export class Scene3D {
       this.dragLinks = [mk(all.filter((t) => !inCut(t))), mk(all.filter((t) => inCut(t)))];
       this.dragLinks[1].userData.variant = 'full';
       for (const im of this.dragLinks) this._reg(this.byId.cna, im); }
+    // ---- core units placed from the component-location manual
+    { const unit = (part, geo, mat, x, th, dr) => onCore(part, new THREE.Mesh(geo, mat), x, th, co(x) + dr);
+      // VSV actuator and its crank shaft (left), high-pressure bleed valve
+      unit(hpcCase, new THREE.CylinderGeometry(0.04, 0.04, 0.2, 16).rotateZ(Math.PI / 2), pipeGold, 1.28, 138, 0.14);
+      unit(hpcCase, new THREE.CylinderGeometry(0.012, 0.012, 0.3, 8).rotateZ(Math.PI / 2), pipeSteel, 1.3, 150, 0.1);
+      unit(hpcCase, new THREE.CylinderGeometry(0.05, 0.05, 0.14, 18).rotateZ(Math.PI / 2), pipeGold, 1.86, 140, 0.13);
+      // fuel distribution valve: ten outlets, one to each manifold
+      unit(this.byId.fuel || hpcCase, new THREE.CylinderGeometry(0.05, 0.05, 0.09, 10).rotateZ(Math.PI / 2), pipeGold, 1.82, 318, 0.13);
+      for (let k = 0; k < 10; k++) this._pipe(ext, [[1.86, co(1.86) + 0.13 + 0.03 * Math.cos(k * 0.63), 318 + 4 * Math.sin(k * 0.63)], [1.9, 0.47, 318 + (k - 4.5) * 3], [1.917, 0.44, ((318 + (k - 4.5) * 36) % 360 + 360) % 360 > 112 || true ? 318 + (k - 4.5) * 7 : 0]], 0.004, pipeSteel);
+      // ignition exciters on the right, just behind the fan frame
+      for (const th of [246, 258]) unit(ext, new THREE.BoxGeometry(0.17, 0.06, 0.11), pipeGold, 1.2, th, 0.33);
+      // turbine case cooling: ACC actuator and the two large fan-air valves (LPT and HPT) feeding the perforated tubes
+      unit(ext, new THREE.BoxGeometry(0.14, 0.07, 0.08), pipeGold, 2.12, 286, 0.14);
+      for (const [th, rr] of [[250, 0.05], [236, 0.045]]) { unit(ext, new THREE.CylinderGeometry(rr, rr, 0.24, 18).rotateZ(Math.PI / 2), pipeSteel, 2.2, th, 0.16); this._pipe(ext, [[2.3, co(2.3) + 0.16, th], [2.42, co(2.42) + 0.12, th + 2], [2.55, co(2.55) + 0.07, th + 3]], rr * 0.8, pipeSteel); }
+      // buffer air cooler (ACAC) low on the left of the turbine cases, and the EGT junction box underneath
+      unit(ext, new THREE.BoxGeometry(0.26, 0.1, 0.16), pipeGold, 2.36, 152, 0.2);
+      unit(ext, new THREE.BoxGeometry(0.12, 0.03, 0.08), pipeGold, 2.86, 186, 0.1);
+    }
     // ---- upper half of the core. This is the sector the cutaway removes, so it is only shown with the cutaway closed.
     const top = (ob) => { ob.userData.variant = 'full'; return ob; };
     const runT = (...a) => top(run(...a));

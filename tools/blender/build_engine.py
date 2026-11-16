@@ -252,10 +252,12 @@ def build():
     skin('fancowl_doors', G, 1.2 - G, 0.022, 16)
 
     # ---- bare fan case (reference: MTU and manufacturer photos, museum model)
-    cast = material('cast', (0.58, 0.6, 0.62), 1.0, 0.42)
+    cast = material('cast', (0.56, 0.63, 0.7), 0.35, 0.5)      # fan case and castings are painted a light blue-grey
+    loom = material('loom', (0.86, 0.85, 0.8), 0.0, 0.9)       # harnesses are sleeved in white braid
+    comp = material('composite', (0.07, 0.12, 0.08), 0.1, 0.6) # graphite composite cascades
     steel = material('steel', (0.72, 0.74, 0.76), 1.0, 0.25)
     dark = material('dark', (0.05, 0.055, 0.06), 0.2, 0.55)
-    gold = material('gold', (0.75, 0.58, 0.22), 1.0, 0.3)
+    gold = material('gold', (0.66, 0.52, 0.26), 0.9, 0.38)     # chromate-conversion-coated accessory units
     fc_in = lambda x: r_at(P['bypOuter'], x) + 0.0135
     case_loop = sample(lambda x: fc_in(x) + 0.02, -0.02, 1.19, 16) + list(reversed(sample(fc_in, -0.02, 1.19, 16)))
     case = revolve('fancase_casing', case_loop, cast)
@@ -279,8 +281,8 @@ def build():
     # large duct wrapped round the case, top to bottom
     made.append(tube('fancase_duct', [(0.86, a, 0.945 + 0.012 * math.sin(a / 9)) for a in range(114, 181, 6)] + [(0.8, 184, 0.95), (0.7, 186, 0.965)], 0.05, steel))
     # harness bundles and small pipes along the case
-    lines = [tube('l', [(0.05 + 0.1 * math.sin(a / 23 + k), a, R_CASE + 0.025 + 0.004 * k) for a in range(116, 250, 8)], 0.009 + 0.002 * (k % 2), dark if k % 2 else steel) for k in range(4)]
-    lines += [tube('l', [(x, 150 + 14 * k + 3 * math.sin(x * 9), R_CASE + 0.02) for x in (0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.15)], 0.008, dark if k % 2 == 0 else steel) for k in range(5)]
+    lines = [tube('l', [(0.05 + 0.1 * math.sin(a / 23 + k), a, R_CASE + 0.025 + 0.004 * k) for a in range(116, 250, 8)], 0.009 + 0.002 * (k % 2), loom if k % 2 else steel) for k in range(4)]
+    lines += [tube('l', [(x, 150 + 14 * k + 3 * math.sin(x * 9), R_CASE + 0.02) for x in (0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.15)], 0.008, loom if k % 2 == 0 else steel) for k in range(5)]
     made.append(join('fancase_harness', lines))
 
     # ---- accessory gearbox: a flat casting wrapped under the fan case, accessories fore and aft
@@ -293,32 +295,34 @@ def build():
         return [cylinder('b', c + rad * (math.cos(a) * radial + math.sin(a) * tang) - Vector((0.006, 0, 0)), c + rad * (math.cos(a) * radial + math.sin(a) * tang) + Vector((0.006, 0, 0)), 0.005, 0.005, steel, seg=6) for a in [2 * math.pi * k / n for k in range(n)]]
     acc = [
         # air turbine starter: flanged body, V-band clamp, inlet scroll and air duct stub
-        stack('starter', 0.36, 164, R, [(0.012, 0.07, 0.07), (0.02, 0.058, 0.058), (0.008, 0.066, 0.066), (0.1, 0.06, 0.055), (0.012, 0.064, 0.064), (0.07, 0.05, 0.04)], steel, -1),
-        tube('starterduct', [(0.2, 164, R), (0.2, 160, R + 0.02), (0.22, 150, R + 0.015), (0.3, 138, R + 0.01), (0.5, 128, R + 0.01)], 0.03, steel),
+        stack('starter', 0.36, 199, R, [(0.012, 0.07, 0.07), (0.02, 0.058, 0.058), (0.008, 0.066, 0.066), (0.1, 0.06, 0.055), (0.012, 0.064, 0.064), (0.07, 0.05, 0.04)], steel, -1),
+        tube('starterduct', [(0.2, 199, R), (0.2, 204, R + 0.02), (0.24, 214, R + 0.015), (0.4, 224, R + 0.01), (0.7, 232, R), (1.0, 250, R - 0.01), (1.15, 300, R - 0.01), (1.18, 350, R + 0.02)], 0.03, steel),
+        stack('startervalve', 0.42, 222, R + 0.01, [(0.012, 0.042, 0.042), (0.09, 0.05, 0.05), (0.012, 0.042, 0.042)], gold),
         # integrated drive generator: finned barrel with a terminal block
-        stack('idg', 0.78, 170, R - 0.005, [(0.012, 0.075, 0.075), (0.03, 0.062, 0.062)] + [(0.008, 0.07 if k % 2 == 0 else 0.062, 0.07 if k % 2 == 0 else 0.062) for k in range(18)] + [(0.05, 0.062, 0.04)], cast),
-        box('idgterm', th_pos(0.9, 170, R + 0.062), (0.09, 0.07, 0.03), 170, dark),
+        stack('idg', 0.78, 197, R - 0.005, [(0.012, 0.075, 0.075), (0.03, 0.062, 0.062)] + [(0.008, 0.07 if k % 2 == 0 else 0.062, 0.07 if k % 2 == 0 else 0.062) for k in range(18)] + [(0.05, 0.062, 0.04)], cast),
+        box('idgterm', th_pos(0.9, 197, R + 0.062), (0.09, 0.07, 0.03), 197, dark),
         # hydraulic pump: stepped body with two ports
-        stack('hyd', 0.36, 193, R, [(0.012, 0.058, 0.058), (0.06, 0.048, 0.048), (0.05, 0.04, 0.036), (0.04, 0.03, 0.03)], cast, -1),
-        tube('hydline', [(0.26, 193, R + 0.04), (0.2, 196, R + 0.05), (0.1, 205, R + 0.03), (0.0, 215, R - 0.02)], 0.011, steel),
-        tube('hydline', [(0.3, 190, R + 0.04), (0.24, 186, R + 0.055), (0.12, 182, R + 0.05)], 0.009, steel),
+        stack('hyd', 0.36, 181, R, [(0.012, 0.058, 0.058), (0.06, 0.048, 0.048), (0.05, 0.04, 0.036), (0.04, 0.03, 0.03)], gold, -1),
+        tube('hydline', [(0.26, 181, R + 0.04), (0.2, 176, R + 0.05), (0.1, 160, R + 0.03), (0.0, 140, R - 0.02)], 0.011, steel),
+        tube('hydline', [(0.3, 183, R + 0.04), (0.24, 186, R + 0.055), (0.12, 190, R + 0.05)], 0.009, steel),
         # fuel pump and fuel metering unit
-        stack('fuelpump', 0.78, 196, R - 0.005, [(0.012, 0.064, 0.064), (0.09, 0.055, 0.055), (0.008, 0.06, 0.06), (0.07, 0.048, 0.044)], gold),
-        box('fmu', th_pos(1.02, 196, R - 0.005), (0.12, 0.11, 0.1), 196, cast),
-        tube('fuelline', [(1.08, 196, R), (1.14, 192, R - 0.02), (1.2, 186, R - 0.06), (1.3, 184, R - 0.14)], 0.013, gold),
+        stack('fuelpump', 0.78, 165, R - 0.005, [(0.012, 0.064, 0.064), (0.09, 0.055, 0.055), (0.008, 0.06, 0.06), (0.07, 0.048, 0.044)], gold),
+        box('fmu', th_pos(1.02, 165, R - 0.005), (0.12, 0.11, 0.1), 165, gold),
+        stack('scav', 0.78, 181, R, [(0.012, 0.05, 0.05), (0.07, 0.045, 0.045), (0.05, 0.038, 0.03)], gold),
+        tube('fuelline', [(1.08, 165, R), (1.14, 170, R - 0.02), (1.2, 176, R - 0.06), (1.3, 178, R - 0.14)], 0.013, steel),
         # oil pump and filter housings
-        stack('oilpump', 0.36, 179, R + 0.005, [(0.012, 0.046, 0.046), (0.07, 0.038, 0.038), (0.02, 0.03, 0.03)], cast, -1),
-        stack('filter', 0.78, 183, R, [(0.01, 0.05, 0.05), (0.11, 0.042, 0.042), (0.012, 0.046, 0.046), (0.02, 0.02, 0.02)], steel),
+        stack('oilpump', 0.36, 166, R + 0.005, [(0.012, 0.046, 0.046), (0.07, 0.04, 0.04), (0.02, 0.03, 0.03)], gold, -1),
+        stack('filter', 0.78, 155, R - 0.02, [(0.01, 0.05, 0.05), (0.11, 0.045, 0.045), (0.012, 0.05, 0.05), (0.02, 0.02, 0.02)], gold),
     ]
-    for x, th, rr, rad in [(0.354, 164, R, 0.064), (0.786, 170, R - 0.005, 0.069), (0.354, 193, R, 0.053), (0.786, 196, R - 0.005, 0.059)]: acc += bolts(x, th, rr, rad)
+    for x, th, rr, rad in [(0.354, 199, R, 0.064), (0.786, 197, R - 0.005, 0.069), (0.354, 181, R, 0.053), (0.786, 165, R - 0.005, 0.059)]: acc += bolts(x, th, rr, rad)
     # stiffening ribs and mounting pads on the gearbox casting
     for th0 in (158, 168, 178, 188, 198):
         acc.append(arc_solid('rib', [[0.38, 0.985], [0.38, 0.997], [0.74, 1.004], [0.74, 0.992]], th0, th0 + 1.2, cast, steps=2))
     acc += [
         # permanent magnet alternator, de-oiler, oil lines up to the tank, gearbox mount links to the fan case
-        stack('pma', 0.36, 186, R + 0.012, [(0.01, 0.036, 0.036), (0.05, 0.03, 0.03), (0.02, 0.022, 0.018)], dark, -1),
-        stack('deoiler', 0.36, 172, R + 0.008, [(0.01, 0.036, 0.036), (0.06, 0.03, 0.03), (0.03, 0.02, 0.014)], cast, -1),
-        tube('oil', [(0.42, 179, 1.0), (0.44, 168, 1.01), (0.5, 156, 0.995), (0.52, 151, 0.985)], 0.012, steel),
+        stack('pma', 0.36, 190, R + 0.012, [(0.01, 0.036, 0.036), (0.05, 0.034, 0.034), (0.02, 0.022, 0.018)], gold, -1),
+        cylinder('deoiler', th_pos(0.57, 207, 0.94), th_pos(0.57, 213, 0.94), 0.05, 0.045, cast, seg=20),
+        tube('oil', [(0.4, 166, 1.0), (0.44, 160, 1.005), (0.5, 155, 0.995), (0.52, 151, 0.985)], 0.012, steel),
         tube('oil', [(0.7, 183, 1.0), (0.66, 170, 1.012), (0.6, 157, 0.998), (0.56, 151, 0.988)], 0.010, gold),
         tube('drain', [(0.6, 180, 1.0), (0.7, 180, 1.03), (0.86, 180, 1.03)], 0.006, steel),
     ]
@@ -329,11 +333,11 @@ def build():
         acc.append(cylinder('pad', th_pos(x, th, 0.985), th_pos(x, th, 1.004), 0.022, 0.022, cast, seg=12))
     made.append(finish(join('agb_gearbox', [gb] + acc), 0.003))
     # ---- EEC: flat finned box on the upper side of the fan case, on four feet, with its connectors and looms
-    eec = [box('eec', th_pos(0.5, 305, 0.905), (0.42, 0.3, 0.075), 305, dark)]
+    eec = [box('eec', th_pos(0.5, 305, 0.895), (0.42, 0.3, 0.05), 305, gold), box('eeccover', th_pos(0.5, 305, 0.93), (0.4, 0.28, 0.025), 305, dark)]
     eec += [box('fin', th_pos(0.31 + 0.038 * k, 305, 0.947), (0.012, 0.28, 0.012), 305, dark) for k in range(11)]
     eec += [box('foot', th_pos(x, 305 + dth, 0.87), (0.05, 0.04, 0.03), 305 + dth, steel) for x in (0.33, 0.67) for dth in (-7.5, 7.5)]
     eec += [cylinder('conn', th_pos(0.72, 298 + 3.4 * k, 0.905), th_pos(0.76, 298 + 3.4 * k, 0.905), 0.016, 0.016, steel, seg=12) for k in range(5)]
-    eec += [tube('loom', [(0.76, 298 + 3.4 * k, 0.905), (0.82, 297 + 3.6 * k, 0.9), (0.9, 290 + 5 * k, 0.9), (1.05, 286 + 6 * k, 0.895), (1.17, 284 + 6 * k, 0.9)], 0.008, dark) for k in range(5)]
+    eec += [tube('loom', [(0.76, 298 + 3.4 * k, 0.905), (0.82, 297 + 3.6 * k, 0.9), (0.9, 290 + 5 * k, 0.9), (1.05, 286 + 6 * k, 0.895), (1.17, 284 + 6 * k, 0.9)], 0.008, loom) for k in range(5)]
     made.append(finish(join('eec_box', eec), 0.003))
 
     # ---- fan case dressing all the way round. Items inside the cutaway sector are only shown with the cutaway closed.
@@ -350,27 +354,38 @@ def build():
     for k in range(5):
         for a0 in range(250, 472, 37):
             mid = (a0 + 18) % 360
-            put(mid, tube('l', [(0.1 + 0.16 * k + 0.03 * math.sin(a / 17 + k), a % 360, R_CASE + 0.022 + 0.003 * (k % 3)) for a in range(a0, a0 + 38, 6)], 0.007 + 0.002 * (k % 2), dark if k % 2 else steel))
+            put(mid, tube('l', [(0.1 + 0.16 * k + 0.03 * math.sin(a / 17 + k), a % 360, R_CASE + 0.022 + 0.003 * (k % 3)) for a in range(a0, a0 + 38, 6)], 0.007 + 0.002 * (k % 2), loom if k % 2 else steel))
     for k, th in enumerate(range(262, 462, 20)):
         t = th % 360
-        put(t, tube('l', [(x, t + 2.5 * math.sin(x * 8 + k), R_CASE + 0.02) for x in (0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.15)], 0.007, steel if k % 2 else dark))
+        put(t, tube('l', [(x, t + 2.5 * math.sin(x * 8 + k), R_CASE + 0.02) for x in (0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.15)], 0.007, steel if k % 2 else loom))
         for x in (0.1, 0.5, 0.9): put(t, box('clip', th_pos(x, t + 2.5 * math.sin(x * 8 + k), R_CASE + 0.012), (0.02, 0.03, 0.02), t, steel))
     # anti-ice duct: bleed air forward to the inlet lip, with its valve
     put(332, tube('ai', [(1.19, 330, 0.955), (0.9, 331, 0.95), (0.5, 333, 0.948), (0.1, 334, 0.95), (-0.02, 334, 0.95)], 0.032, steel))
     put(332, stack('aiv', 0.62, 332.5, 0.949, [(0.012, 0.045, 0.045), (0.09, 0.04, 0.04), (0.012, 0.045, 0.045)], cast))
     put(332, box('aiact', th_pos(0.665, 332.5, 1.0), (0.07, 0.06, 0.05), 332.5, dark))
     # ignition exciters, relay box, air-cooled oil cooler and the engine data plate
-    for th in (262, 276): put(th, box('exc', th_pos(0.78, th, 0.915), (0.2, 0.12, 0.07), th, dark))
-    for th in (262, 276): put(th, tube('ht', [(0.88, th, 0.915), (0.98, th - 3, 0.905), (1.1, th - 8, 0.9), (1.18, th - 12, 0.9)], 0.009, steel))
-    put(238, box('acoc', th_pos(0.98, 238, 0.93), (0.2, 0.2, 0.09), 238, cast))
-    for k in range(9): put(238, box('acocfin', th_pos(0.895 + 0.021 * k, 238, 0.98), (0.006, 0.19, 0.012), 238, steel))
+    # right side, below the EEC: relay box, then the bank of bleed-valve solenoids (four in a row and two below)
+    for k in range(4): put(268, stack('sol', 0.55 + 0.085 * k, 270, 0.9, [(0.02, 0.022, 0.022), (0.035, 0.03, 0.03), (0.012, 0.018, 0.018)], gold))
+    for k in range(2): put(258, stack('sol', 0.7 + 0.085 * k, 259, 0.9, [(0.02, 0.022, 0.022), (0.035, 0.03, 0.03), (0.012, 0.018, 0.018)], gold))
+    for k in range(6): put(264, tube('solp', [(0.56 + 0.07 * k, 266, 0.895), (0.6 + 0.07 * k, 262, 0.89), (0.9 + 0.03 * k, 256, 0.89), (1.17, 250 + 2 * k, 0.895)], 0.005, steel))
+    # left side: fuel-cooled oil cooler (tall gold cylinder) with the low-pressure fuel filter at its foot and the diverter valve on its flank; IDG oil cooler beside it
+    put(122, cylinder('fcoc', th_pos(1.02, 114, 0.965), th_pos(1.02, 132, 0.965), 0.06, 0.06, gold, seg=24, dome=0.03))
+    put(135, cylinder('lpfilter', th_pos(0.95, 136, 0.97), th_pos(1.09, 136, 0.97), 0.07, 0.07, gold, seg=24))
+    put(124, box('fdrv', th_pos(1.115, 124, 0.965), (0.07, 0.1, 0.08), 124, gold))
+    for k in range(3): put(120, tube('fcl', [(1.1, 118 + 5 * k, 0.975), (1.15, 122 + 6 * k, 0.96), (1.19, 130 + 8 * k, 0.94)], 0.014, steel))
+    put(100, box('idgfcoc', th_pos(0.98, 100, 0.925), (0.2, 0.09, 0.07), 100, gold))
+    put(48, stack('oilpx', 0.6, 48, 0.905, [(0.07, 0.018, 0.018), (0.03, 0.024, 0.024)], steel)); put(54, box('lop', th_pos(0.66, 54, 0.905), (0.05, 0.05, 0.05), 54, gold))
+    put(2, cylinder('vib', th_pos(0.3, 2, 0.89), th_pos(0.3, 2, 0.92), 0.025, 0.02, steel, seg=12))
+    put(238, box('acoc', th_pos(0.9, 238, 0.93), (0.3, 0.24, 0.09), 238, cast)); put(238, box('acocmesh', th_pos(0.9, 238, 0.977), (0.2, 0.16, 0.004), 238, dark))
+    for k in range(9): put(238, box('acocfin', th_pos(0.815 + 0.021 * k, 238, 0.982), (0.004, 0.15, 0.008), 238, gold))
     put(238, tube('acocl', [(0.9, 232, 0.93), (0.75, 215, 0.95), (0.62, 200, 0.99)], 0.012, steel))
-    put(292, box('relay', th_pos(0.2, 292, 0.905), (0.16, 0.14, 0.05), 292, dark))
+    put(287, box('relay', th_pos(0.62, 287, 0.905), (0.18, 0.12, 0.05), 287, dark))
+    for k in range(3): put(287, cylinder('rc', th_pos(0.56 + 0.06 * k, 283.5, 0.905), th_pos(0.56 + 0.06 * k, 281, 0.905), 0.014, 0.014, steel, seg=10))
     put(250, box('plate', th_pos(0.26, 250, 0.892), (0.12, 0.08, 0.004), 250, steel))
     # inside the cutaway sector: hydraulic and fuel lines up to the pylon, T2/P2 probe wiring, a second relay box
     for k, th in enumerate((8, 22, 36, 50, 66, 84, 100)):
-        put(th, tube('l', [(x, th + 2 * math.sin(x * 7 + k), R_CASE + 0.02) for x in (0.0, 0.25, 0.5, 0.75, 1.0, 1.15)], 0.008 + 0.003 * (k % 2), steel if k % 2 else dark))
-    put(40, box('box', th_pos(0.55, 40, 0.905), (0.22, 0.14, 0.05), 40, dark))
+        put(th, tube('l', [(x, th + 2 * math.sin(x * 7 + k), R_CASE + 0.02) for x in (0.0, 0.25, 0.5, 0.75, 1.0, 1.15)], 0.008 + 0.003 * (k % 2), steel if k % 2 else loom))
+    put(40, box('box', th_pos(0.4, 40, 0.905), (0.16, 0.12, 0.05), 40, dark))
     put(74, box('box', th_pos(0.3, 74, 0.905), (0.14, 0.12, 0.06), 74, cast))
     put(60, stack('valve', 0.8, 60, 0.92, [(0.012, 0.04, 0.04), (0.1, 0.034, 0.034), (0.012, 0.04, 0.04)], steel))
     # forward engine mount: yoke on the fan frame at the top, two links up to the pylon
@@ -395,11 +410,11 @@ def build():
     for k in range(10):
         x = 1.775 + k * 0.047; lo, hi = duct(x) + 0.03, OML(x) - 0.035
         hoop = [[x, lo], [x - 0.016, hi], [x - 0.008, hi], [x + 0.008, lo]]   # leaned forward to turn the flow
-        cas_full.append(revolve('h', hoop, cast, steps=96)); cas_cut.append(arc_solid('h', hoop, 112, 352, cast, steps=72))
+        cas_full.append(revolve('h', hoop, comp, steps=96)); cas_cut.append(arc_solid('h', hoop, 112, 352, comp, steps=72))
     for k in range(24):
         th = k * 15 + 7.5; rm = (duct(2.0) + OML(2.0)) / 2 - 0.002
         for lst in ([cas_full] if in_cut(th) else [cas_full, cas_cut]):
-            lst.append(box('s', th_pos(1.99, th, rm), (0.46, 0.012, OML(2.0) - duct(2.0) - 0.07), th, cast))
+            lst.append(box('s', th_pos(1.99, th, rm), (0.46, 0.012, OML(2.0) - duct(2.0) - 0.07), th, comp))
     made.extend([join('cna_cascades', cas_full), join('cna_cascades__cut', cas_cut)])
     # blocker doors: stowed flush in the sleeve's inner wall, hinged at their aft edge
     from mathutils import Matrix

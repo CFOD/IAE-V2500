@@ -86,3 +86,13 @@ so they have not been used yet.
 - [x] 20 fuel nozzles fed in pairs from ten manifolds; two igniters on the diffuser case; three stage-7 and one stage-10 handling bleed valves.
 - [x] Reverser: four hydraulic actuators (upper pair non-locking, lower pair locking).
 - [ ] Not found: number of blocker doors and cascade segments, fan outlet guide vane count, clock positions of the bleed and ACC valves. The model's values for these are assumptions.
+
+## From the SR Technics "V2500 Component Location" training booklet (issue 2.04, 2010), supplied by the project owner
+The booklet itself is not in the repository (training material, not ours to publish). What was taken from it:
+- [x] Colours: fan case and compressor cases painted light blue-grey; looms in white braid; accessory units chromate gold; graphite-composite cascades; EEC with a gold chassis and dark cover.
+- [x] Right side of the fan case, top to bottom: EEC, ignition / P2T2 relay box, bank of bleed-valve solenoids (four and two), air-cooled oil cooler; anti-ice valve and duct forward; starter valve low, starter duct up the right side.
+- [x] Left side: fuel-cooled oil cooler (tall cylinder) with LP fuel filter and diverter valve, IDG oil cooler, oil pressure transmitter and switch near the top, vibration pick-up at the top, oil tank low beside the gearbox.
+- [x] Gearbox, left to right: front face oil pump and filter, hydraulic pump, alternator, starter; rear face fuel pump and FMU, scavenge pumps, IDG; de-oiler at the right-hand end; scavenge filter with master chip detector at the left rear.
+- [x] Core: handling bleed valves 7A, 7B and 10 on the right and 7C on the left, each a perforated dome with an orange silicone seal; VSV actuator and HP valve on the left; fuel distribution valve with ten outlets; ignition boxes on the right behind the fan frame; ACC actuator with separate LPT and HPT valves; buffer air cooler low on the left; EGT junction box underneath.
+- [x] Exhaust: EGT probes at 2, 4.30, 7.30 and 9.30; P4.9 rakes in three struts. Reverser: upper non-locking and lower locking actuators joined by flexible shafts; six latches along the bottom.
+- [ ] Still to do from it: HCU and pylon disconnect panels, fire detection loops, P4.9 rakes as separate parts, fan-blade annulus fillers and dovetail slots, the bifurcation and its latches.
