@@ -23,6 +23,10 @@ const FLOOR_Y = -1.75;
 // Cutaway wedge: the sector of casing that is removed, in the angle convention
 // used for instances (y = r cos th, z = r sin th). Camera side, upper quarter.
 const CUT_A = -8 * DEG, CUT_B = 112 * DEG;
+// Deep cut: the lower, camera-facing part of the wedge, where the rotors are sectioned too so the
+// discs, shafts and bearings can be seen. Its lower face is shared with the casing cut.
+const DEEP_A = 60 * DEG;
+const inDeep = (th) => { const t = ((th % TAU) + TAU) % TAU; return t > DEEP_A && t < CUT_B; };
 const inCut = (th) => { const t = ((th % TAU) + TAU) % TAU; return t > TAU + CUT_A || t < CUT_B; };
 
 function canvasTex(w, h, draw, repeat) {
@@ -47,6 +51,23 @@ const NOISE = `
 const puffSprite = () => { const t = canvasTex(128, 128, (g) => { g.clearRect(0, 0, 128, 128); let s = 7; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
   for (let i = 0; i < 26; i++) { const x = 64 + (r() - 0.5) * 56, y = 64 + (r() - 0.5) * 56, rad = 16 + r() * 26, gr = g.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, 'rgba(255,255,255,0.20)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); }
   const m = g.createRadialGradient(64, 64, 30, 64, 64, 64); m.addColorStop(0, 'rgba(0,0,0,0)'); m.addColorStop(1, 'rgba(0,0,0,1)'); g.globalCompositeOperation = 'destination-out'; g.fillStyle = m; g.fillRect(0, 0, 128, 128); }); t.colorSpace = THREE.SRGBColorSpace; return t; };
+
+// Blade surface (u = round the section from the leading edge, v = root to tip): spanwise polishing
+// marks, a brighter worn leading edge and tip, dirt collecting towards the root.
+const bladeTex = (fan) => { let s = 5; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const t = canvasTex(256, 512, (g, W, H) => {
+    g.fillStyle = fan ? '#d9dcdf' : '#d2d2d2'; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 700; i++) { const v = r() > 0.5 ? 255 : 90; g.fillStyle = `rgba(${v},${v},${v},${0.03 + r() * 0.05})`; g.fillRect(r() * W, r() * H, 1 + r() * 2, 40 + r() * 260); }
+    for (let i = 0; i < 160; i++) { g.fillStyle = `rgba(70,66,60,${0.03 + r() * 0.05})`; const x = r() * W, y = H - r() * r() * H * 0.5; g.fillRect(x, y, 3 + r() * 10, 6 + r() * 40); } // v = 0 is the bottom row
+    const root = g.createLinearGradient(0, H, 0, H * 0.72); root.addColorStop(0, 'rgba(60,58,54,0.5)'); root.addColorStop(1, 'rgba(60,58,54,0)'); g.fillStyle = root; g.fillRect(0, H * 0.72, W, H * 0.28);
+    for (const [x0, x1] of [[0, 0.045], [0.955, 1]]) { g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(x0 * W, 0, (x1 - x0) * W, H); } // leading edge, both surfaces
+    g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillRect(0, 0, W, H * (fan ? 0.012 : 0.03)); // tip rub
+    if (fan) { g.fillStyle = 'rgba(40,40,44,0.35)'; g.fillRect(0, H * 0.93, W, 2); } // platform line
+  }); t.colorSpace = THREE.SRGBColorSpace; return t; };
+// Sand-cast / forged casing: fine pitting for the bump map
+const castTex = () => { let s = 23; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  return canvasTex(256, 256, (g, W, H) => { g.fillStyle = '#808080'; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 5200; i++) { const v = 96 + r() * 64; g.fillStyle = `rgb(${v},${v},${v})`; const d = 1 + r() * 2.5; g.fillRect(r() * W, r() * H, d, d); } }, [26, 5]); };
 
 // ---- procedural surface textures (u = round the engine, v = along it)
 /** Painted cowl: rivet rows along panel edges and frames, faint dirt and oil streaks. Returns colour + bump maps. */
@@ -135,15 +156,17 @@ function capGeo(loop, th) {
  * Root at y = 0, span along +y, engine axis along x.
  */
 function bladeGeo(o) {
-  const nS = o.nSpan || 7, nP = o.nProf || 9, pos = [], idx = [];
+  const nS = o.nSpan || 7, nP = o.nProf || 9, pos = [], idx = [], uv = [];
   const prof = [];
   for (let i = 0; i <= nP; i++) prof.push([i / nP, 1]);
   for (let i = nP - 1; i >= 1; i--) prof.push([i / nP, -1]);
   const L = prof.length;
   for (let s = 0; s <= nS; s++) {
     const f = s / nS, c = lerp(o.chord[0], o.chord[1], f), a = lerp(o.stagger[0], o.stagger[1], f), m = lerp(o.camber[0], o.camber[1], f), t = lerp(o.thick[0], o.thick[1], f);
-    const sw = (o.sweep || 0) * Math.sin(f * Math.PI * 0.9) + (o.rake || 0) * f, ca = Math.cos(a), sa = Math.sin(a);
+    const sw = (o.sweep || 0) * Math.sin(f * Math.PI * 0.9) + (o.sweepS || 0) * Math.sin(f * TAU) + (o.rake || 0) * f, ca = Math.cos(a), sa = Math.sin(a);
+    let k = 0;
     for (const [x, side] of prof) {
+      uv.push(k++ / L, f);
       const xx = 0.5 * (1 - Math.cos(Math.PI * x)); // cluster points at the edges
       const yt = 5 * t * (0.2969 * Math.sqrt(xx) - 0.126 * xx - 0.3516 * xx * xx + 0.2843 * xx ** 3 - 0.1036 * xx ** 4);
       const X = (xx - 0.5) * c, Z = (m * 4 * xx * (1 - xx) + side * yt) * c;
@@ -152,7 +175,7 @@ function bladeGeo(o) {
   }
   for (let s = 0; s < nS; s++) for (let i = 0; i < L; i++) { const a = s * L + i, b = s * L + ((i + 1) % L), c2 = a + L, d = b + L; idx.push(a, c2, b, b, c2, d); }
   const tip = nS * L; for (let i = 1; i < L - 1; i++) idx.push(tip, tip + i + 1, tip + i);
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g;
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); return g;
 }
 
 // Every shader here avoids operations that are undefined in GLSL (pow of a negative base,
@@ -206,8 +229,8 @@ export class Scene3D {
     this.flameLight = new THREE.PointLight(0xff8a30, 0, 3.5, 1.6); this.flameLight.position.set(2.05, 0, 0); scene.add(this.flameLight);
 
     this.cutaway = true; this.explode = 0; this.showFlow = true; this.quality = 'medium';
-    this.parts = []; this.byId = {}; this.vsvRows = []; this.cutInst = []; this.hover = null; this.selected = null;
-    this.sprite = softSprite(); this.tex = { liner: linerTex(), brushed: brushedTex(), paint: paintTextures(), concrete: concreteTex() };
+    this.parts = []; this.byId = {}; this.vsvRows = []; this.cutInst = []; this.rotorRows = []; this.hover = null; this.selected = null;
+    this.sprite = softSprite(); this.tex = { liner: linerTex(), brushed: brushedTex(), blade: bladeTex(false), fanBlade: bladeTex(true), cast: castTex(), paint: paintTextures(), concrete: concreteTex() };
     this.capMat = new THREE.MeshStandardMaterial({ color: 0xb8402a, metalness: 0.1, roughness: 0.7, side: THREE.DoubleSide });
     this.t = 0; this.flash = 0;
     this.engine = new THREE.Group(); scene.add(this.engine);
@@ -238,9 +261,10 @@ export class Scene3D {
     const full = new THREE.Mesh(lathe(loop, seg), mat); g.add(full);
     if (o.cut !== false && parent === this.engine) {
       // lathe angle phi relates to instance angle th by th = phi + 90 deg
-      const cut = new THREE.Mesh(lathe(loop, Math.round(seg * 0.67), CUT_B - Math.PI / 2, TAU - (CUT_B - CUT_A)), mat);
+      const ca = o.deep ? DEEP_A : CUT_A;
+      const cut = new THREE.Mesh(lathe(loop, Math.round(seg * (o.deep ? 0.86 : 0.67)), CUT_B - Math.PI / 2, TAU - (CUT_B - ca)), mat);
       const caps = new THREE.Group();
-      caps.add(new THREE.Mesh(capGeo(loop, CUT_B), this.capMat), new THREE.Mesh(capGeo(loop, CUT_A), this.capMat));
+      caps.add(new THREE.Mesh(capGeo(loop, CUT_B), this.capMat), new THREE.Mesh(capGeo(loop, ca), this.capMat));
       cut.add(caps); g.add(cut); g.userData.cutPair = [full, cut];
     }
     if (o.tag) g.userData.tag = o.tag;
@@ -257,13 +281,30 @@ export class Scene3D {
     if (parent === this.engine && o.cut !== false) { im.userData.kept = ths.filter((t) => !inCut(t)).length; this.cutInst.push(im); }
     return this._reg(part, im, parent);
   }
+  /** The part's material with a blade surface texture; follows the part's glow and highlight. */
+  _bladeMat(part, tex) {
+    if (!part.bladeMat) { part.bladeMat = part.mat.clone(); part.bladeMat.map = tex; (part.extMats ||= []).push(part.bladeMat); }
+    return part.bladeMat;
+  }
+  /** Rotor drum as discs: rim shell under the blades, a thin web and a thick bore for each stage. Returns a section loop. */
+  _discs(xa, xb, xs, d) {
+    const rim = (x) => rAt(P.coreInner, x) - 0.004, sh = d.shell || 0.012, w = d.web / 2, bw = d.boreW / 2, loop = sample(offset(P.coreInner, -0.004), xa, xb, 12);
+    loop.push([xb, rim(xb) - sh]);
+    for (const x of [...xs].sort((a, b) => b - a)) {
+      const rb = typeof d.bore === 'function' ? d.bore(x) : d.bore, top = rb + d.boreH;
+      loop.push([x + w, rim(x + w) - sh], [x + w, top], [x + bw, top - d.boreH * 0.45], [x + bw, rb], [x - bw, rb], [x - bw, top - d.boreH * 0.45], [x - w, top], [x - w, rim(x - w) - sh]);
+    }
+    loop.push([xa, rim(xa) - sh]);
+    return loop;
+  }
   _row(part, row, count, parent, b, o = {}) {
     const xm = (row.x0 + row.x1) / 2, lo = rAt(row.lo, xm) - 0.004, hi = rAt(row.hi, xm) - (row.kind === 'rotor' ? 0.005 : 0);
     const c = (row.x1 - row.x0) * (b.chordK || 1.15);
-    const geo = bladeGeo({ span: hi - lo, chord: [c * (b.rootK || 1), c * (b.tipK || 0.85)], stagger: b.stagger, camber: b.camber || [0.08, 0.04], thick: b.thick || [0.1, 0.06], sweep: b.sweep, rake: b.rake, nSpan: b.nSpan, nProf: b.nProf });
+    const geo = bladeGeo({ span: hi - lo, chord: [c * (b.rootK || 1), c * (b.tipK || 0.85)], stagger: b.stagger, camber: b.camber || [0.08, 0.04], thick: b.thick || [0.1, 0.06], sweep: b.sweep, sweepS: b.sweepS, rake: b.rake, nSpan: b.nSpan, nProf: b.nProf });
     const q = new THREE.Quaternion(), ax = new THREE.Vector3(1, 0, 0), one = new THREE.Vector3(1, 1, 1);
     const im = this._ring(part, geo, count, (m, th) => { q.setFromAxisAngle(ax, th); m.compose(new THREE.Vector3(xm, lo * Math.cos(th), lo * Math.sin(th)), q, one); }, { parent, mat: o.mat });
     im.userData.row = { xm, lo };
+    if (parent !== this.engine && !o.whole) this.rotorRows.push({ im, group: parent });
     return im;
   }
   _flange(part, x, r, n = 40, o = {}) {
@@ -282,8 +323,8 @@ export class Scene3D {
     const paint = { color: 0xc9cdd1, metalness: 0, roughness: 0.45, clearcoat: 1, clearcoatRoughness: 0.14 };
     const polished = { color: 0xc9ced3, metalness: 1, roughness: 0.3 }; // matte, not mirror, per photos
     const titanium = { color: 0xa9b0b7, metalness: 1, roughness: 0.34 };
-    const caseM = { color: 0x7d858c, metalness: 0.9, roughness: 0.46, roughnessMap: T.brushed };
-    const hotM = { color: 0xb4aea6, metalness: 0.95, roughness: 0.42, roughnessMap: T.brushed };
+    const caseM = { color: 0x7d858c, metalness: 0.9, roughness: 0.5, roughnessMap: T.brushed, bumpMap: T.cast, bumpScale: 0.35 };
+    const hotM = { color: 0xb4aea6, metalness: 0.95, roughness: 0.46, roughnessMap: T.brushed, bumpMap: T.cast, bumpScale: 0.3 };
     const composite = { color: 0x24272b, metalness: 0.1, roughness: 0.55, clearcoat: 0.4, clearcoatRoughness: 0.5 };
     const linerM = new THREE.MeshPhysicalMaterial({ color: 0x8f959b, metalness: 0.5, roughness: 0.75, map: T.liner, side: THREE.DoubleSide });
     this.boltMat = new THREE.MeshStandardMaterial({ color: 0xbfc5ca, metalness: 1, roughness: 0.3 });
@@ -341,7 +382,7 @@ export class Scene3D {
     const pocket = new THREE.SphereGeometry(0.02, 10, 8); pocket.scale(1.5, 0.45, 1);
     this._ring(spinner, pocket, 11, (m, th) => { m.makeRotationX(th); m.multiply(new THREE.Matrix4().makeRotationZ(0.405)); m.setPosition(-0.08, (sr(-0.08) + 0.004) * Math.cos(th), (sr(-0.08) + 0.004) * Math.sin(th)); }, { parent: this.g1, mat: new THREE.MeshStandardMaterial({ color: 0x3a3e43, metalness: 0.6, roughness: 0.5 }) });
     const fan = A({ id: 'fan', name: 'Fan — 22 wide-chord blades', ex: -1.0, mat: titanium, desc: 'Hollow titanium wide-chord blades, 1.6 m across. Produces most of the thrust by moving a large mass of bypass air.', live: (o) => `N1 ${o.N1pct.toFixed(1)} % · absorbs ${(o.pwrFan / 1e6).toFixed(1)} MW · efficiency ${(o.fan.eff * 100).toFixed(0)} %` });
-    this._row(fan, ROWS[0], 22, this.g1, { chordK: 1.0, rootK: 0.8, tipK: 1.32, stagger: [0.22, 1.02], camber: [0.14, 0.02], thick: [0.085, 0.022], sweep: 0.035, nSpan: 14, nProf: 12 });
+    this._row(fan, ROWS[0], 22, this.g1, { chordK: 1.0, rootK: 0.8, tipK: 1.32, stagger: [0.22, 1.02], camber: [0.14, 0.02], thick: [0.085, 0.022], sweep: 0.035, sweepS: 0.012, nSpan: 16, nProf: 12 }, { mat: this._bladeMat(fan, T.fanBlade), whole: true });
     this._solid(fan, [[0.02, 0.05], [0.02, 0.247], [0.3, 0.27], [0.3, 0.05]], { parent: this.g1, mat: fairing }); // annulus fillers
     this._row(fanCase, ROWS[1], 60, this.engine, { stagger: [-0.3, -0.3], camber: [-0.1, -0.1], thick: [0.07, 0.07], chordK: 1.3, tipK: 1 }, { mat: new THREE.MeshPhysicalMaterial({ ...titanium, color: 0x8c949b }) });
 
@@ -361,18 +402,24 @@ export class Scene3D {
       const n = turbine ? (hpSide ? 60 : 64) : xm < 1.1 ? 62 : 68;
       if (row.kind === 'rotor') {
         const part = turbine ? (row.spool === 2 ? hpt : lpt) : row.spool === 2 ? hpc : lpc;
-        this._row(part, row, n, row.spool === 2 ? this.g2 : this.g1, turbine ? { stagger: [-0.5, -0.8], camber: [-0.3, -0.22], thick: [0.2, 0.13], chordK: 1.45, tipK: 0.95 } : { stagger: [0.5, 0.85], camber: [0.1, 0.05], thick: [0.08, 0.05], chordK: 1.2 });
+        this._row(part, row, n, row.spool === 2 ? this.g2 : this.g1, turbine ? { stagger: [-0.5, -0.8], camber: [-0.3, -0.22], thick: [0.2, 0.13], chordK: 1.45, tipK: 0.95 } : { stagger: [0.5, 0.85], camber: [0.1, 0.05], thick: [0.08, 0.05], chordK: 1.2 }, { mat: this._bladeMat(part, T.blade) });
       } else {
         const part = turbine ? (xm < 2.45 ? hptCase : lptCase) : xm < 1.1 ? lpcCase : hpcCase;
-        const im = this._row(part, row, n, this.engine, turbine ? { stagger: [0.6, 0.6], camber: [0.3, 0.3], thick: [0.15, 0.15], chordK: 1.25, tipK: 1 } : { stagger: [-0.4, -0.4], camber: [-0.12, -0.12], thick: [0.08, 0.08], chordK: 1.2, tipK: 1 }, row.vsv ? { mat: vsvMat } : {});
+        const im = this._row(part, row, n, this.engine, turbine ? { stagger: [0.6, 0.6], camber: [0.3, 0.3], thick: [0.15, 0.15], chordK: 1.25, tipK: 1 } : { stagger: [-0.4, -0.4], camber: [-0.12, -0.12], thick: [0.08, 0.08], chordK: 1.2, tipK: 1 }, row.vsv ? { mat: vsvMat } : { mat: this._bladeMat(part, T.blade) });
         if (row.vsv) this.vsvRows.push(im);
       }
     }
     // drums and discs
-    this._solid(lpc, band(CONST(0.2), P.coreInner, 0.42, 0.9, 8), { parent: this.g1 });
-    this._solid(hpc, band(CONST(0.11), P.coreInner, 1.17, 1.86, 10), { parent: this.g2 });
-    this._solid(hpt, band(CONST(0.08), P.coreInner, 2.26, 2.42, 4), { parent: this.g2 });
-    this._solid(lpt, band(CONST(0.12), P.coreInner, 2.5, 3.0, 8), { parent: this.g1 });
+    // Each is a body of revolution, which looks the same turning or still, so it is built as a
+    // fixed solid and sectioned in the deep cut where its discs and webs can be seen.
+    const rotX = (lo, hi, sp) => ROWS.filter((r) => r.kind === 'rotor' && r.spool === sp && r.x0 > lo && r.x1 < hi).map((r) => (r.x0 + r.x1) / 2);
+    this._solid(lpc, this._discs(0.42, 0.9, rotX(0.4, 1.0, 1), { web: 0.008, boreW: 0.022, boreH: 0.02, bore: (x) => rAt(P.coreInner, x) - 0.085 }), { deep: true });
+    this._solid(lpc, [[0.3, 0.2], [0.3, 0.212], [0.43, 0.322], [0.43, 0.31]], { deep: true });                       // booster drum bolted to the back of the fan disc
+    this._solid(hpc, this._discs(1.17, 1.86, rotX(1.1, 1.9, 2), { web: 0.007, boreW: 0.03, boreH: 0.034, bore: (x) => 0.082 + (x - 1.17) * 0.02 }), { deep: true });
+    this._solid(hpc, [[1.86, 0.2], [1.86, 0.212], [1.93, 0.105], [1.93, 0.093]], { deep: true });                    // rear cone down to the HP shaft
+    this._solid(hpt, this._discs(2.26, 2.42, rotX(2.2, 2.45, 2), { shell: 0.016, web: 0.016, boreW: 0.05, boreH: 0.06, bore: 0.095 }), { deep: true });
+    this._solid(lpt, this._discs(2.5, 3.0, rotX(2.45, 3.05, 1), { web: 0.008, boreW: 0.026, boreH: 0.03, bore: 0.165 }), { deep: true });
+    this._solid(lpt, [[2.76, 0.168], [2.76, 0.18], [2.93, 0.058], [2.93, 0.046]], { deep: true });                   // drive cone to the LP shaft
     // casings with flanges
     const CO = P.coreOuter, co = (x) => rAt(CO, x);
     this._solid(lpcCase, band(CO, offset(CO, 0.022), 0.4, 1.15, 14));
@@ -405,9 +452,18 @@ export class Scene3D {
 
     // ---------------- shafts
     const lpShaft = A({ id: 'lpshaft', name: 'LP shaft', ex: 0, mat: { color: 0x4f78a8, metalness: 1, roughness: 0.3 }, desc: 'Runs the length of the engine inside the HP spool, connecting the LP turbine to the fan and booster.', live: (o) => `${o.N1.toFixed(0)} rpm · net torque ${o.tq1.toFixed(0)} N·m` });
-    this._solid(lpShaft, [[0.12, 0.03], [0.12, 0.046], [2.98, 0.046], [2.98, 0.03]], { parent: this.g1, seg: 32 });
+    this._solid(lpShaft, [[0.12, 0.03], [0.12, 0.046], [2.98, 0.046], [2.98, 0.03]], { deep: true, seg: 48 });
     const hpShaft = A({ id: 'hpshaft', name: 'HP shaft', ex: 0.02, mat: { color: 0xb88a3a, metalness: 1, roughness: 0.3 }, desc: 'Short hollow shaft joining the HP turbine to the HP compressor. The accessory gearbox is driven from it.', live: (o) => `${o.N2.toFixed(0)} rpm · net torque ${o.tq2.toFixed(0)} N·m · starter ${o.tStart.toFixed(0)} N·m` });
-    this._solid(hpShaft, [[1.8, 0.075], [1.8, 0.09], [2.3, 0.09], [2.3, 0.075]], { parent: this.g2, seg: 32 });
+    this._solid(hpShaft, [[1.9, 0.078], [1.9, 0.092], [2.3, 0.092], [2.3, 0.078]], { deep: true, seg: 48 });
+    // ---------------- bearings
+    const brg = A({ id: 'bearings', name: 'Main bearings and supports', ex: 0, mat: { color: 0x5d6770, metalness: 0.9, roughness: 0.4 }, desc: 'Five main bearings carry the two shafts: a ball and a roller bearing for the fan shaft and a ball bearing for the HP spool in the front compartment, a roller bearing under the combustor and one in the turbine exhaust case. Each sits in a sealed, oil-fed compartment.', live: (o) => `N1 ${o.N1.toFixed(0)} rpm · N2 ${o.N2.toFixed(0)} rpm` });
+    const race = new THREE.MeshStandardMaterial({ color: 0xd9c27a, metalness: 1, roughness: 0.25 });
+    for (const [x, r0, r1, wB] of [[0.5, 0.05, 0.1, 0.05], [0.98, 0.05, 0.098, 0.04], [1.1, 0.05, 0.1, 0.04], [2.07, 0.096, 0.128, 0.05], [3.06, 0.05, 0.1, 0.05]]) {
+      this._solid(brg, [[x - wB / 2, r0 + 0.016], [x - wB / 2, r1], [x + wB / 2, r1], [x + wB / 2, r0 + 0.016]], { deep: true, seg: 48 });
+      this._solid(brg, [[x - wB / 3, r0], [x - wB / 3, r0 + 0.016], [x + wB / 3, r0 + 0.016], [x + wB / 3, r0]], { deep: true, seg: 48, mat: race });
+    }
+    this._solid(brg, [[0.525, 0.092], [0.525, 0.1], [1.0, 0.168], [1.12, 0.168], [1.12, 0.16], [1.0, 0.16]], { deep: true, seg: 64 });   // front bearing support cone from the intermediate case
+    this._solid(brg, [[3.085, 0.09], [3.085, 0.1], [3.12, 0.255], [3.13, 0.255]], { deep: true, seg: 64 });                              // rear bearing support in the exhaust case
 
     // ---------------- combustor
     const comb = A({ id: 'combcase', name: 'Diffuser and combustor case', ex: 0.3, mat: caseM, desc: 'Pressure vessel around the combustor. Slows the compressor delivery air before it enters the flame tube.', live: (o) => `${B(o.P3)} · ${C(o.T3)}` });
@@ -737,6 +793,15 @@ export class Scene3D {
     const p1 = Math.abs(o.N1pct) / 100, p2 = o.N2pct / 100;
     this.g1.rotation.x += Math.sign(o.N1) * Math.pow(p1, 0.55) * 16 * dt;
     this.g2.rotation.x += Math.pow(p2, 0.55) * 26 * dt;
+    if (this.cutaway || this._deepShown) {
+      const m = new THREE.Matrix4(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
+      for (const { im, group } of this.rotorRows) {
+        const a = group.rotation.x, ths = im.userData.ths, place = im.userData.place;
+        for (let i = 0; i < ths.length; i++) { if (this.cutaway && inDeep(ths[i] + a)) im.setMatrixAt(i, zero); else { place(m, ths[i]); im.setMatrixAt(i, m); } }
+        im.instanceMatrix.needsUpdate = true;
+      }
+      this._deepShown = this.cutaway;
+    }
     this.fanBlur.material.opacity = this.byId.fan.removed ? 0 : clamp(p1 * 0.2, 0, 0.16);
     this.fanBlur.position.x = 0.16 + this.byId.fan.ex * this.explode * 1.5;
     this._reverser(o.rev || 0);

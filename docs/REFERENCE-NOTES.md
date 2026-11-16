@@ -14,14 +14,14 @@ Status: [x] reflected in the model, [ ] still to do.
 - [x] Light grey annulus fillers form the hub surface between blades.
 - [x] Light blue abradable fan-track liner around the blade tips; grey perforated acoustic panels
       ahead of and behind it.
-- [ ] Blade leading edge has a slight S-shaped sweep; tips are squared with a thin bright edge.
+- [x] Blade leading edge has a slight S-shaped sweep; tips are squared with a thin bright edge.
 - [x] Fan outlet guide vanes sit well aft of the fan, at the fan frame. (Not yet leaned.)
 
 ## Core (from the cutaway drawing, museum model and stage diagram)
 - [x] Fan + 4 booster stages (A5), 10 HPC stages, annular combustor, 2 HPT stages, 5 LPT stages.
 - [x] Booster sits on a drum directly behind the fan disc, casing nearly cylindrical, then a long
       swan-neck duct down to the HPC inlet, crossed by structural struts (intermediate case).
-- [ ] HPC casing tapers steadily; rotor is a stacked drum with visible disc webs in section.
+- [x] HPC casing tapers steadily; rotor is a stacked drum with visible disc webs in section.
 - [x] Combustor is short; diffuser case bulges outward; fuel nozzles enter at a steep angle.
 - [ ] LPT flares strongly; exit diameter is roughly 60 % of the fan diameter.
 - [x] Turbine exhaust case has a wide outer ring and a short blunt centre-body, not a long plug.
@@ -57,10 +57,10 @@ Status: [x] reflected in the model, [ ] still to do.
 - [ ] Drag links from the doors to the core cowl; actuators.
 
 ## Still generated, not yet rebuilt
-- [ ] HPC rotor shown as a plain drum (the drawing shows stacked discs with webs).
-- [ ] Bearing compartments, shaft detail, oil pipes inside the core.
+- [x] Rotors are stacked discs (rim, web, bore) and are sectioned in the lower part of the cutaway.
+- [x] Five main bearings with support cones, LP and HP shafts in section. [ ] Oil pipes inside the core.
 - [x] Textures: riveted and weathered paint, heat discolouration on the hot section and nozzle, lettering.
-- [ ] Fan blades, compressor blades and castings are still plain material with no surface detail.
+- [x] Fan and compressor blades carry a surface texture (polishing marks, worn leading edge and tip, root dirt); casings have a cast finish.
 
 ## Section-view convention
 The museum model leaves cut faces bare grey and uses colour for liners. The simulator currently
