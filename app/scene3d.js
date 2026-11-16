@@ -14,6 +14,7 @@ import { OutputPass } from './vendor/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from './vendor/jsm/postprocessing/SMAAPass.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { P, ROWS, rAt, tempRGB } from './cutaway.js';
+import { Puffs, Sparks } from './fx.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -329,7 +330,7 @@ export class Scene3D {
     const linerM = new THREE.MeshPhysicalMaterial({ color: 0x8f959b, metalness: 0.5, roughness: 0.75, map: T.liner, side: THREE.DoubleSide });
     this.boltMat = new THREE.MeshStandardMaterial({ color: 0xbfc5ca, metalness: 1, roughness: 0.3 });
     const pipeSteel = new THREE.MeshStandardMaterial({ color: 0xc3c8cc, metalness: 1, roughness: 0.25 });
-    const pipeGold = new THREE.MeshStandardMaterial({ color: 0xc79a3b, metalness: 1, roughness: 0.3 });
+    const pipeGold = new THREE.MeshStandardMaterial({ color: 0xa8997c, metalness: 1, roughness: 0.34 }); // cadmium-plated / bronze fittings and small-bore lines
     const harness = new THREE.MeshStandardMaterial({ color: 0x1b1d20, metalness: 0.1, roughness: 0.7 });
     this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughnessMap: T.brushed }), section: this.capMat };
     const C = (K) => `${(K - 273.15).toFixed(0)} °C`, B = (p) => `${(p / 1e5).toFixed(2)} bar`;
@@ -387,12 +388,12 @@ export class Scene3D {
     this._row(fanCase, ROWS[1], 60, this.engine, { stagger: [-0.3, -0.3], camber: [-0.1, -0.1], thick: [0.07, 0.07], chordK: 1.3, tipK: 1 }, { mat: new THREE.MeshPhysicalMaterial({ ...titanium, color: 0x8c949b }) });
 
     // ---------------- compressors and turbines
-    const lpc = A({ id: 'lpc', name: 'Low-pressure compressor (4 booster stages)', ex: -0.45, mat: { ...titanium, color: 0x9fb0c0 }, desc: 'Booster stages on the fan shaft that supercharge the core.', live: (o) => `Pressure ratio ${o.lpc.PR.toFixed(2)} · exit ${C(o.T25)}, ${B(o.P25)} · ${o.Wlpc.toFixed(1)} kg/s` });
+    const lpc = A({ id: 'lpc', name: 'Low-pressure compressor (4 booster stages)', ex: -0.45, mat: { ...titanium, color: 0xa3abb3 }, desc: 'Booster stages on the fan shaft that supercharge the core.', live: (o) => `Pressure ratio ${o.lpc.PR.toFixed(2)} · exit ${C(o.T25)}, ${B(o.P25)} · ${o.Wlpc.toFixed(1)} kg/s` });
     const lpcCase = A({ id: 'lpccase', name: 'LPC case, stators and 2.5 bleed ring', ex: -0.3, mat: caseM, desc: 'Fixed vanes between the booster rotors. The bleed ring dumps air into the bypass duct at low power so the booster does not surge.', live: (o) => `2.5 bleed ${(o.b25 * 100).toFixed(0)} % open · ${o.Wb25.toFixed(1)} kg/s dumped` });
-    const hpc = A({ id: 'hpc', name: 'High-pressure compressor (10 stages)', ex: 0, mat: { color: 0xc2a878, metalness: 1, roughness: 0.3 }, desc: 'Ten stages on the high-pressure spool raise the air to over 30 times ambient pressure at take-off.', live: (o) => `N2 ${o.N2pct.toFixed(1)} % · pressure ratio ${o.hpc.PR.toFixed(1)} · exit ${C(o.T3)}, ${B(o.P3)} · absorbs ${(o.pwrHpc / 1e6).toFixed(1)} MW` });
-    const hpcCase = A({ id: 'hpccase', name: 'HPC case and variable stator vanes', ex: 0.05, mat: caseM, desc: 'The inlet guide vanes and first three stator rows (green) are turned by unison rings to keep the front stages out of stall at low speed.', live: (o) => `Stators ${o.vsv.toFixed(1)}° closed (schedule ${o.vsvSched.toFixed(1)}°) · surge margin ${(100 * (o.hpc.xs - o.hpc.x) / o.hpc.xs).toFixed(0)} %` });
-    const vsvMat = new THREE.MeshPhysicalMaterial({ color: 0x2f9d6e, metalness: 0.7, roughness: 0.35, side: THREE.DoubleSide });
-    const hpt = A({ id: 'hpt', name: 'High-pressure turbine (2 stages)', ex: 0.55, mat: { color: 0x9a8a76, metalness: 1, roughness: 0.36 }, glow: (o) => o.T41 - 250, desc: 'Drives the HP compressor. Single-crystal blades run in gas hotter than their melting point and survive on cooling air.', live: (o) => `Entry ${C(o.T4)} · delivers ${(o.pwrHpt / 1e6).toFixed(1)} MW · cooling air ${o.Wcool.toFixed(1)} kg/s` });
+    const hpc = A({ id: 'hpc', name: 'High-pressure compressor (10 stages)', ex: 0, mat: { color: 0x979da3, metalness: 1, roughness: 0.34 }, desc: 'Ten stages on the high-pressure spool raise the air to over 30 times ambient pressure at take-off.', live: (o) => `N2 ${o.N2pct.toFixed(1)} % · pressure ratio ${o.hpc.PR.toFixed(1)} · exit ${C(o.T3)}, ${B(o.P3)} · absorbs ${(o.pwrHpc / 1e6).toFixed(1)} MW` });
+    const hpcCase = A({ id: 'hpccase', name: 'HPC case and variable stator vanes', ex: 0.05, mat: caseM, desc: 'The inlet guide vanes and first three stator rows (the darker vanes) are turned by unison rings to keep the front stages out of stall at low speed.', live: (o) => `Stators ${o.vsv.toFixed(1)}° closed (schedule ${o.vsvSched.toFixed(1)}°) · surge margin ${(100 * (o.hpc.xs - o.hpc.x) / o.hpc.xs).toFixed(0)} %` });
+    const vsvMat = new THREE.MeshPhysicalMaterial({ color: 0x6f7c88, metalness: 0.9, roughness: 0.3, side: THREE.DoubleSide }); // variable rows: darker coated steel
+    const hpt = A({ id: 'hpt', name: 'High-pressure turbine (2 stages)', ex: 0.55, mat: { color: 0x8f8a82, metalness: 1, roughness: 0.4 }, glow: (o) => o.T41 - 250, desc: 'Drives the HP compressor. Single-crystal blades run in gas hotter than their melting point and survive on cooling air.', live: (o) => `Entry ${C(o.T4)} · delivers ${(o.pwrHpt / 1e6).toFixed(1)} MW · cooling air ${o.Wcool.toFixed(1)} kg/s` });
     const hptCase = A({ id: 'hptcase', name: 'HPT case and nozzle guide vanes', ex: 0.6, mat: hotM, glow: (o) => o.T4 - 380, desc: 'The guide vanes form the choked throat that sets how much air the core can pass.', live: (o) => `Expansion ratio ${o.hptPR.toFixed(2)} · exit ${C(o.T45)}, ${B(o.P45)}` });
     const lpt = A({ id: 'lpt', name: 'Low-pressure turbine (5 stages)', ex: 0.95, mat: { color: 0x8d9299, metalness: 1, roughness: 0.36 }, glow: (o) => o.T45 - 130, desc: 'Extracts the remaining energy to drive the fan and booster through the long central shaft.', live: (o) => `Delivers ${(o.pwrLpt / 1e6).toFixed(1)} MW · expansion ratio ${o.lptPR.toFixed(2)} · efficiency ${(o.lpt.eff * 100).toFixed(0)} %` });
     const lptCase = A({ id: 'lptcase', name: 'LPT case and vanes', ex: 1.0, mat: hotM, glow: (o) => o.T45 - 230, desc: 'Flared casing around the five low-pressure turbine stages.', live: (o) => `Turbine metal ${C(o.Tm)}` });
@@ -440,10 +441,10 @@ export class Scene3D {
     this._ring(hpcCase, valve, 1, (m, th) => { m.makeRotationX(th); m.setPosition(1.8, 0, 0); }, { phase: 4.0, cut: false, mat: pipeGold });
     // structural struts of the intermediate case, crossing the swan-neck duct
     this._row(lpcCase, { x0: 0.94, x1: 1.08, kind: 'stator', lo: P.coreInner, hi: P.coreOuter }, 9, this.engine, { stagger: [0, 0], camber: [0, 0], thick: [0.2, 0.2], chordK: 1, tipK: 1 });
-    // blanked bleed ports (orange covers on the museum model)
+    // blanked bleed ports
     const port = new THREE.CylinderGeometry(0.045, 0.05, 0.09, 18); port.translate(0, 0.33, 0);
     const capG = new THREE.CylinderGeometry(0.052, 0.052, 0.012, 18); capG.translate(0, 0.38, 0);
-    const orange = new THREE.MeshStandardMaterial({ color: 0xe2572b, roughness: 0.5 });
+    const orange = new THREE.MeshStandardMaterial({ color: 0x9aa0a5, metalness: 1, roughness: 0.35 }); // blanking plates
     for (const [x, ph] of [[1.74, 2.55], [1.74, 4.3], [2.1, 3.4]]) for (const [g, mt] of [[port, pipeSteel], [capG, orange]]) this._ring(x > 2 ? hptCase : hpcCase, g, 1, (m, th) => { m.makeRotationX(th - Math.PI / 2); m.setPosition(x, 0, 0); }, { phase: ph, cut: false, mat: mt });
     this._solid(hptCase, band(CO, offset(CO, 0.028), 2.2, 2.45, 6));
     for (const x of [2.21, 2.44]) this._flange(hptCase, x, co(x) + 0.026, 48);
@@ -451,13 +452,13 @@ export class Scene3D {
     for (const x of [2.62, 2.82, 3.01]) this._flange(lptCase, x, co(x) + 0.02, 52);
 
     // ---------------- shafts
-    const lpShaft = A({ id: 'lpshaft', name: 'LP shaft', ex: 0, mat: { color: 0x4f78a8, metalness: 1, roughness: 0.3 }, desc: 'Runs the length of the engine inside the HP spool, connecting the LP turbine to the fan and booster.', live: (o) => `${o.N1.toFixed(0)} rpm · net torque ${o.tq1.toFixed(0)} N·m` });
+    const lpShaft = A({ id: 'lpshaft', name: 'LP shaft', ex: 0, mat: { color: 0x6c7379, metalness: 1, roughness: 0.28 }, desc: 'Runs the length of the engine inside the HP spool, connecting the LP turbine to the fan and booster.', live: (o) => `${o.N1.toFixed(0)} rpm · net torque ${o.tq1.toFixed(0)} N·m` });
     this._solid(lpShaft, [[0.12, 0.03], [0.12, 0.046], [2.98, 0.046], [2.98, 0.03]], { deep: true, seg: 48 });
-    const hpShaft = A({ id: 'hpshaft', name: 'HP shaft', ex: 0.02, mat: { color: 0xb88a3a, metalness: 1, roughness: 0.3 }, desc: 'Short hollow shaft joining the HP turbine to the HP compressor. The accessory gearbox is driven from it.', live: (o) => `${o.N2.toFixed(0)} rpm · net torque ${o.tq2.toFixed(0)} N·m · starter ${o.tStart.toFixed(0)} N·m` });
+    const hpShaft = A({ id: 'hpshaft', name: 'HP shaft', ex: 0.02, mat: { color: 0x858b91, metalness: 1, roughness: 0.3 }, desc: 'Short hollow shaft joining the HP turbine to the HP compressor. The accessory gearbox is driven from it.', live: (o) => `${o.N2.toFixed(0)} rpm · net torque ${o.tq2.toFixed(0)} N·m · starter ${o.tStart.toFixed(0)} N·m` });
     this._solid(hpShaft, [[1.9, 0.078], [1.9, 0.092], [2.3, 0.092], [2.3, 0.078]], { deep: true, seg: 48 });
     // ---------------- bearings
     const brg = A({ id: 'bearings', name: 'Main bearings and supports', ex: 0, mat: { color: 0x5d6770, metalness: 0.9, roughness: 0.4 }, desc: 'Five main bearings carry the two shafts: a ball and a roller bearing for the fan shaft and a ball bearing for the HP spool in the front compartment, a roller bearing under the combustor and one in the turbine exhaust case. Each sits in a sealed, oil-fed compartment.', live: (o) => `N1 ${o.N1.toFixed(0)} rpm · N2 ${o.N2.toFixed(0)} rpm` });
-    const race = new THREE.MeshStandardMaterial({ color: 0xd9c27a, metalness: 1, roughness: 0.25 });
+    const race = new THREE.MeshStandardMaterial({ color: 0xc4c9cd, metalness: 1, roughness: 0.18 }); // polished bearing steel
     for (const [x, r0, r1, wB] of [[0.5, 0.05, 0.1, 0.05], [0.98, 0.05, 0.098, 0.04], [1.1, 0.05, 0.1, 0.04], [2.07, 0.096, 0.128, 0.05], [3.06, 0.05, 0.1, 0.05]]) {
       this._solid(brg, [[x - wB / 2, r0 + 0.016], [x - wB / 2, r1], [x + wB / 2, r1], [x + wB / 2, r0 + 0.016]], { deep: true, seg: 48 });
       this._solid(brg, [[x - wB / 3, r0], [x - wB / 3, r0 + 0.016], [x + wB / 3, r0 + 0.016], [x + wB / 3, r0]], { deep: true, seg: 48, mat: race });
@@ -525,6 +526,30 @@ export class Scene3D {
       const bx = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mt); const r = co(x) + 0.09; bx.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); bx.rotation.x = th * DEG - Math.PI / 2; this._reg(ext, bx);
     }
     for (const x of [1.45, 2.0, 2.55]) this._solid(ext, [[x - 0.005, co(x) + 0.095], [x - 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.095]], { seg: 96, mat: harness }); // clamps
+    // ---- upper half of the core. This is the sector the cutaway removes, so it is only shown with the cutaway closed.
+    const top = (ob) => { ob.userData.variant = 'full'; return ob; };
+    const runT = (...a) => top(run(...a));
+    [[-6, 0.078, pipeSteel, 0.011, 1.2, 2.9, 4], [6, 0.1, harness, 0.012, 0.5, 2.6, 3], [17, 0.075, pipeGold, 0.007, 1.3, 2.3, 5], [28, 0.098, pipeSteel, 0.009, 0.7, 2.95, 4], [39, 0.078, pipeSteel, 0.014, 1.5, 2.7, 3],
+     [50, 0.1, pipeGold, 0.006, 1.2, 2.1, 5], [61, 0.075, harness, 0.01, 0.6, 2.9, 3], [72, 0.098, pipeSteel, 0.008, 1.7, 3.0, 4], [83, 0.078, pipeSteel, 0.012, 1.2, 2.5, 3], [94, 0.1, harness, 0.008, 0.9, 2.8, 4], [105, 0.075, pipeGold, 0.007, 1.4, 2.4, 5]].forEach((a) => runT(...a));
+    for (const th of [30, 90]) top(this._pipe(ext, Array.from({ length: 6 }, (_, i) => { const x = 2.3 + i * 0.135; return [x, co(x) + 0.09, th]; }), 0.014, pipeSteel));
+    // bleed air: stage 7 and stage 10 ducts rise from the HPC case, join at the pressure regulating valve and run up into the pylon
+    const duct = new THREE.MeshStandardMaterial({ color: 0xb9bdc0, metalness: 1, roughness: 0.32, roughnessMap: T.brushed });
+    top(this._pipe(ext, [[1.62, co(1.62) + 0.03, 38], [1.6, 0.46, 34], [1.5, 0.6, 24], [1.35, 0.72, 14], [1.2, 0.86, 8], [1.12, 0.98, 6]], 0.045, duct));
+    top(this._pipe(ext, [[1.8, co(1.8) + 0.03, -32], [1.78, 0.44, -28], [1.68, 0.56, -18], [1.5, 0.66, -4], [1.4, 0.7, 8]], 0.034, duct));
+    top(this._pipe(ext, [[2.1, co(2.1) + 0.06, 20], [2.05, 0.52, 16], [1.8, 0.66, 10], [1.5, 0.78, 4], [1.3, 0.92, 2]], 0.022, pipeSteel)); // fuel feed from the pylon
+    top(this._pipe(ext, [[0.9, 0.97, -4], [1.3, 0.8, -6], [1.9, 0.6, -10], [2.5, 0.52, -8]], 0.016, harness));                              // main harness trunk
+    for (const [x, th, rr, l] of [[1.5, 24, 0.062, 0.16], [1.66, -17, 0.05, 0.13], [1.3, 12, 0.07, 0.12]]) {                                // bleed valves and the precooler inlet flange
+      const v = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, l, 20).rotateZ(Math.PI / 2), duct), r = x < 1.4 ? 0.76 : x < 1.6 ? 0.6 : 0.57;
+      v.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); top(this._reg(ext, v));
+      const act = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.06), harness); act.position.set(x, (r + rr + 0.035) * Math.cos(th * DEG), (r + rr + 0.035) * Math.sin(th * DEG)); act.rotation.x = th * DEG; top(this._reg(ext, act));
+    }
+    { const pts = []; for (let th = -8; th < 112; th += 13) for (const x of [1.3, 1.62, 1.95, 2.3, 2.66, 2.92]) if (((th * 7 + x * 31 + 400) | 0) % 3 !== 0) pts.push([x, th]);
+      const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.022, 0.07, 0.012), pipeSteel, pts.length), mm = new THREE.Matrix4();
+      pts.forEach(([x, th], i) => { mm.makeRotationX(th * DEG - Math.PI / 2); const r = co(x) + 0.055; mm.setPosition(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); im.setMatrixAt(i, mm); });
+      top(this._reg(ext, im)); }
+    for (const [x, th, sx, sy, sz, mt] of [[1.45, 62, 0.16, 0.05, 0.11, harness], [1.75, 75, 0.12, 0.07, 0.09, pipeSteel], [2.38, 50, 0.1, 0.07, 0.08, pipeSteel], [2.2, -5, 0.14, 0.06, 0.1, harness], [2.6, 96, 0.1, 0.06, 0.08, pipeSteel]]) {
+      const bx = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mt); const r = co(x) + 0.09; bx.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); bx.rotation.x = th * DEG - Math.PI / 2; top(this._reg(ext, bx));
+    }
     // pylon the engine hangs from
     const pylon = A({ id: 'pylon', name: 'Pylon', ex: 0, mat: paint, desc: 'Carries the engine under the wing and transmits its thrust to the airframe. Fuel, bleed air, electrical and hydraulic lines run through it.', live: (o) => `Thrust carried ${(o.thrust / 1000).toFixed(1)} kN` });
     { const sh = new THREE.Shape(); sh.moveTo(0.35, 0.98); sh.lineTo(0.2, 1.32); sh.lineTo(3.0, 1.32); sh.lineTo(2.8, 1.02); sh.lineTo(2.2, 0.9); sh.lineTo(0.35, 0.98);
@@ -560,7 +585,7 @@ export class Scene3D {
     const lg = new THREE.BufferGeometry();
     lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 6), 3));
     lg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N * 6), 3));
-    this.air = add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
+    this.air = add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.38, depthWrite: false, blending: THREE.AdditiveBlending })));
     this.airP = Array.from({ length: N }, (_, i) => ({ core: i % 4 === 0, u: Math.random(), v: Math.random(), th: Math.random() * TAU, k: 0.6 + 0.8 * Math.random() }));
     this.fuelP = this._points(240, 0.028);
 
@@ -582,13 +607,26 @@ export class Scene3D {
 
     // mist, smoke and fire use lumpy puffs
     const puffs = (n, size, blending) => { const p = this._points(n, size, blending); p.material.map = this.puff; return p; };
-    this.fog = puffs(700, 0.5, THREE.NormalBlending); this.fog.material.opacity = 0;
-    this.fogSeed = Array.from({ length: 700 }, () => [Math.random(), Math.random(), Math.random() * TAU, Math.random()]);
+    // intake condensation: thin mist that forms just inside the lip, hugs the wall and is drawn into the fan
+    this.fog = new Puffs(this.scene, 420, { origin: [-0.82, 0, 0], dir: [1, 0, 0], speed: 1.6, radius: 0.74, ring: 0.75, spread: -0.05, life: 0.55, size0: 0.22, size1: 0.6, turb: 0.05, drag: 0, swirl: 0.6,
+      colA: [0.86, 0.9, 0.95], colB: [0.92, 0.95, 1.0], colC: [0.95, 0.97, 1.0], alpha: 0.2, lit: 0.25, soft: 0.8, seed: 3 });
+    this.fogK = 0;
     this.dust = puffs(140, 0.34, THREE.NormalBlending); this.dust.material.opacity = 0;
-    this.torch = puffs(200, 0.42, THREE.AdditiveBlending);
     this.bang = puffs(160, 0.75, THREE.AdditiveBlending);
     // failure effects: glowing fragments and molten metal from the tailpipe, black smoke, fire round the core
-    this.sparks = this._points(320, 0.05); this.smoke = puffs(240, 1.1, THREE.NormalBlending); this.smoke.material.opacity = 0.5; this.fireP = puffs(180, 0.6, THREE.AdditiveBlending);
+    const S = this.scene;
+    this.sparks = new Sparks(S, 420);
+    // black smoke trailing from the tailpipe of a damaged or torching engine
+    this.smokeTail = new Puffs(S, 300, { origin: [3.5, 0, 0], dir: [1, 0, 0], speed: 2.4, radius: 0.34, spread: 0.12, buoy: [0, 0.5, 0], life: 4.5, size0: 0.5, size1: 3.4, turb: 0.3, drag: 0.5,
+      colA: [0.1, 0.085, 0.07], colB: [0.035, 0.033, 0.032], colC: [0.07, 0.07, 0.072], alpha: 0.75, lit: 0.55, seed: 11 });
+    // nacelle fire: flames from the core and the thick black smoke column above them
+    this.smokeFire = new Puffs(S, 260, { origin: [2.05, 0.5, 0.15], box: [0.9, 0.1, 0.5], dir: [0.25, 1, 0], speed: 1.3, radius: 0.15, spread: 0.1, buoy: [0.15, 0.35, 0], life: 5, size0: 0.45, size1: 3.2, turb: 0.3, drag: 0.3,
+      colA: [0.16, 0.07, 0.03], colB: [0.03, 0.028, 0.028], colC: [0.06, 0.06, 0.062], alpha: 0.8, lit: 0.5, seed: 19 });
+    this.flames = new Puffs(S, 200, { origin: [2.0, 0.2, 0.12], box: [0.85, 0.1, 0.1], dir: [0.1, 1, 0], speed: 1.5, radius: 0.36, ring: 0.6, spread: 0.02, buoy: [0, 1.2, 0], life: 0.85, size0: 0.32, size1: 0.8, turb: 0.1, drag: 0.2,
+      colA: [3.2, 2.4, 1.2], colB: [2.6, 0.9, 0.12], colC: [0.5, 0.06, 0.0], alpha: 0.55, soft: 1.25, additive: true, seed: 23, order: 6 });
+    // torching: fuel still burning as it leaves the nozzle
+    this.torch = new Puffs(S, 220, { origin: [3.3, 0, 0], dir: [1, 0, 0], speed: 7, radius: 0.26, spread: 0.12, buoy: [0, 1.0, 0], life: 0.6, size0: 0.4, size1: 1.3, turb: 0.12, drag: 0.45,
+      colA: [3.0, 2.6, 1.6], colB: [2.8, 1.0, 0.15], colC: [0.4, 0.05, 0.0], alpha: 0.5, soft: 1.2, additive: true, seed: 29, order: 6 });
     this.fail = { sparks: 0, smoke: 0, fire: 0 };
     this.fireLight = new THREE.PointLight(0xff6a20, 0, 6, 1.4); this.fireLight.position.set(2.0, 0.5, 0.4); this.scene.add(this.fireLight);
 
@@ -712,9 +750,10 @@ export class Scene3D {
     this.engine.traverse((n) => { if (n.userData.cutPair) { n.userData.cutPair[0].visible = !on; n.userData.cutPair[1].visible = on; } });
     for (const im of this.cutInst) im.count = on ? im.userData.kept : im.userData.ths.length;
     this.engine.traverse((n) => { const v = n.userData.variant; if (v) n.visible = (v === 'cut') === on; });
+    for (const p of this.parts) if (p.removed) for (const ob of p.objs) ob.visible = false;
   }
   setExplode(v) { this.explode = v; for (const p of this.parts) for (const ob of p.objs) ob.position.x = ob.userData.home + p.ex * v * 1.5; }
-  setRemoved(id, removed) { const p = this.byId[id]; if (!p) return; p.removed = removed; for (const ob of p.objs) ob.visible = !removed; if (removed && this.selected === p) this.selected = null; }
+  setRemoved(id, removed) { const p = this.byId[id]; if (!p) return; p.removed = removed; for (const ob of p.objs) { const v = ob.userData.variant; ob.visible = !removed && (!v || (v === 'cut') === this.cutaway); } if (removed && this.selected === p) this.selected = null; }
   restoreAll() { for (const p of this.parts) this.setRemoved(p.id, false); }
   surge(which) { this.flash = 1; this.flashFront = which !== 'hpc'; }
   /**
@@ -874,31 +913,14 @@ export class Scene3D {
     const inten = o.lit ? clamp(o.farBurn / 0.026, 0.2, 1.4) : 0;
     this.flameLight.intensity = inten * (1.1 + 0.25 * Math.sin(t * 40)); this.flameLight.position.x = 2.05 + exC;
     for (const m of this.flameSheets) { m.visible = inten > 0; m.position.x = exC; m.material.uniforms.uT.value = t % 1000; m.material.uniforms.uI.value = inten; }
-    const F = this.fail, hash = (i, k) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); };
-    this.sparks.visible = F.sparks > 0.02;
-    if (this.sparks.visible) fill(this.sparks, 320, (i, pos, col, j) => {
-      // each fragment leaves the nozzle fast, slows, falls and cools from white through orange to dull red
-      const life = 0.7 + hash(i, 1) * 1.1, f = ((t + hash(i, 2) * 3) % life) / life, th = hash(i, 3) * TAU, r0 = 0.1 + 0.4 * hash(i, 4), v = 5 + 9 * hash(i, 5), tt = f * life;
-      pos[j] = 3.45 + v * tt * (1 - 0.25 * tt); pos[j + 1] = Math.max(FLOOR_Y + 0.02, r0 * Math.cos(th) * (1 + tt) - 2.6 * tt * tt * (0.4 + hash(i, 6))); pos[j + 2] = r0 * Math.sin(th) * (1 + 1.5 * tt);
-      const k = (hash(i, 7) < F.sparks ? 1 : 0) * (1 - f) * 1.6; col[j] = 1.0 * k; col[j + 1] = (0.75 - 0.5 * f) * k; col[j + 2] = (0.4 - 0.4 * f) * k * (1 - f);
-    });
-    this.smoke.visible = F.smoke > 0.02;
-    if (this.smoke.visible) fill(this.smoke, 240, (i, pos, col, j) => {
-      const core = i % 3 === 0 && F.fire > 0, f = ((t * (core ? 0.22 : 0.3) + hash(i, 1)) % 1), th = hash(i, 2) * TAU, r = (0.15 + 0.5 * f) * hash(i, 3);
-      if (core) { pos[j] = 1.7 + 0.8 * hash(i, 4) + f * 1.2; pos[j + 1] = 0.5 + f * 3.2; pos[j + 2] = 0.3 * Math.cos(th) + r * Math.sin(th); }
-      else { pos[j] = 3.5 + f * 6; pos[j + 1] = r * Math.cos(th) + f * f * 1.6; pos[j + 2] = r * Math.sin(th) * (1 + f); }
-      const k = (hash(i, 5) < F.smoke ? 1 : 0) * Math.sin(Math.min(1, f * 1.05) * Math.PI) * 0.16; col[j] = k; col[j + 1] = k * 0.95; col[j + 2] = k * 0.9;
-    });
-    this.fireP.visible = F.fire > 0.02; this.fireLight.intensity = F.fire * (5 + 2 * Math.sin(t * 23) + 1.5 * Math.sin(t * 37));
-    if (this.fireP.visible) fill(this.fireP, 180, (i, pos, col, j) => {
-      // burning fuel escaping the core: flames licking up round the hot section and out of the cowl gaps
-      const f = ((t * 1.3 + hash(i, 1)) % 1), th = -0.6 + hash(i, 2) * 2.4, r = 0.42 + 0.25 * f;
-      pos[j] = 1.75 + 0.7 * hash(i, 3) + 0.25 * f; pos[j + 1] = r * Math.cos(th) + f * 0.9; pos[j + 2] = r * Math.sin(th) + 0.12 * Math.sin(t * 9 + i);
-      const k = F.fire * (1 - f) * (1 - f) * 1.2; col[j] = 1.4 * k; col[j + 1] = (0.55 - 0.3 * f) * k; col[j + 2] = 0.08 * k;
-    });
-    const torch = o.wfUnburnt > 0.01 || o.torch > 0.004 || (o.lit && o.pool > 0.02);
-    this.torch.visible = torch;
-    if (torch) fill(this.torch, 200, (i, pos, col, j) => { const f = (i / 200 + t * 0.9 + (i % 7) * 0.13) % 1, th = i * 2.399, r = (0.08 + 0.3 * f) * Math.sqrt(((i * 13) % 17) / 17); pos[j] = 3.1 + f * 2.6; pos[j + 1] = r * Math.cos(th) + f * f * 0.45; pos[j + 2] = r * Math.sin(th); const k = Math.sin(Math.min(1, f * 1.1) * Math.PI) * 0.4; col[j] = k; col[j + 1] = k * (0.55 - 0.35 * f); col[j + 2] = k * 0.06; });
+    const F = this.fail, jet = clamp(o.W9 / 150, 0, 1);
+    this.sparks.set(t, F.sparks, 3.45, FLOOR_Y);
+    this.smokeTail.u.uSpeed.value = 1.2 + 9 * jet;
+    this.smokeTail.set(t, F.smoke * (F.fire > 0 && jet < 0.05 ? 0.25 : 1));
+    this.smokeFire.set(t, F.fire); this.flames.set(t, F.fire);
+    this.fireLight.intensity = F.fire * (5 + 2 * Math.sin(t * 23) + 1.5 * Math.sin(t * 37));
+    const torchK = clamp(Math.max(o.wfUnburnt, o.torch || 0) / 0.05, 0, 1) + (o.lit && o.pool > 0.02 ? 0.6 : 0);
+    this.torch.u.uSpeed.value = 3 + 14 * jet; this.torch.set(t, clamp(torchK, 0, 1));
 
     // ---- exhaust plume and heat haze
     const thr = clamp(o.Fg / 140e3, 0, 1), hotK = clamp((o.T5 - 400) / 500, 0, 1);
@@ -926,10 +948,9 @@ export class Scene3D {
 
     // ---- inlet condensation and ground vortex (physics in main.js inletWeather)
     const fogA = env ? env.fog : 0, vx = env ? env.vortex : 0;
-    this.fog.material.opacity += (fogA * 0.22 - this.fog.material.opacity) * Math.min(1, dt * 2);
-    this.fog.visible = this.fog.material.opacity > 0.004;
-    // mist forms where the air is fastest and coldest: just inside the lip, thickening toward the fan
-    if (this.fog.visible) fill(this.fog, 700, (i, pos, col, j) => { const sd = this.fogSeed[i], f = (sd[0] + t * (0.2 + 0.55 * p1)) % 1, x = -0.95 + f * 0.95, wall = sd[3] < 0.6, r = (wall ? 0.6 + 0.4 * Math.sqrt(sd[1]) : Math.sqrt(sd[1])) * 0.76 * (x < -0.78 ? 1.06 : 1), th = sd[2] + t * (0.15 + 0.5 * p1) * (0.5 + f); pos[j] = x; pos[j + 1] = r * Math.cos(th); pos[j + 2] = r * Math.sin(th); const k = Math.sin(f * Math.PI) * (0.55 + 0.45 * Math.sin(t * 1.7 + i)); col[j] = col[j + 1] = col[j + 2] = 0.95 * k; });
+    this.fogK += (fogA - this.fogK) * Math.min(1, dt * 2);
+    this.fog.u.uSpeed.value = 0.6 + 2.6 * p1; this.fog.u.uSwirl.value = 0.3 + 0.9 * p1;
+    this.fog.set(t, this.fogK);
     const vk = (this._vk = (this._vk || 0) + (vx - (this._vk || 0)) * Math.min(1, dt * 1.5));
     const foot = [-1.25 + 0.14 * Math.sin(t * 0.7) + 0.05 * Math.sin(t * 2.3), 0.28 * Math.sin(t * 0.43)];
     this.vortexRopes.forEach((m, k) => { const u = m.material.uniforms; m.visible = vk > 0.01; u.uT.value = t % 1000; u.uK.value = vk * (k === 0 ? 0.3 + 0.4 * fogA : 0.1 + 0.15 * fogA); u.uFoot.value.set(foot[0], FLOOR_Y, foot[1]); });

@@ -403,4 +403,4 @@ setMode(mode);
 logMsg('Cold and dark. Set ENG MASTER to ON for an automatic start.');
 if (view3d) { try { const gl = view3d.renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); logMsg(`Graphics: ${ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unknown'}`); } catch (e) { /* ignore */ } }
 requestAnimationFrame(tick);
-window.__sim = { eng, fadec }; // for the console and automated checks
+window.__sim = { eng, fadec, view3d }; // for the console and automated checks
