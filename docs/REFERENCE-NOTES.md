@@ -97,3 +97,6 @@ The booklet itself is not in the repository (training material, not ours to publ
 - [x] Exhaust: EGT probes at 2, 4.30, 7.30 and 9.30; P4.9 rakes in three struts. Reverser: upper non-locking and lower locking actuators joined by flexible shafts; six latches along the bottom.
 - [x] Reverser hydraulic control unit and pylon disconnect panels, fire detection loops round the gearbox and core, P4.9 rakes in three struts, annulus filler joints and blade-root seals, upper and lower bifurcations, six latches along the bottom, spinner with white spiral and 18 bolts.
 - [ ] Still to do from it: fan-disc dovetail slots and front retaining ring (hidden under the spinner fairing), individual latch mechanisms, the take-up device.
+- [x] Hot section and exhaust: cage of thin cooling tubes round both turbine cases with axial manifolds, case ribs and bosses, bolt circles, bronze centre body and exhaust case, golden-brown LP turbine blading (rear-view photo).
+- [x] Nacelle: starter valve access and oil-cooler outlet louvre on the right-hand fan cowl, anti-ice exhaust slot, interphone panel and hoist points on the nose cowl; wing stub above the pylon (hidden with the cutaway on).
+- [x] Reverser doors stop on the core cowl at full deploy (swing reduced from 60 to about 32 degrees; real geometry not known).

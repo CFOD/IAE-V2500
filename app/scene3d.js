@@ -409,7 +409,7 @@ export class Scene3D {
     const vsvMat = new THREE.MeshPhysicalMaterial({ color: 0x6f7c88, metalness: 0.9, roughness: 0.3, side: THREE.DoubleSide }); // variable rows: darker coated steel
     const hpt = A({ id: 'hpt', name: 'High-pressure turbine (2 stages)', ex: 0.55, mat: { color: 0x8f8a82, metalness: 1, roughness: 0.4 }, glow: (o) => o.T41 - 250, desc: 'Drives the HP compressor. Single-crystal blades run in gas hotter than their melting point and survive on cooling air.', live: (o) => `Entry ${C(o.T4)} · delivers ${(o.pwrHpt / 1e6).toFixed(1)} MW · cooling air ${o.Wcool.toFixed(1)} kg/s` });
     const hptCase = A({ id: 'hptcase', name: 'HPT case and nozzle guide vanes', ex: 0.6, mat: hotM, glow: (o) => o.T4 - 380, desc: 'The guide vanes form the choked throat that sets how much air the core can pass.', live: (o) => `Expansion ratio ${o.hptPR.toFixed(2)} · exit ${C(o.T45)}, ${B(o.P45)}` });
-    const lpt = A({ id: 'lpt', name: 'Low-pressure turbine (5 stages)', ex: 0.95, mat: { color: 0x8d9299, metalness: 1, roughness: 0.36 }, glow: (o) => o.T45 - 130, desc: 'Extracts the remaining energy to drive the fan and booster through the long central shaft.', live: (o) => `Delivers ${(o.pwrLpt / 1e6).toFixed(1)} MW · expansion ratio ${o.lptPR.toFixed(2)} · efficiency ${(o.lpt.eff * 100).toFixed(0)} %` });
+    const lpt = A({ id: 'lpt', name: 'Low-pressure turbine (5 stages)', ex: 0.95, mat: { color: 0x9a8a68, metalness: 1, roughness: 0.4 }, glow: (o) => o.T45 - 130, desc: 'Extracts the remaining energy to drive the fan and booster through the long central shaft.', live: (o) => `Delivers ${(o.pwrLpt / 1e6).toFixed(1)} MW · expansion ratio ${o.lptPR.toFixed(2)} · efficiency ${(o.lpt.eff * 100).toFixed(0)} %` });
     const lptCase = A({ id: 'lptcase', name: 'LPT case and vanes', ex: 1.0, mat: hotM, glow: (o) => o.T45 - 230, desc: 'Flared casing around the five low-pressure turbine stages.', live: (o) => `Turbine metal ${C(o.Tm)}` });
 
     for (let i = 2; i < ROWS.length; i++) {
@@ -506,9 +506,19 @@ export class Scene3D {
     // ---------------- core cowl, exhaust
     const cowl = A({ id: 'corecowl', name: 'Core cowl (inner fixed structure)', ex: 0.15, mat: composite, desc: 'Inner wall of the bypass duct, wrapped around the core engine. Remove it to see the pipework underneath.', live: (o) => `Bypass duct ${B(o.P13)} · mixing plane ${B(o.Pm)}` });
     this._solid(cowl, band(offset(P.bypInner, -0.016), P.bypInner, 0.42, 3.12, 30));
-    const tec = A({ id: 'tec', name: 'Turbine exhaust case and plug', ex: 1.35, mat: hotM, glow: (o) => o.T5 - 170, desc: 'Carries the rear bearing. The EGT thermocouples and the P4.9 pressure probes used for EPR sit in its struts.', live: (o) => `EGT ${C(o.egt)} · EPR ${o.epr.toFixed(3)} · core jet Mach ${o.M8.toFixed(2)}` });
+    const tec = A({ id: 'tec', name: 'Turbine exhaust case and plug', ex: 1.35, mat: { ...hotM, color: 0x9c8263 }, glow: (o) => o.T5 - 170, desc: 'Carries the rear bearing. The EGT thermocouples and the P4.9 pressure probes used for EPR sit in its struts.', live: (o) => `EGT ${C(o.egt)} · EPR ${o.epr.toFixed(3)} · core jet Mach ${o.M8.toFixed(2)}` });
     this._solid(tec, [...sample(P.coreInner, 3.0, 3.44, 18), [3.0, 0.0]]);
     this._solid(tec, band(CO, offset(CO, 0.02), 3.02, 3.12, 3));
+    // bolt circles on the plug and the outer ring, borescope and probe bosses, rear mount lugs at the top
+    { const bolt = new THREE.CylinderGeometry(0.006, 0.006, 0.014, 6); bolt.rotateZ(Math.PI / 2);
+      this._ring(tec, bolt, 24, (m, th) => m.makeTranslation(3.135, 0.2 * Math.cos(th), 0.2 * Math.sin(th)), { mat: this.boltMat });
+      this._ring(tec, bolt, 56, (m, th) => m.makeTranslation(3.02, (co(3.02) + 0.035) * Math.cos(th), (co(3.02) + 0.035) * Math.sin(th)), { mat: this.boltMat });
+      this._solid(tec, [[3.013, co(3.02) + 0.018], [3.013, co(3.02) + 0.05], [3.027, co(3.02) + 0.05], [3.027, co(3.02) + 0.018]], { seg: 96 });
+      const boss = new THREE.CylinderGeometry(0.018, 0.022, 0.03, 10);
+      this._ring(hptCase, boss, 6, (m, th) => { m.makeRotationX(th); m.setPosition(2.3, (co(2.3) + 0.035) * Math.cos(th), (co(2.3) + 0.035) * Math.sin(th)); }, { phase: 0.4, mat: this.boltMat });
+      this._ring(lptCase, boss, 8, (m, th) => { m.makeRotationX(th); m.setPosition(2.7, (co(2.7) + 0.03) * Math.cos(th), (co(2.7) + 0.03) * Math.sin(th)); }, { phase: 0.2, mat: this.boltMat });
+      // stiffening ribs on both turbine cases
+      for (const x of [2.28, 2.36, 2.52, 2.6, 2.7, 2.78, 2.9]) this._solid(x < 2.45 ? hptCase : lptCase, [[x - 0.004, co(x) + 0.02], [x - 0.004, co(x) + 0.034], [x + 0.004, co(x) + 0.034], [x + 0.004, co(x) + 0.02]], { seg: 96 }); }
     const strut = bladeGeo({ span: 0.2, chord: [0.09, 0.09], stagger: [0, 0], camber: [0, 0], thick: [0.16, 0.16], nSpan: 2 });
     this._ring(tec, strut, 13, (m, th) => { m.makeRotationX(th); m.setPosition(3.065, 0.275 * Math.cos(th), 0.275 * Math.sin(th)); });
 
@@ -525,7 +535,8 @@ export class Scene3D {
     const run = (th, r0, mat, rad, x0 = 1.15, x1 = 2.9, wob = 6) => this._pipe(ext, Array.from({ length: 9 }, (_, i) => { const f = i / 8, x = lerp(x0, x1, f); return [x, co(x) + r0 + 0.012 * Math.sin(f * 9 + th), th + wob * Math.sin(f * 5 + th * 0.1)]; }), rad, mat);
     [[130, 0.075, pipeSteel, 0.011], [150, 0.07, pipeGold, 0.008], [172, 0.085, harness, 0.013, 0.5], [200, 0.07, pipeSteel, 0.016, 1.5, 2.7], [225, 0.075, harness, 0.009], [246, 0.08, pipeSteel, 0.01], [268, 0.07, pipeGold, 0.007, 1.3, 2.2], [292, 0.085, pipeSteel, 0.014, 1.6, 3.0], [316, 0.07, harness, 0.011, 0.5], [338, 0.075, pipeSteel, 0.009]].forEach((a) => run(...a));
     // turbine case cooling manifolds (active clearance control): a cage of tube rings round the LPT
-    for (let k = 0; k < 7; k++) { const x = 2.5 + k * 0.075, rr = co(x) + 0.058; this._solid(ext, [[x - 0.008, rr], [x - 0.008, rr + 0.016], [x + 0.008, rr + 0.016], [x + 0.008, rr]], { seg: 72, mat: pipeSteel }); }
+    for (let k = 0; k < 20; k++) { const x = 2.25 + k * 0.038, rr = co(x) + 0.05; this._solid(ext, [[x - 0.0045, rr], [x - 0.0045, rr + 0.009], [x + 0.0045, rr + 0.009], [x + 0.0045, rr]], { seg: 72, mat: pipeSteel }); }
+    for (const th of [200, 290]) this._pipe(ext, Array.from({ length: 7 }, (_, i) => { const x = 2.24 + i * 0.125; return [x, co(x) + 0.075, th]; }), 0.016, pipeSteel);
     for (const th of [150, 240, 330]) this._pipe(ext, Array.from({ length: 6 }, (_, i) => { const x = 2.3 + i * 0.135; return [x, co(x) + 0.09, th]; }), 0.014, pipeSteel);
     // a pigtail from the fuel manifold to every nozzle
     for (let k = 0; k < 20; k++) { const th = k * 18 + 9; this._pipe(noz, [[1.917, 0.43, th], [1.892, 0.468, th + 3], [1.862, 0.452, th + 6.5], [1.878, 0.405, th + 8]], 0.0045); }
@@ -802,10 +813,10 @@ export class Scene3D {
   _reverser(rev) {
     if (rev === this._rev) return; this._rev = rev;
     if (!this.revNodes) { this.revNodes = []; this.engine.traverse((n) => { const k = /^cna_sleeve/i.test(n.name) ? 'sleeve' : /^cna_blocker/i.test(n.name) ? 'door' : null; if (k) { n.userData.rev = { k, x: n.position.x, q: n.quaternion.clone() }; this.revNodes.push(n); } }); }
-    const e = rev * rev * (3 - 2 * rev), qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), e * 1.05); // hinge = door's tangential axis (local Z after the glTF axis conversion)
+    const e = rev * rev * (3 - 2 * rev), qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), e * 0.55); // hinge = door's tangential axis (local Z after the glTF axis conversion)
     if (this.dragLinks) {
       // door attach point 0.2 m ahead of its hinge; anchor on the core cowl
-      const a = e * 1.05, px = 2.2 + 0.46 * e - 0.2 * Math.cos(a), pr = 0.744 + 0.013 * (1 - e) - 0.2 * Math.sin(a), ax = 2.24, ar = rAt(P.bypInner, 2.24), ex = this.byId.cna.ex * this.explode * 1.5;
+      const a = e * 0.55, px = 2.2 + 0.46 * e - 0.2 * Math.cos(a), pr = 0.744 + 0.013 * (1 - e) - 0.2 * Math.sin(a), ax = 2.21, ar = rAt(P.bypInner, 2.21), ex = this.byId.cna.ex * this.explode * 1.5;
       const len = Math.hypot(px - ax, pr - ar), ang = Math.atan2(px - ax, pr - ar), m = new THREE.Matrix4(), q = new THREE.Quaternion(), qz = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -ang), ax1 = new THREE.Vector3(1, 0, 0);
       for (const im of this.dragLinks) { im.userData.ths.forEach((th, i) => { const mx = (px + ax) / 2, mr = (pr + ar) / 2; q.setFromAxisAngle(ax1, th).multiply(qz); m.compose(new THREE.Vector3(mx, mr * Math.cos(th), mr * Math.sin(th)), q, new THREE.Vector3(1, len, 1)); im.setMatrixAt(i, m); }); im.instanceMatrix.needsUpdate = true; }
     }

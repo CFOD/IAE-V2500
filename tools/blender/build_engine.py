@@ -474,6 +474,8 @@ def build():
     made.append(join('pylon_panels__full', pm))
     made.append(finish(loft('pylon_aftfairing__full', [(2.7, 0.1, 0.8, 0.9), (3.1, 0.105, 0.76, 0.9), (3.6, 0.08, 0.8, 0.95), (4.0, 0.04, 0.9, 1.06), (4.3, 0.01, 1.05, 1.16)], bare, n=20), 0))
 
+    wing = loft('pylon_wing__full', [(1.55, 1.25, 1.5, 1.52), (1.75, 1.3, 1.5, 1.6), (2.4, 1.35, 1.5, 1.7), (3.4, 1.35, 1.52, 1.72), (4.6, 1.3, 1.6, 1.7), (5.3, 1.25, 1.66, 1.68)], paint, n=24)
+    made.append(finish(wing, 0))
     # ---- cowl door hinges along the top, each side of the pylon; reverser actuators in the cascade bay
     hk, hf = [], []
     for x in (0.15, 0.45, 0.75, 1.05):
@@ -501,13 +503,21 @@ def build():
     marks = []
     marks += outline('m', 0.5, 0.82, 152, 168, line, surf)            # pressure-relief door
     marks += outline('m', 0.92, 1.08, 150, 158, line, surf)           # oil service door
-    marks += outline('m', 0.2, 0.42, 197, 208, line, surf)            # starter valve access
+    marks += outline('m', 0.3, 0.52, 214, 224, line, surf)            # starter valve access (right-hand cowl)
     marks.append(patch('m', 0.13, 0.15, 128, 166, red, surf))         # hazard stripe: stay clear of the intake
     marks.append(patch('m', 0.19, 0.31, 130.5, 137.5, label('R:DANGER'), surf))
     marks.append(patch('m', 0.19, 0.45, 139, 146.5, label('STAND CLEAR OF HAZARD|AREAS WHILE ENGINE|IS RUNNING'), surf))
     marks.append(patch('m', 0.54, 0.78, 155.5, 158.5, label('PRESSURE RELIEF DOOR'), surf, lift=0.0026)); marks.append(patch('m', 0.93, 1.07, 152, 154.2, label('OIL SERVICE'), surf, lift=0.0026))
-    marks.append(patch('m', 0.22, 0.4, 200, 202.6, label('STARTER VALVE ACCESS'), surf, lift=0.0026)); marks.append(patch('m', 0.56, 0.78, 121, 124.5, label('NO STEP'), surf))
+    marks.append(patch('m', 0.32, 0.5, 217, 219.6, label('STARTER VALVE ACCESS'), surf, lift=0.0026)); marks.append(patch('m', 0.56, 0.78, 121, 124.5, label('NO STEP'), surf))
+    marks.append(patch('m', 0.66, 0.96, 228, 241, black, surf))        # air-cooled oil cooler outlet
+    for k in range(7): marks.append(patch('m', 0.68 + 0.04 * k, 0.695 + 0.04 * k, 229, 240, line, surf, lift=0.003))   # louvre slats
+    marks += outline('m', 0.6, 0.78, 250, 262, line, surf)             # EEC / relay access
     made.append(join('fancowl_markings', marks))
+    # nose cowl: anti-ice exhaust slot low on the right, interphone jack panel, hoist points near the top (booklet photo)
+    im = [patch('m', -0.36, -0.2, 236, 246, black, surf), patch('m', -0.3, -0.24, 270, 273, placard, surf)] + outline('m', -0.33, -0.21, 268, 275, line, surf)
+    for th in (332, 28): im += [patch('m', -0.42, -0.4, th - 0.6, th + 0.6, black, surf), patch('m', -0.39, -0.3, th - 1.2, th + 1.2, label('HOIST POINT'), surf)]
+    im += outline('m', -0.5, -0.34, 150, 166, line, surf)                # anti-ice duct access
+    made.append(join('inlet_markings', [m for m in im]))
     rmarks = outline('m', 1.3, 1.6, 150, 162, line, surf) + [patch('m', 1.32, 1.58, 152.5, 155.5, label('THRUST REVERSER|ACTUATOR ACCESS'), surf, lift=0.0026), patch('m', 2.0, 2.3, 128, 133, label('R:REVERSER HAZARD AREA'), surf)]
     made.append(join('cna_markings', rmarks))
     # latches along the bottom centreline, and the drain mast
