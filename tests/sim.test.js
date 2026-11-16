@@ -174,3 +174,46 @@ test('manual start with the master off, hand-over to the FADEC, shut-down and re
   f.reset(); e.initCold(); run(e, f, 20);
   assert.ok(!e.out.lit && e.out.N2pct < 0.1 && f.phase === 'off' && !e.u.starterValve, 'reset leaves the engine cold and stopped');
 });
+
+// ---------------------------------------------------------------- failures
+const has = (e, type) => e.events.some((x) => x.type === type);
+
+test('normal operation uses no measurable turbine life and causes no damage', () => {
+  const { e, f } = idling(); f.rating = 'V2533-A5'; e.u.dTisa = 15; f.tla = 1; run(e, f, 300);
+  const d = e.damage.d;
+  assert.ok(d.hptCreep < 0.01 && d.lptCreep < 0.01 && d.hptLost === 0 && d.lptLost === 0 && !d.fire, `creep ${d.hptCreep} ${d.lptCreep}`);
+  assert.ok(e.out.vib1 < 2 && e.out.vib2 < 2);
+});
+
+test('fuelling a stalled compressor overheats and wrecks the hot section', () => {
+  const { e, f } = idling(); f.tla = 0.6; run(e, f, 30);
+  f.prot.surge = false; f.ovr.vsv = -8; f.ovr.bleed7 = 0; run(e, f, 3); f.ovr.fuel = e.out.wf * 1.5; run(e, f, 30);
+  const d = e.damage.d;
+  assert.ok(has(e, 'combustor-burn-through') || has(e, 'hpt-blade-release') || has(e, 'lpt-blade-release') || has(e, 'hpt-melting'), 'hot section failure');
+  assert.ok(d.liner > 0.5 || d.hptLost > 0 || d.lptLost > 0);
+});
+
+test('overspeed with the protections off bursts a rotor; the engine is finished', () => {
+  const { e, f } = idling(); f.tla = 1; run(e, f, 30);
+  Object.assign(f.prot, { egt: false, n1: false, n2: false, accel: false }); f.ovr.fuel = 9000 / 3600; run(e, f, 20);
+  assert.ok(has(e, 'disc-burst-hp') || has(e, 'disc-burst-lp'), 'rotor burst');
+  assert.ok(!e.out.lit && e.wear.dead && e.out.fire === 1 && e.out.N2pct < 1);
+  f.ovr.fuel = null; f.master = false; run(e, f, 5); f.master = true; run(e, f, 60);
+  assert.ok(!e.out.lit && e.out.N2pct < 1, 'cannot be restarted');
+});
+
+test('fuel cut at take-off power rubs the tips; a cool-down at idle first does not', () => {
+  const a = idling(); a.f.tla = 1; run(a.e, a.f, 60); a.f.master = false; run(a.e, a.f, 60);
+  assert.ok(has(a.e, 'tip-rub-shutdown') && a.e.wear.effHpt < 0);
+  assert.ok(a.e.out.N2pct < 2 && a.e.out.egt < 700, 'runs down in under a minute');
+  const b = idling(); b.f.tla = 1; run(b.e, b.f, 60); b.f.tla = 0; run(b.e, b.f, 180); b.f.master = false; run(b.e, b.f, 60);
+  assert.ok(!has(b.e, 'tip-rub-shutdown') && b.e.wear.effHpt > -1e-6);
+});
+
+test('bowed rotor: a hot engine restarted after ten minutes rubs unless it is motored first', () => {
+  const hot = () => { const r = idling(); r.f.tla = 1; run(r.e, r.f, 60); r.f.master = false; run(r.e, r.f, 600); return r; };
+  const a = hot(); assert.ok(a.e.damage.d.bow > 0.25, `bow ${a.e.damage.d.bow}`);
+  a.f.master = true; run(a.e, a.f, 60); assert.ok(has(a.e, 'bowed-rotor-rub'));
+  const b = hot(); b.f.manStart = true; run(b.e, b.f, 90); b.f.manStart = false; b.f.master = true; run(b.e, b.f, 60);
+  assert.ok(!has(b.e, 'bowed-rotor-rub') && b.e.out.lit);
+});

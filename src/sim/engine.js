@@ -13,6 +13,7 @@ import { cp, gamma, h, tFromH, tIsentropic, phi, isa, R_GAS, FAR_STOICH, LHV_JET
 import MAPS from './maps/jt9d.js';
 import { makeCompressorMap, makeTableCompressor, makeTurbineTable, compressor, qFlow, turbineFlow, turbineExpand, nozzle, orifice } from './components.js';
 import { DESIGN, LIMITS } from './v2500.js';
+import { Damage, defaultWear } from './damage.js';
 
 const RPM2RAD = 0.104719755;
 const T_REF = 298.15;
@@ -181,12 +182,13 @@ export class Engine {
   constructor(cfg = sizeEngine()) {
     this.cfg = cfg;
     this.u = defaultInputs();
-    this.mods = defaultMods();
+    this.mods = defaultMods(); this.wear = defaultWear(); this.mEff = defaultMods();
     this.o = { fan: {}, lpc: {}, hpc: {}, hptF: {}, lptF: {}, hpt: {}, lpt: {}, n8: {}, n18: {}, n9: {}, ncas: {} };
     this.out = { W2: 0 };
     this.events = []; // {t, type}
     this.subDt = 0.0005;
     this.initCold();
+    this.damage = new Damage(this);
   }
 
   ambient() {
@@ -229,15 +231,23 @@ export class Engine {
   step(dt) {
     const n = Math.max(1, Math.round(dt / this.subDt));
     const h = dt / n;
+    // hardware condition = the player's settings combined with accumulated damage
+    const me = this.mEff, mo = this.mods, w = this.wear;
+    for (const k in mo) me[k] = k.startsWith('eff') ? Math.max(mo[k] + (w[k] || 0), -0.9) : mo[k] * (w[k] ?? 1);
+    if (w.dead) { this.s.wf = 0; this.s.lit = false; this.s.pool = 0; }
     for (let i = 0; i < n; i++) this._eval(h);
     // slow sensor: EGT thermocouples (lag grows when there is little flow over them)
     const tau = 1.5 + 40 / (1 + Math.max(0, this.out.W45) * 3);
     this.s.egt += (this.s.T5 - this.s.egt) * Math.min(1, dt / tau);
     this.out.egt = this.s.egt;
+    if (w.seized2) this.s.N2 = 0;
+    if (w.seized1) this.s.N1 = 0;
+    if (this.out.W45 < 0.5) this.s.Tm -= (this.s.Tm - (this.out.T0 = this.ambient().T0)) * Math.min(1, dt / 2400); // standing engine cools to ambient over an hour or so
+    if (this.damage) this.damage.update(dt);
   }
 
   _eval(dt) {
-    const s = this.s, u = this.u, c = this.cfg, d = c.d, m = this.mods, o = this.o;
+    const s = this.s, u = this.u, c = this.cfg, d = c.d, m = this.mEff, o = this.o;
     const amb = this.ambient();
     const { P0, T2, V0 } = amb;
     // duct losses scale with dynamic head (zero loss at zero flow)
@@ -303,11 +313,11 @@ export class Engine {
     const leanLimit = 0.0035 * Math.pow((3 * 101325) / Math.max(s.P3, 2e4), 0.25);
     if (dt > 0) {
       if (s.lit) {
-        if (far < leanLimit || far > 0.2 || Wa <= 0.02) {
+        if (far < leanLimit || far > 0.5 || Wa <= 0.02) { // far beyond stoichiometric the flame still holds; the excess burns downstream
           s.lit = false; s.ignTimer = 0;
           this.events.push({ t: s.t, type: far < leanLimit ? 'flameout-lean' : 'flameout-rich' });
         }
-      } else if (u.ignition && far > Math.max(leanLimit * 1.5, 0.006) && far < 0.12 && Wa > 0.2) {
+      } else if (u.ignition && far > Math.max(leanLimit * 1.5, 0.006) && far < 0.25 && Wa > 0.2) {
         s.ignTimer += dt;
         if (s.ignTimer > 0.7) { s.lit = true; this.events.push({ t: s.t, type: 'lightoff' }); }
       } else s.ignTimer = 0;
@@ -383,8 +393,8 @@ export class Engine {
     let tStart = 0;
     if (u.starterValve) // stall torque from the data sheet: 637 N.m at the starter pad (0.941 x N2), reached at full duct pressure (~50 psi)
       tStart = LIMITS.STARTER_TORQUE_MAX * LIMITS.STARTER_GEAR * (u.starterPsi / 50) * Math.max(0, 1 - s.N2 / (0.72 * LIMITS.N2_100));
-    const tq2 = o.hpt.torque - hpcTorque - (s.N2 > 1 ? fric2(s.N2) : 0) - accPower / w2 + tStart;
-    const tq1 = o.lpt.torque - o.fan.torque - o.lpc.torque - (s.N1 > 1 ? fric1(s.N1) : 0);
+    const tq2 = o.hpt.torque - hpcTorque - (s.N2 > 1 ? fric2(s.N2) : 0) - accPower / w2 + tStart - (s.N2 > 1 ? this.wear.drag2 : 0);
+    const tq1 = o.lpt.torque - o.fan.torque - o.lpc.torque - (s.N1 > 1 ? fric1(s.N1) + this.wear.drag1 : 0);
 
     // ---- integrate
     if (dt > 0) {
@@ -424,6 +434,7 @@ export class Engine {
     out.bpr = o.lpc.W > 0.01 ? o.fan.W / o.lpc.W : 0;
     out.opr = s.P3 / P2;
     out.wf = s.wf; out.wfBurn = wfBurn; out.wfUnburnt = Math.max(0, wfIn - wfBurn) * (s.lit ? 1 : 0);
+    out.torch = s.lit ? Math.max(0, wfIn - wfBurn) : 0; // unburnt fuel leaving the combustor alight: flames through the turbine and out of the tailpipe
     out.far = far; out.farBurn = farB; out.phi = far / FAR_STOICH; out.etab = etab; out.lit = s.lit;
     out.pool = s.pool; out.leanLimit = leanLimit;
     out.P0 = P0; out.P2 = P2; out.T2 = T2; out.P13 = s.P13; out.T13 = s.T13; out.P25 = s.P25; out.T25 = s.T25;

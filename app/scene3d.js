@@ -587,6 +587,10 @@ export class Scene3D {
     this.dust = puffs(140, 0.34, THREE.NormalBlending); this.dust.material.opacity = 0;
     this.torch = puffs(200, 0.42, THREE.AdditiveBlending);
     this.bang = puffs(160, 0.75, THREE.AdditiveBlending);
+    // failure effects: glowing fragments and molten metal from the tailpipe, black smoke, fire round the core
+    this.sparks = this._points(320, 0.05); this.smoke = puffs(240, 1.1, THREE.NormalBlending); this.smoke.material.opacity = 0.5; this.fireP = puffs(180, 0.6, THREE.AdditiveBlending);
+    this.fail = { sparks: 0, smoke: 0, fire: 0 };
+    this.fireLight = new THREE.PointLight(0xff6a20, 0, 6, 1.4); this.fireLight.position.set(2.0, 0.5, 0.4); this.scene.add(this.fireLight);
 
     // ground vortex: a twisting rope of condensed air, bent in the vertex shader from the floor into the intake
     const rope = (layer) => new THREE.ShaderMaterial({
@@ -870,7 +874,29 @@ export class Scene3D {
     const inten = o.lit ? clamp(o.farBurn / 0.026, 0.2, 1.4) : 0;
     this.flameLight.intensity = inten * (1.1 + 0.25 * Math.sin(t * 40)); this.flameLight.position.x = 2.05 + exC;
     for (const m of this.flameSheets) { m.visible = inten > 0; m.position.x = exC; m.material.uniforms.uT.value = t % 1000; m.material.uniforms.uI.value = inten; }
-    const torch = o.wfUnburnt > 0.01 || (o.lit && o.pool > 0.02);
+    const F = this.fail, hash = (i, k) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); };
+    this.sparks.visible = F.sparks > 0.02;
+    if (this.sparks.visible) fill(this.sparks, 320, (i, pos, col, j) => {
+      // each fragment leaves the nozzle fast, slows, falls and cools from white through orange to dull red
+      const life = 0.7 + hash(i, 1) * 1.1, f = ((t + hash(i, 2) * 3) % life) / life, th = hash(i, 3) * TAU, r0 = 0.1 + 0.4 * hash(i, 4), v = 5 + 9 * hash(i, 5), tt = f * life;
+      pos[j] = 3.45 + v * tt * (1 - 0.25 * tt); pos[j + 1] = Math.max(FLOOR_Y + 0.02, r0 * Math.cos(th) * (1 + tt) - 2.6 * tt * tt * (0.4 + hash(i, 6))); pos[j + 2] = r0 * Math.sin(th) * (1 + 1.5 * tt);
+      const k = (hash(i, 7) < F.sparks ? 1 : 0) * (1 - f) * 1.6; col[j] = 1.0 * k; col[j + 1] = (0.75 - 0.5 * f) * k; col[j + 2] = (0.4 - 0.4 * f) * k * (1 - f);
+    });
+    this.smoke.visible = F.smoke > 0.02;
+    if (this.smoke.visible) fill(this.smoke, 240, (i, pos, col, j) => {
+      const core = i % 3 === 0 && F.fire > 0, f = ((t * (core ? 0.22 : 0.3) + hash(i, 1)) % 1), th = hash(i, 2) * TAU, r = (0.15 + 0.5 * f) * hash(i, 3);
+      if (core) { pos[j] = 1.7 + 0.8 * hash(i, 4) + f * 1.2; pos[j + 1] = 0.5 + f * 3.2; pos[j + 2] = 0.3 * Math.cos(th) + r * Math.sin(th); }
+      else { pos[j] = 3.5 + f * 6; pos[j + 1] = r * Math.cos(th) + f * f * 1.6; pos[j + 2] = r * Math.sin(th) * (1 + f); }
+      const k = (hash(i, 5) < F.smoke ? 1 : 0) * Math.sin(Math.min(1, f * 1.05) * Math.PI) * 0.16; col[j] = k; col[j + 1] = k * 0.95; col[j + 2] = k * 0.9;
+    });
+    this.fireP.visible = F.fire > 0.02; this.fireLight.intensity = F.fire * (5 + 2 * Math.sin(t * 23) + 1.5 * Math.sin(t * 37));
+    if (this.fireP.visible) fill(this.fireP, 180, (i, pos, col, j) => {
+      // burning fuel escaping the core: flames licking up round the hot section and out of the cowl gaps
+      const f = ((t * 1.3 + hash(i, 1)) % 1), th = -0.6 + hash(i, 2) * 2.4, r = 0.42 + 0.25 * f;
+      pos[j] = 1.75 + 0.7 * hash(i, 3) + 0.25 * f; pos[j + 1] = r * Math.cos(th) + f * 0.9; pos[j + 2] = r * Math.sin(th) + 0.12 * Math.sin(t * 9 + i);
+      const k = F.fire * (1 - f) * (1 - f) * 1.2; col[j] = 1.4 * k; col[j + 1] = (0.55 - 0.3 * f) * k; col[j + 2] = 0.08 * k;
+    });
+    const torch = o.wfUnburnt > 0.01 || o.torch > 0.004 || (o.lit && o.pool > 0.02);
     this.torch.visible = torch;
     if (torch) fill(this.torch, 200, (i, pos, col, j) => { const f = (i / 200 + t * 0.9 + (i % 7) * 0.13) % 1, th = i * 2.399, r = (0.08 + 0.3 * f) * Math.sqrt(((i * 13) % 17) / 17); pos[j] = 3.1 + f * 2.6; pos[j + 1] = r * Math.cos(th) + f * f * 0.45; pos[j + 2] = r * Math.sin(th); const k = Math.sin(Math.min(1, f * 1.1) * Math.PI) * 0.4; col[j] = k; col[j + 1] = k * (0.55 - 0.35 * f); col[j + 2] = k * 0.06; });
 

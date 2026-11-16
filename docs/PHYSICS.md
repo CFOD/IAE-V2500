@@ -55,6 +55,23 @@ were not found in a public source. With the doors shut the core jet dumps into a
 the whole engine flow and loses its dynamic head, so it contributes little forward thrust. Net thrust
 at maximum reverse is about -32 kN at sea level static (roughly 30 % of V2527 take-off thrust).
 
+## Failures (`src/sim/damage.js`)
+
+Abuse turns into the damage a real engine would suffer. The mechanisms are real; the thresholds and
+rates are engineering estimates, not IAE data.
+
+| What you do | What happens, and why |
+|---|---|
+| Run the turbine too hot | Blade metal temperature is worked out from gas temperature and cooling air. Creep life halves for roughly every 12 K and falls with the fourth power of speed: no measurable use in normal running, minutes at 100 K over, seconds beyond that. When it runs out a blade lets go and takes others with it: efficiency collapses, vibration, sparks from the tailpipe. Above about 1330 °C metal the nickel alloy starts to melt and the blading burns away. |
+| Flame far hotter than design (fuelling a stalled compressor, hot start) | The combustor liner's cooling film fails and it burns through: flame escapes the core and the nacelle is on fire. Fuel beyond what the air can burn carries on burning through the turbine and out of the tailpipe (torching). |
+| Overspeed with the protections off | Discs hold to about 120 % of red line, then burst. This is uncontained: the engine is destroyed, seizes and burns. |
+| Surge it repeatedly | After the first few surges each one damages the HP compressor blading; eventually blades fail and go through the core. |
+| Cut the fuel at high power | The flame is out at once, N2 runs down in under a minute and EGT falls to the temperature of the hot metal. The thin casings cool and shrink in seconds while the discs stay hot, so the blade tips cut into their seals: a small permanent efficiency loss. Three minutes at idle first avoids it. |
+| Restart a hot engine | Left standing, a hot core cools unevenly and the HP rotor bows, worst about ten minutes to an hour after shut-down. Started like that, it rubs as it passes about 35 % N2. Dry cranking for a minute or so first straightens it. |
+| Keep feeding fuel to a wrecked core | It burns outside the engine. The fire bottle only works once the fuel is off. |
+
+Vibration is shown in cockpit units (advisory at 5). Reset, or "Restore new-engine condition", repairs everything.
+
 ## Component maps
 
 The compressor and turbine characteristics are the reference maps published with NASA's T-MATS
@@ -162,5 +179,5 @@ which suggests the real figure may be somewhat higher.
   max-continuous / climb use the published thrusts, but the real altitude-Mach-temperature EPR tables
   and the bleed / stator schedule break-points are proprietary; the ones here are tuned to this model.
 - Start time (about 35 s to idle) and peak start EGT are not checked against a published figure.
-- No Reynolds-number effects, active clearance control, oil or fuel system, humidity or icing; one lumped heat-soak mass.
+- No Reynolds-number effects, active clearance control, oil or fuel system (so no oil starvation or bearing failures), humidity or icing; one lumped heat-soak mass.
 - Ambient changes are a test-cell step, not a flight model.

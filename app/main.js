@@ -138,7 +138,7 @@ const mulRow = (name, key, lo, hi, tip) => ({ name, tip, min: lo, max: hi, step:
   mulRow('Turbine cooling air', 'cooling', -100, 50, 'Cooling air taken from the HPC'),
   { name: 'Fuel heating value', tip: 'Lower heating value. Jet A ≈ 43.1 MJ/kg', min: 25, max: 50, step: 0.1, def: 43.1, get: () => m.lhv / 1e6, set: (v) => (m.lhv = v * 1e6), fmt: (v) => `${v.toFixed(1)} MJ/kg` },
 ].forEach((d) => { D[d.name] = d; addRow(hw, d); });
-$('hwReset').onclick = () => { resetRows(hw); Object.assign(m, defaultMods()); for (const f of FAULTS) if (f.active && f.mods) { f.active = false; } refreshFaults(); logMsg('Hardware restored to new condition'); };
+$('hwReset').onclick = () => { resetRows(hw); Object.assign(m, defaultMods()); eng.damage.reset(); for (const f of FAULTS) if (f.active && f.mods) { f.active = false; } refreshFaults(); logMsg('Hardware restored to new condition'); };
 
 // ------------------------------------------------------------ faults
 const FAULTS = [
@@ -176,6 +176,7 @@ sel.value = fadec.rating; sel.onchange = () => { fadec.rating = sel.value; logMs
 const setMaster = (v) => { fadec.master = v; if (v && fadec.phase === 'abort') fadec.phase = 'off'; if (!v && fadec.ovr.fuel != null) { fadec.ovr.fuel = null; logMsg('Fuel flow: manual released (master off)'); } $('master').setAttribute('aria-pressed', v); logMsg(`ENG MASTER ${v ? 'ON' : 'OFF'}`); };
 $('master').onclick = () => setMaster(!fadec.master);
 $('manStart').onclick = () => { fadec.manStart = !fadec.manStart; $('manStart').setAttribute('aria-pressed', fadec.manStart); };
+$('agent').onclick = () => { const out = eng.damage.extinguish(); logMsg(out ? 'Fire agent discharged - fire out' : 'Fire agent discharged - STILL BURNING: shut the fuel off first'); };
 $('reverser').onclick = () => { eng.u.reverser = !eng.u.reverser; $('reverser').setAttribute('aria-pressed', eng.u.reverser); logMsg(`Thrust reverser ${eng.u.reverser ? 'deploy' : 'stow'}`); };
 const tla = $('tla');
 const detent = (t) => (t >= 0.995 ? 'TOGA' : Math.abs(t - 0.85) < 0.012 ? 'Max continuous' : Math.abs(t - 0.7) < 0.012 ? 'Climb' : t < 0.005 ? 'Idle' : `${(t * 100).toFixed(0)} %`);
@@ -210,7 +211,7 @@ for (const b of $('cams').children) b.onclick = () => view3d && view3d.view(b.da
 const frame3d = () => { if (!view3d) return; const shut = $('drawer').classList.contains('shut'); document.body.classList.toggle('nodrawer', shut); view3d.offsetX = shut ? 0 : 210; view3d.offsetY = 56; view3d.resize(); };
 $('btnDrawer').onclick = () => { const shut = $('drawer').classList.toggle('shut'); $('btnDrawer').classList.toggle('on', !shut); frame3d(); };
 function reset(running) {
-  fadec.reset(); $('manStart').setAttribute('aria-pressed', false);
+  fadec.reset(); $('manStart').setAttribute('aria-pressed', false); eng.damage.reset(); sparkK = 0; lostPrev = 0;
   eng.initCold(); eng.events.length = 0; evIdx = 0; eng.s.fuelUsed = 0;
   Object.assign(fadec.prot, { egt: true, n1: true, n2: true, accel: true, decel: true, surge: true, startAbort: true }); fadec.n1Mode = false;
   for (const f of FAULTS) if (f.active) { if (f.mods) applyMods(f.mods, true); f.active = false; } refreshFaults();
@@ -266,25 +267,48 @@ if (view3d) {
 }
 
 // ------------------------------------------------------------ events & wear
-const EV = { lightoff: 'Light-off', 'flameout-lean': 'FLAME-OUT (mixture too lean)', 'flameout-rich': 'FLAME-OUT (rich / no airflow)', 'surge-fan': 'FAN SURGE', 'surge-lpc': 'LPC SURGE', 'surge-hpc': 'HPC SURGE' };
-let lastBang = -1, lastSurgeLog = -10;
+const FAIL = {
+  'hpt-blade-release': 'HP TURBINE BLADE FAILURE - creep rupture; fragments through the LP turbine',
+  'hpt-melting': 'HP TURBINE MELTING - blades and guide vanes burning away',
+  'lpt-blade-release': 'LP TURBINE BLADE FAILURE - creep rupture',
+  'lpt-melting': 'LP TURBINE MELTING',
+  'combustor-burn-through': 'COMBUSTOR BURN-THROUGH - flame escaping the core. ENGINE FIRE',
+  'disc-burst-hp': 'HP ROTOR BURST - uncontained failure. ENGINE DESTROYED',
+  'disc-burst-lp': 'LP ROTOR BURST - uncontained failure. ENGINE DESTROYED',
+  'hpc-blade-damage': 'HP compressor blades damaged by repeated surging',
+  'hpc-blade-failure': 'HP COMPRESSOR BLADE FAILURE - debris through the core',
+  'tip-rub-shutdown': 'Tip rub: fuel cut at high power, casings shrank onto the hot rotors',
+  'bowed-rotor-rub': 'BOWED ROTOR - hot engine restarted without motoring; blades rubbing',
+};
+const EV = { ...FAIL, lightoff: 'Light-off', 'flameout-lean': 'FLAME-OUT (mixture too lean)', 'flameout-rich': 'FLAME-OUT (rich / no airflow)', 'surge-fan': 'FAN SURGE', 'surge-lpc': 'LPC SURGE', 'surge-hpc': 'HPC SURGE' };
+let lastBang = -1, lastSurgeLog = -10, sparkK = 0, lostPrev = 0;
 function handleEvents(dt) {
   for (; evIdx < eng.events.length; evIdx++) {
     const ev = eng.events[evIdx];
     if (ev.type.startsWith('surge')) {
       if (ev.t - lastBang > 0.08) { const w = ev.type.slice(6); view2d.surge(w); view3d && view3d.surge(w); audio.bang(w === 'fan' ? 1.3 : 1); lastBang = ev.t; }
       if (ev.t - lastSurgeLog > 1) { logMsg(EV[ev.type]); lastSurgeLog = ev.t; }
-    } else logMsg(EV[ev.type] || ev.type);
+    } else {
+      logMsg(EV[ev.type] || ev.type);
+      if (FAIL[ev.type]) {
+        const big = /burst|release|failure|burn-through/.test(ev.type);
+        if (big) { audio.bang(/burst/.test(ev.type) ? 2 : 1.4); view3d && view3d.surge(/lp|fan/.test(ev.type) ? 'fan' : 'hpc'); view2d.surge('hpc'); }
+        if (/release|melting|burst|failure/.test(ev.type)) sparkK = 1;
+      }
+    }
   }
   if (eng.events.length > 2000) { eng.events.length = 0; evIdx = 0; fadec._evIdx = 0; }
   const o = eng.out, egt = o.egt - 273.15, red = RATINGS[fadec.rating].egtTO;
   peaks.egt = Math.max(peaks.egt, egt); peaks.n1 = Math.max(peaks.n1, o.N1pct); peaks.n2 = Math.max(peaks.n2, o.N2pct);
   // over-temperature burns turbine life: HPT efficiency is permanently lost
   if (egt > red) {
-    if (overTemp === 0) logMsg('EGT OVER LIMIT - turbine damage accumulating');
+    if (overTemp === 0) logMsg('EGT OVER LIMIT - turbine life being used up');
     overTemp += dt;
-    m.effHpt = Math.max(m.effHpt - 0.00004 * (egt - red) * dt, -0.15);
   } else overTemp = 0;
+  // failure visuals follow the damage state
+  const dm = eng.damage.d, losing = dm.hptLost + dm.lptLost > lostPrev + 1e-5; lostPrev = dm.hptLost + dm.lptLost;
+  sparkK = Math.max(losing && o.N2pct > 5 ? 0.8 : 0, sparkK - dt * 0.35);
+  if (view3d) Object.assign(view3d.fail, { sparks: sparkK, fire: dm.fire, smoke: Math.max(dm.fire, o.W9 > 3 ? Math.min(1, 2 * (dm.hptLost + dm.lptLost) + (o.torch > 0.01 ? 0.5 : 0)) : 0) });
 }
 
 // ------------------------------------------------------------ stations page
@@ -299,7 +323,8 @@ function dataHtml(o, w) {
     ['HPT / LPT expansion ratio', `${o.hptPR.toFixed(2)} / ${o.lptPR.toFixed(2)}`],
     ['Power: fan, LPC, HPC', `${MW(o.pwrFan)}, ${MW(o.pwrLpc)}, ${MW(o.pwrHpc)}`], ['Power: HPT, LPT', `${MW(o.pwrHpt)}, ${MW(o.pwrLpt)}`],
     ['Jet velocity', `${o.V9.toFixed(0)} m/s · Mach ${o.M9.toFixed(2)}`], ['Mixing plane static pressure', `${B(o.Pm)} bar`],
-    ['Turbine metal', `${C(o.Tm)} °C`], ['N1 / N2', `${o.N1.toFixed(0)} / ${o.N2.toFixed(0)} rpm`],
+    ['Turbine metal', `${C(o.Tm)} °C`], ['HPT / LPT blade metal', `${C(o.TbH)} / ${C(o.TbL)} °C`], ['Vibration N1 / N2', `${o.vib1.toFixed(1)} / ${o.vib2.toFixed(1)} units`],
+    ['Creep life used HPT / LPT', `${(100 * eng.damage.d.hptCreep).toFixed(1)} / ${(100 * eng.damage.d.lptCreep).toFixed(1)} %`], ['Blading lost HPT / LPT', `${(100 * eng.damage.d.hptLost).toFixed(0)} / ${(100 * eng.damage.d.lptLost).toFixed(0)} %`], ['N1 / N2', `${o.N1.toFixed(0)} / ${o.N2.toFixed(0)} rpm`],
     ['Bleeds 2.5 / stg 7 / stg 10', `${o.Wb25.toFixed(1)} / ${o.Wb7.toFixed(1)} / ${o.Wb10.toFixed(1)} kg/s`], ['Turbine cooling air', `${o.Wcool.toFixed(1)} kg/s`],
     ['Intake Mach / velocity', `${w.M.toFixed(2)} / ${w.V.toFixed(0)} m/s`], ['Intake static temp / dew point', `${(w.Ts - 273.15).toFixed(1)} / ${(w.Td - 273.15).toFixed(1)} °C`],
     ['Intake fog / ground vortex', `${(w.fog * 100).toFixed(0)} % / ${(w.vortex * 100).toFixed(0)} %`],
@@ -313,6 +338,14 @@ function statusHtml(o) {
   if (o.hpc.stalled || o.lpc.stalled || o.fan.stalled) add('Compressor stall', 'bad');
   if (egt > RATINGS[fadec.rating].egtTO) add('EGT over limit', 'bad');
   if (o.N1pct > 100 || o.N2pct > 100) add('Overspeed', 'bad');
+  const dm = eng.damage.d;
+  if (o.fire) add('ENGINE FIRE', 'bad');
+  if (dm.burst) add('Rotor burst - engine destroyed', 'bad'); else if (dm.hptLost > 0.01 || dm.lptLost > 0.01) add(`Turbine damage ${(100 * Math.max(dm.hptLost, dm.lptLost)).toFixed(0)} %`, 'bad');
+  else if (dm.hptCreep > 0.2 || dm.lptCreep > 0.2) add(`Turbine creep life ${(100 * Math.max(dm.hptCreep, dm.lptCreep)).toFixed(0)} % used`, 'warn');
+  if (dm.hpc > 0.3) add('Compressor blade damage', 'bad');
+  if (o.torch > 0.004) add('Torching - fuel burning in the turbine', 'bad');
+  if (o.vib1 > 4 || o.vib2 > 4) add(`High vibration N1 ${o.vib1.toFixed(1)} / N2 ${o.vib2.toFixed(1)}`, o.vib1 > 6 || o.vib2 > 6 ? 'bad' : 'warn');
+  if (dm.bow > 0.25 && o.N2pct < 20) add(`Rotor bow ${(dm.bow * 100).toFixed(0)} % - motor before starting`, 'warn');
   if (fadec.msg) add(fadec.msg[0] + fadec.msg.slice(1).toLowerCase(), /ABORT|STALL|FLAME|HUNG/.test(fadec.msg) ? 'warn' : 'ok');
   add(o.lit ? 'Flame on' : 'No flame', o.lit ? 'ok' : '');
   if (o.ignOn) add('Igniters sparking', 'ok');
@@ -370,3 +403,4 @@ setMode(mode);
 logMsg('Cold and dark. Set ENG MASTER to ON for an automatic start.');
 if (view3d) { try { const gl = view3d.renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); logMsg(`Graphics: ${ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unknown'}`); } catch (e) { /* ignore */ } }
 requestAnimationFrame(tick);
+window.__sim = { eng, fadec }; // for the console and automated checks

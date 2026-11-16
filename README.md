@@ -130,7 +130,17 @@ Switching Master off always shuts the fuel, manual or not. **Reset cold** switch
 Things to try: introducing fuel too early for a
 hot start, slamming manual fuel at idle (HPC surge), opening the stators at low speed, closing the 2.5
 bleed during a decel, starving the starter of air, a hot-and-high take-off, fouling the HPC.
-Running above the EGT red line permanently costs HPT efficiency.
+### Breaking it
+
+The engine fails the way a real one would (details in [docs/PHYSICS.md](docs/PHYSICS.md)):
+
+- **Overheat the turbine** and the blades creep, let go and finally melt: sparks and smoke from the tailpipe, vibration, no thrust.
+- **Overspeed it** with the protections off (Panel → Control) and a rotor bursts. That engine is finished.
+- **Fuel a stalled compressor** and the combustor burns through: engine fire. Shut the fuel off, then press **Agent**.
+- **Cut the fuel at take-off power** and the casings shrink onto the hot rotors (tip rub). Let it idle three minutes first.
+- **Restart it ten minutes after a hot shut-down** and the bowed rotor rubs. Crank it dry for a minute first.
+
+Reset repairs everything.
 
 ## Layout
 
