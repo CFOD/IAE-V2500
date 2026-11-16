@@ -45,7 +45,7 @@ Status: [x] reflected in the model, [ ] still to do.
 - [x] A strake sits high on the cowl side.
 - [x] Panel lines: inlet cowl / fan cowl / reverser / nozzle gaps and the bottom latch line (Blender build).
 - [x] Latches along the bottom line.
-- [ ] Hinge line at the top.
+- [x] Hinge fairings along the top, each side of the pylon.
 - [x] Pressure-relief door and oil-service door outlines on the fan cowl; red hazard stripe and lettered placards.
 - [x] Drain mast underneath; pylon fairing. (No wing to blend into.)
 - [ ] Overall nacelle is long and nearly cylindrical, slightly drooped at the inlet.
@@ -54,7 +54,7 @@ Status: [x] reflected in the model, [ ] still to do.
 - [x] Fixed torque box, translating sleeve, cascade ring, ten blocker doors hinged in the sleeve's inner wall.
 - [x] Sleeve travel and door swing are driven by the simulation's reverser state.
 - [ ] Check proportions, cascade count and door linkage against a reverser-deployed photo.
-- [ ] Drag links from the doors to the core cowl; actuators.
+- [x] Four hydraulic actuators in the cascade bay. [ ] Drag links from the doors to the core cowl.
 
 ## Still generated, not yet rebuilt
 - [x] Rotors are stacked discs (rim, web, bore) and are sectioned in the lower part of the cutaway.
@@ -70,3 +70,9 @@ paints cut faces red-orange (another common museum convention). Either is defens
 Wikimedia Commons has about 70 V2500 photos (Category:IAE V2500), including a thrust-reverser-deployed
 shot, on-wing close-ups and the museum cutaway. Its image server rate-limited the build environment,
 so they have not been used yet.
+
+## Added without a specific photo reference (typical arrangement)
+- Fan case dressed all round: flange bolts, looms and clips, anti-ice duct and valve, ignition exciters, air-cooled oil cooler, relay boxes, forward mount yoke and links.
+- EEC with cooling fins, feet, connectors and looms; gearbox mount links, oil lines, alternator, de-oiler.
+- Pylon: leading-edge fairing, box, aft fairing, panel lines and access panels. Sectioned with the cutaway.
+- Upper core: stage 7 and stage 10 bleed ducts and valves, fuel feed, harness trunk.

@@ -314,9 +314,70 @@ def build():
     # stiffening ribs and mounting pads on the gearbox casting
     for th0 in (158, 168, 178, 188, 198):
         acc.append(arc_solid('rib', [[0.38, 0.985], [0.38, 0.997], [0.74, 1.004], [0.74, 0.992]], th0, th0 + 1.2, cast, steps=2))
+    acc += [
+        # permanent magnet alternator, de-oiler, oil lines up to the tank, gearbox mount links to the fan case
+        stack('pma', 0.36, 186, R + 0.012, [(0.01, 0.036, 0.036), (0.05, 0.03, 0.03), (0.02, 0.022, 0.018)], dark, -1),
+        stack('deoiler', 0.78, 160, R - 0.01, [(0.01, 0.04, 0.04), (0.06, 0.034, 0.034), (0.03, 0.02, 0.014)], cast),
+        tube('oil', [(0.42, 179, 1.0), (0.44, 168, 1.01), (0.5, 152, 0.99), (0.52, 143, 0.975)], 0.012, steel),
+        tube('oil', [(0.7, 183, 1.0), (0.66, 170, 1.012), (0.6, 154, 0.995), (0.56, 143, 0.98)], 0.010, gold),
+        tube('drain', [(0.6, 180, 1.0), (0.7, 180, 1.03), (0.86, 180, 1.03)], 0.006, steel),
+    ]
+    for th in (154, 206):
+        acc.append(cylinder('gblink', th_pos(0.57, th, 0.88), th_pos(0.57, th + (4 if th < 180 else -4), 0.96), 0.014, 0.014, steel, seg=10))
+        acc.append(box('gblug', th_pos(0.57, th, 0.885), (0.06, 0.05, 0.03), th, cast))
+    for x, th in [(0.44, 160), (0.44, 172), (0.44, 190), (0.44, 200), (0.7, 162), (0.7, 176), (0.7, 190), (0.7, 202)]:
+        acc.append(cylinder('pad', th_pos(x, th, 0.985), th_pos(x, th, 1.004), 0.022, 0.022, cast, seg=12))
     made.append(finish(join('agb_gearbox', [gb] + acc), 0.003))
-    # ---- EEC: flat box on the upper side of the fan case
-    made.append(finish(box('eec_box', th_pos(0.5, 305, 0.92), (0.42, 0.3, 0.085), 305, dark), 0.006))
+    # ---- EEC: flat finned box on the upper side of the fan case, on four feet, with its connectors and looms
+    eec = [box('eec', th_pos(0.5, 305, 0.905), (0.42, 0.3, 0.075), 305, dark)]
+    eec += [box('fin', th_pos(0.31 + 0.038 * k, 305, 0.947), (0.012, 0.28, 0.012), 305, dark) for k in range(11)]
+    eec += [box('foot', th_pos(x, 305 + dth, 0.87), (0.05, 0.04, 0.03), 305 + dth, steel) for x in (0.33, 0.67) for dth in (-7.5, 7.5)]
+    eec += [cylinder('conn', th_pos(0.72, 298 + 3.4 * k, 0.905), th_pos(0.76, 298 + 3.4 * k, 0.905), 0.016, 0.016, steel, seg=12) for k in range(5)]
+    eec += [tube('loom', [(0.76, 298 + 3.4 * k, 0.905), (0.82, 297 + 3.6 * k, 0.9), (0.9, 290 + 5 * k, 0.9), (1.05, 286 + 6 * k, 0.895), (1.17, 284 + 6 * k, 0.9)], 0.008, dark) for k in range(5)]
+    made.append(finish(join('eec_box', eec), 0.003))
+
+    # ---- fan case dressing all the way round. Items inside the cutaway sector are only shown with the cutaway closed.
+    full, kept = [], []
+    def put(th, obj):
+        (full if in_cut(th) else kept).append(obj); return obj
+    # flange bolts front and rear
+    for xr, n in ((-0.012, 72), (0.42, 60), (0.8, 60), (1.18, 72)):
+        rb = fc_in(xr) + 0.018 + 0.028
+        for k in range(n):
+            th = 360.0 * k / n + 1.3
+            put(th, cylinder('b', th_pos(xr - 0.011, th, rb), th_pos(xr + 0.011, th, rb), 0.0055, 0.0055, steel, seg=6))
+    # looms and small-bore pipes round the far side and over the top
+    for k in range(5):
+        for a0 in range(250, 472, 37):
+            mid = (a0 + 18) % 360
+            put(mid, tube('l', [(0.1 + 0.16 * k + 0.03 * math.sin(a / 17 + k), a % 360, R_CASE + 0.022 + 0.003 * (k % 3)) for a in range(a0, a0 + 38, 6)], 0.007 + 0.002 * (k % 2), dark if k % 2 else steel))
+    for k, th in enumerate(range(262, 462, 20)):
+        t = th % 360
+        put(t, tube('l', [(x, t + 2.5 * math.sin(x * 8 + k), R_CASE + 0.02) for x in (0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.15)], 0.007, steel if k % 2 else dark))
+        for x in (0.1, 0.5, 0.9): put(t, box('clip', th_pos(x, t + 2.5 * math.sin(x * 8 + k), R_CASE + 0.012), (0.02, 0.03, 0.02), t, steel))
+    # anti-ice duct: bleed air forward to the inlet lip, with its valve
+    put(332, tube('ai', [(1.19, 330, 0.955), (0.9, 331, 0.95), (0.5, 333, 0.948), (0.1, 334, 0.95), (-0.02, 334, 0.95)], 0.032, steel))
+    put(332, stack('aiv', 0.62, 332.5, 0.949, [(0.012, 0.045, 0.045), (0.09, 0.04, 0.04), (0.012, 0.045, 0.045)], cast))
+    put(332, box('aiact', th_pos(0.665, 332.5, 1.0), (0.07, 0.06, 0.05), 332.5, dark))
+    # ignition exciters, relay box, air-cooled oil cooler and the engine data plate
+    for th in (262, 276): put(th, box('exc', th_pos(0.78, th, 0.915), (0.2, 0.12, 0.07), th, dark))
+    for th in (262, 276): put(th, tube('ht', [(0.88, th, 0.915), (0.98, th - 3, 0.905), (1.1, th - 8, 0.9), (1.18, th - 12, 0.9)], 0.009, steel))
+    put(238, box('acoc', th_pos(0.98, 238, 0.93), (0.2, 0.2, 0.09), 238, cast))
+    for k in range(9): put(238, box('acocfin', th_pos(0.895 + 0.021 * k, 238, 0.98), (0.006, 0.19, 0.012), 238, steel))
+    put(238, tube('acocl', [(0.9, 232, 0.93), (0.75, 215, 0.95), (0.62, 200, 0.99)], 0.012, steel))
+    put(292, box('relay', th_pos(0.2, 292, 0.905), (0.16, 0.14, 0.05), 292, dark))
+    put(250, box('plate', th_pos(0.26, 250, 0.892), (0.12, 0.08, 0.004), 250, steel))
+    # inside the cutaway sector: hydraulic and fuel lines up to the pylon, T2/P2 probe wiring, a second relay box
+    for k, th in enumerate((8, 22, 36, 50, 66, 84, 100)):
+        put(th, tube('l', [(x, th + 2 * math.sin(x * 7 + k), R_CASE + 0.02) for x in (0.0, 0.25, 0.5, 0.75, 1.0, 1.15)], 0.008 + 0.003 * (k % 2), steel if k % 2 else dark))
+    put(40, box('box', th_pos(0.55, 40, 0.905), (0.22, 0.14, 0.05), 40, dark))
+    put(74, box('box', th_pos(0.3, 74, 0.905), (0.14, 0.12, 0.06), 74, cast))
+    put(60, stack('valve', 0.8, 60, 0.92, [(0.012, 0.04, 0.04), (0.1, 0.034, 0.034), (0.012, 0.04, 0.04)], steel))
+    # forward engine mount: yoke on the fan frame at the top, two links up to the pylon
+    put(0, box('mount', th_pos(1.12, 0, 0.93), (0.12, 0.3, 0.07), 0, cast))
+    for dth in (-9, 9): put(dth % 360, cylinder('link', th_pos(1.12, dth, 0.93), th_pos(1.12, dth * 0.45, 1.03), 0.022, 0.022, steel, seg=12))
+    made.append(finish(join('fancase_dressing', kept), 0))
+    made.append(finish(join('fancase_dressing2__full', full), 0))
     # ---- thrust reverser: fixed torque box, translating sleeve, cascades, blocker doors
     OML = smooth_nacelle; duct = lambda x: r_at(P['bypOuter'], x)
     def shell(name, loop, mat, split=True):
@@ -374,7 +435,33 @@ def build():
     made.append(finish(link(bpy.data.objects.new('fancowl_strake', me)), 0.002))
 
     # ---- pylon fairing
-    made.append(finish(loft('pylon_fairing', [(0.12, 0.03, 0.985, 1.03), (0.3, 0.11, 0.975, 1.12), (0.7, 0.16, 0.97, 1.3), (1.6, 0.175, 0.94, 1.42), (2.6, 0.16, 0.86, 1.42), (3.2, 0.11, 0.84, 1.36), (3.7, 0.045, 0.95, 1.28), (3.95, 0.012, 1.08, 1.22)], paint, n=20), 0))
+    # Narrow leading-edge fairing rising off the fan cowl, deep box under the wing, aft fairing tapering to a point.
+    pyl = loft('pylon_fairing', [(0.02, 0.012, 0.99, 1.0), (0.1, 0.05, 0.985, 1.05), (0.25, 0.09, 0.98, 1.13), (0.5, 0.125, 0.975, 1.24), (0.9, 0.15, 0.965, 1.36), (1.5, 0.16, 0.945, 1.46), (2.2, 0.16, 0.9, 1.5),
+                                 (2.9, 0.145, 0.86, 1.5), (3.4, 0.115, 0.86, 1.46), (3.8, 0.075, 0.93, 1.4), (4.15, 0.035, 1.05, 1.34), (4.4, 0.008, 1.18, 1.28)], paint, n=28)
+    pc = duplicate(pyl, 'pylon_fairing__cut'); boolean(pc, wedge); made.extend([finish(pyl, 0), finish(pc, 0)])
+    # pylon panel lines, access panels and the lower aft fairing in bare metal (far side, so they survive the cutaway)
+    from mathutils import Vector
+    pm = []
+    for x in (0.9, 1.5, 2.2, 2.9, 3.4): pm.append(box('pl', (x, 0.158 if x < 3 else 0.14, 1.2), (0.006, 0.004, 0.5), 0, material('panelline2', (0.12, 0.13, 0.14), 0.0, 0.6)))
+    for x, y in ((1.2, 1.25), (1.85, 1.3), (2.55, 1.3)): pm.append(box('pa', (x, 0.161, y), (0.3, 0.003, 0.16), 0, material('panel2', (0.8, 0.81, 0.82), 0.0, 0.45)))
+    made.append(join('pylon_panels__full', pm))
+    made.append(finish(loft('pylon_aftfairing__full', [(2.7, 0.1, 0.8, 0.9), (3.1, 0.105, 0.76, 0.9), (3.6, 0.08, 0.8, 0.95), (4.0, 0.04, 0.9, 1.06), (4.3, 0.01, 1.05, 1.16)], bare, n=20), 0))
+
+    # ---- cowl door hinges along the top, each side of the pylon; reverser actuators in the cascade bay
+    hk, hf = [], []
+    for x in (0.15, 0.45, 0.75, 1.05):
+        for th in (347, 13): (hf if in_cut(th) else hk).append(finish(loft('h', [(x - 0.07, 0.004, OML(x) - 0.004, OML(x) + 0.004), (x - 0.03, 0.02, OML(x) - 0.004, OML(x) + 0.016), (x + 0.03, 0.02, OML(x) - 0.004, OML(x) + 0.016), (x + 0.07, 0.004, OML(x) - 0.004, OML(x) + 0.004)], paint, n=12), 0))
+    from mathutils import Matrix as _M
+    for lst, th in ((hk, 347), (hf, 13)):
+        for o in lst: o.matrix_world = _M.Rotation(-math.radians(th), 4, 'X') @ o.matrix_world
+    made.append(join('fancowl_hinges', hk)); made.append(join('fancowl_hinges2__full', hf))
+    acts_k, acts_f = [], []
+    for th in (40, 140, 220, 320):
+        rm = (duct(1.9) + OML(1.9)) / 2
+        a = [cylinder('act', th_pos(1.6, th, rm), th_pos(2.02, th, rm), 0.024, 0.024, steel, seg=14), cylinder('actrod', th_pos(2.02, th, rm), th_pos(2.2, th, rm), 0.011, 0.011, steel, seg=10),
+             box('actlug', th_pos(1.6, th, rm), (0.05, 0.06, 0.05), th, cast), tube('acthose', [(1.62, th + 2, rm + 0.02), (1.5, th + 5, rm + 0.02), (1.3, th + 8, rm + 0.01)], 0.007, dark)]
+        (acts_f if in_cut(th) else acts_k).extend(a)
+    made.append(join('cna_actuators', acts_k)); made.append(join('cna_actuators2__full', acts_f))
 
     # ---- markings, panel lines and hardware (from the on-wing photos)
     line = material('panelline', (0.12, 0.13, 0.14), 0.0, 0.6)
