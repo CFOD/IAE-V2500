@@ -20,7 +20,7 @@ const active = { drawer: 'ctl', sd: 'maps' };
 const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 let paused = false, speed = 1, evIdx = 0, overTemp = 0, mode = view3d ? '3d' : '2d';
 eng.u.rh = 50; // relative humidity %, only used for the inlet condensation / vortex visuals
-window.sim = { eng, fadec, view3d }; // handy from the dev console (F12)
+window.sim = { eng, fadec, view3d }; window.simAudio = audio; // handy from the dev console (F12)
 
 const stamp = () => { const t = eng.s.t; return `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`; };
 function logMsg(m) { log.unshift(`<b>${stamp()}</b>${esc(m)}`); if (log.length > 200) log.pop(); }
@@ -145,7 +145,11 @@ $('btnQ').onclick = () => { qi = (qi + 1) % QUAL.length; view3d && view3d.setQua
 try { const saved = localStorage.getItem('v2500.quality'); if (saved && QUAL.includes(saved)) { qi = QUAL.indexOf(saved); view3d && view3d.setQuality(saved); } } catch (e) { /* ignore */ }
 qLabel();
 for (const b of $('speed').children) b.onclick = () => { speed = +b.dataset.v; for (const c of $('speed').children) c.classList.toggle('on', c === b); };
-$('btnSound').onclick = () => { if (audio.on) audio.stop(); else audio.start(); $('btnSound').classList.toggle('on', audio.on); };
+$('btnSound').onclick = () => { if (audio.on) audio.stop(); else audio.start(); $('btnSound').classList.toggle('on', audio.on); try { localStorage.setItem('v2500.sound', audio.on ? '1' : '0'); } catch (e) { /* ignore */ } };
+audio.onSamples = (sp) => logMsg(`Sound: playing recordings (${sp.name}: ${sp.layers.length} loops, ${Object.keys(sp.shots).length} events)${sp.missing.length ? `; missing files: ${sp.missing.join(', ')}` : ''}`);
+// sound is on unless it was switched off last time; browsers only allow it after the first click
+let wantSound = true; try { wantSound = localStorage.getItem('v2500.sound') !== '0'; } catch (e) { /* ignore */ }
+if (wantSound) { const go = () => { if (!audio.on) { audio.start(); $('btnSound').classList.add('on'); } }; try { go(); } catch (e) { /* needs a gesture */ } window.addEventListener('pointerdown', go, { once: true }); window.addEventListener('keydown', go, { once: true }); }
 function setMode(v) {
   mode = v === '3d' && view3d ? '3d' : '2d';
   $('stage3d').hidden = mode !== '3d'; $('cutaway').hidden = mode !== '2d';
@@ -278,7 +282,8 @@ function tick(now) {
   }
   const o = eng.out, vdt = paused ? 0 : real * Math.min(speed, 2), w = inletWeather(o);
   if (mode === '3d') view3d.update(o, vdt, w); else view2d.draw(o, vdt);
-  audio.update(o, real);
+  const ob = view3d && mode === '3d' ? view3d.orbit : null;
+  audio.update(o, real, ob ? { front: Math.min(1, Math.max(0, 0.5 - 0.6 * Math.sin(ob.az) * Math.cos(ob.el))), near: Math.min(1.4, Math.max(0.55, 8 / (ob.dist + 2))) } : { front: 0.5, near: 1 });
   drawEcam($('ecam'), o, fadec, peaks, RATINGS[fadec.rating].egtTO);
   if (frame++ % 3 === 0) {
     refreshRows();

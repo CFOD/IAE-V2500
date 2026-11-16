@@ -46,6 +46,11 @@ one) and run `Start V2500.bat` again.
 Useful keys: **F11** full screen, **Space** pause, **M** master switch, **C** cutaway, up/down arrows
 move the thrust lever.
 
+### Sound
+
+Out of the box the engine sound is synthesised. For real recordings, drop a flight-simulator V2500
+sound pack (or your own recordings) into `app/sounds/`: see [docs/SOUND.md](docs/SOUND.md).
+
 ### First five minutes
 
 1. Flip **Master** on (bottom left). Watch the engine start itself: starter, ignition, light-off, idle.
@@ -116,7 +121,9 @@ src/sim/      physics, no UI dependencies (runs under plain Node)
   engine.js     engine sizing + two-spool dynamic model
   fadec.js      engine control: start sequence, EPR governor, limiters, schedules
   v2500.js      published V2500-A5 data and model assumptions
-app/          renderer: scene3d.js (three.js 3D engine), cutaway.js (2D section), gauges, audio, UI
+app/          renderer: scene3d.js (three.js 3D engine), cutaway.js (2D section), gauges, UI,
+              audio.js (synthesiser) and samples.js (recording player)
+  sounds/       optional recordings (docs/SOUND.md)
   vendor/       three.js and add-ons (MIT)    fonts/  Inter, B612 Mono (SIL OFL)
   assets/       optional authored model (docs/MODEL.md)
 electron/     desktop window

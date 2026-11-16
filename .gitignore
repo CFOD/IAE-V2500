@@ -5,3 +5,7 @@ dist/
 # local-only authored models (see docs/MODEL.md) - never publish third-party assets
 app/assets/*
 !app/assets/.gitkeep
+
+# local-only sound recordings (see docs/SOUND.md) - never publish third-party audio
+app/sounds/*
+!app/sounds/.gitkeep
