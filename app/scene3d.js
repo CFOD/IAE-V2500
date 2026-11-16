@@ -368,7 +368,7 @@ export class Scene3D {
     // ---------------- fan
     // Spinner per reference photos: a long straight cone in two pieces. Dark nose cone with a
     // white tip and white crescent; light grey rear fairing with recessed bolt pockets.
-    const spinner = A({ id: 'spinner', name: 'Spinner', ex: -1.25, mat: { color: 0x2a2e33, metalness: 0.1, roughness: 0.45, clearcoat: 0.3, clearcoatRoughness: 0.5 }, desc: 'Two-piece nose cone on the fan disc. The white crescent makes a turning fan obvious to people on the ground.', live: (o) => `N1 ${o.N1.toFixed(0)} rpm` });
+    const spinner = A({ id: 'spinner', name: 'Spinner', ex: -1.25, mat: { color: 0x2a2e33, metalness: 0.1, roughness: 0.45, clearcoat: 0.3, clearcoatRoughness: 0.5 }, desc: 'Glass-fibre nose cone with a soft rubber tip that sheds ice, held to the front blade retaining ring by 18 bolts under a titanium fairing. The white spiral makes a turning fan obvious to people on the ground.', live: (o) => `N1 ${o.N1.toFixed(0)} rpm` });
     const sr = (x) => rAt(P.spinner, x);
     const white = new THREE.MeshStandardMaterial({ color: 0xf1f1ee, roughness: 0.55, side: THREE.DoubleSide });
     const fairing = new THREE.MeshPhysicalMaterial({ color: 0xa9aeb3, metalness: 0.35, roughness: 0.5, side: THREE.DoubleSide });
@@ -376,22 +376,29 @@ export class Scene3D {
     this._solid(spinner, [[-0.56, 0.0008], [-0.5, sr(-0.5)], [-0.5, 0]], { parent: this.g1, mat: white, seg: 48 });
     this._solid(spinner, [[-0.19, sr(-0.19) + 0.004], [0.02, sr(0.02) + 0.004], [0.02, 0.05], [-0.19, 0.05]], { parent: this.g1, mat: fairing });
     this._solid(spinner, [[-0.196, sr(-0.196) + 0.001], [-0.186, sr(-0.186) + 0.006], [-0.186, sr(-0.186) - 0.004]], { parent: this.g1, mat: fairing, seg: 96 });
-    // white crescent: a band on the cone whose width tapers smoothly to a point at each end
+    // white spiral band on the black cone (it makes a turning fan obvious from any angle)
     {
-      const N = 96, xc = -0.34, pos = [], idx = [];
+      const N = 140, pos = [], idx = [];
       for (let k = 0; k <= N; k++) {
-        const t = k / N, phi = 0.15 + t * 3.9, hw = 0.036 * Math.pow(Math.sin(Math.PI * t), 0.6) + 0.0005;
+        const t = k / N, phi = t * TAU * 1.2, xc = -0.47 + 0.25 * t, hw = (0.012 + 0.03 * t) * Math.min(1, Math.sin(Math.PI * t) * 6);
         for (const x of [xc - hw, xc + hw]) { const r = sr(x) + 0.0018; pos.push(x, r * Math.cos(phi), r * Math.sin(phi)); }
         if (k < N) idx.push(2 * k, 2 * k + 1, 2 * k + 2, 2 * k + 1, 2 * k + 3, 2 * k + 2);
       }
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
       this._reg(spinner, new THREE.Mesh(g, white), this.g1);
     }
-    const pocket = new THREE.SphereGeometry(0.02, 10, 8); pocket.scale(1.5, 0.45, 1);
-    this._ring(spinner, pocket, 11, (m, th) => { m.makeRotationX(th); m.multiply(new THREE.Matrix4().makeRotationZ(0.405)); m.setPosition(-0.08, (sr(-0.08) + 0.004) * Math.cos(th), (sr(-0.08) + 0.004) * Math.sin(th)); }, { parent: this.g1, mat: new THREE.MeshStandardMaterial({ color: 0x3a3e43, metalness: 0.6, roughness: 0.5 }) });
+    const pocket = new THREE.SphereGeometry(0.013, 10, 8); pocket.scale(1.5, 0.45, 1);
+    this._ring(spinner, pocket, 18, (m, th) => { m.makeRotationX(th); m.multiply(new THREE.Matrix4().makeRotationZ(0.405)); m.setPosition(-0.08, (sr(-0.08) + 0.004) * Math.cos(th), (sr(-0.08) + 0.004) * Math.sin(th)); }, { parent: this.g1, mat: new THREE.MeshStandardMaterial({ color: 0x3a3e43, metalness: 0.6, roughness: 0.5 }) });
     const fan = A({ id: 'fan', name: 'Fan — 22 wide-chord blades', ex: -1.0, mat: titanium, desc: 'Hollow titanium wide-chord blades, 1.6 m across. Produces most of the thrust by moving a large mass of bypass air.', live: (o) => `N1 ${o.N1pct.toFixed(1)} % · absorbs ${(o.pwrFan / 1e6).toFixed(1)} MW · efficiency ${(o.fan.eff * 100).toFixed(0)} %` });
     this._row(fan, ROWS[0], 22, this.g1, { chordK: 1.0, rootK: 0.8, tipK: 1.32, stagger: [0.22, 1.02], camber: [0.14, 0.02], thick: [0.085, 0.022], sweep: 0.035, sweepS: 0.012, nSpan: 16, nProf: 12 }, { mat: this._bladeMat(fan, T.fanBlade), whole: true });
     this._solid(fan, [[0.02, 0.05], [0.02, 0.247], [0.3, 0.27], [0.3, 0.05]], { parent: this.g1, mat: fairing }); // annulus fillers
+    // the hub between the blades is 22 separate annulus fillers: show the joints, following the blade root stagger, and a rubber seal strip along each blade root
+    { const seam = new THREE.BoxGeometry(0.27, 0.004, 0.004), seal = new THREE.BoxGeometry(0.25, 0.01, 0.012), dark = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.8 }), q = new THREE.Quaternion(), qs = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -0.22), ax = new THREE.Vector3(1, 0, 0), one = new THREE.Vector3(1, 1, 1), rh = 0.2595;
+      const at = (off) => (m, th) => { q.setFromAxisAngle(ax, th + off).multiply(qs); m.compose(new THREE.Vector3(0.16, rh * Math.cos(th + off), rh * Math.sin(th + off)), q, one); };
+      this._ring(fan, seam, 22, at(TAU / 44), { parent: this.g1, mat: dark }); this._ring(fan, seal, 22, at(0.012), { parent: this.g1, mat: dark }); }
+    // acoustic liner splices in the inlet barrel, and the grey ice-impact panel aft of the fan track
+    for (let k = 0; k < 6; k++) { const x = -0.6 + k * 0.1, r = rAt(P.inletInner, x) + 0.0125; this._ring(inlet, new THREE.BoxGeometry(0.1, 0.004, 0.035), 3, (m, th) => { m.makeRotationX(th); m.setPosition(x, r * Math.cos(th), r * Math.sin(th)); }, { phase: 1.05, mat: new THREE.MeshStandardMaterial({ color: 0x9a9fa4, metalness: 0.6, roughness: 0.5 }) }); }
+    this._solid(fanCase, band(offset(P.bypOuter, -0.001), offset(P.bypOuter, 0.003), 0.36, 0.52, 4), { mat: new THREE.MeshStandardMaterial({ color: 0x70767c, roughness: 0.85, side: THREE.DoubleSide }) });
     this._row(fanCase, ROWS[1], 60, this.engine, { stagger: [-0.3, -0.3], camber: [-0.1, -0.1], thick: [0.07, 0.07], chordK: 1.3, tipK: 1 }, { mat: new THREE.MeshPhysicalMaterial({ ...titanium, color: 0x8c949b }) });
 
     // ---------------- compressors and turbines
@@ -551,6 +558,16 @@ export class Scene3D {
       this.dragLinks = [mk(all.filter((t) => !inCut(t))), mk(all.filter((t) => inCut(t)))];
       this.dragLinks[1].userData.variant = 'full';
       for (const im of this.dragLinks) this._reg(this.byId.cna, im); }
+    // P4.9 pressure rakes in three exhaust-case struts, joined by a small-bore manifold
+    for (const th of [90, 180, 270]) { const rk = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 8), pipeGold); onCore(tec, rk, 3.03, th, 0.37); }
+    this._pipe(tec, Array.from({ length: 16 }, (_, i) => [3.0, co(3.0) + 0.07, 120 + i * 15]), 0.004, pipeGold);
+    // lower and upper bifurcations: the walls where the two C-ducts meet, splitting the bypass duct at 6 and 12 o'clock
+    { const bi = (th, full) => { const sh = new THREE.Shape(); const xs = [1.22, 1.32, 2.6, 2.86]; sh.moveTo(xs[0], rAt(P.bypInner, xs[0])); sh.lineTo(xs[1], rAt(P.bypOuter, xs[1]) - 0.004); sh.lineTo(xs[2], rAt(P.bypOuter, xs[2]) - 0.004); sh.lineTo(xs[3], rAt(P.bypInner, xs[3]) + 0.02); sh.lineTo(2.4, rAt(P.bypInner, 2.4)); sh.lineTo(1.6, rAt(P.bypInner, 1.6)); sh.lineTo(xs[0], rAt(P.bypInner, xs[0]));
+        const g = new THREE.ExtrudeGeometry(sh, { depth: 0.1, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 2 }); g.translate(0, 0, -0.05);
+        const m = new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ ...composite, side: THREE.DoubleSide })); m.rotation.x = th * DEG; m.userData.tag = 'liner'; const o2 = this._reg(cna, m); if (full) o2.userData.variant = 'full'; };
+      bi(180, false); bi(0, true); }
+    // fire detection: two sensing loops clipped side by side round the core, and the nacelle temperature sensor
+    for (const dx of [0, 0.012]) this._pipe(ext, Array.from({ length: 40 }, (_, i) => { const f = i / 39; return [1.45 + dx + 1.3 * f, co(1.45 + 1.3 * f) + 0.125, 122 + 226 * (0.5 - 0.5 * Math.cos(f * Math.PI * 3))]; }), 0.003, pipeGold);
     // ---- core units placed from the component-location manual
     { const unit = (part, geo, mat, x, th, dr) => onCore(part, new THREE.Mesh(geo, mat), x, th, co(x) + dr);
       // VSV actuator and its crank shaft (left), high-pressure bleed valve
@@ -654,7 +671,12 @@ export class Scene3D {
     this.fog = new Puffs(this.scene, 420, { origin: [-0.82, 0, 0], dir: [1, 0, 0], speed: 1.6, radius: 0.74, ring: 0.75, spread: -0.05, life: 0.55, size0: 0.22, size1: 0.6, turb: 0.05, drag: 0, swirl: 0.6,
       colA: [0.86, 0.9, 0.95], colB: [0.92, 0.95, 1.0], colC: [0.95, 0.97, 1.0], alpha: 0.2, lit: 0.25, soft: 0.8, seed: 3 });
     this.fogK = 0;
-    this.dust = puffs(140, 0.34, THREE.NormalBlending); this.dust.material.opacity = 0;
+    // dust and spray spun up where the ground vortex touches down
+    this.dust = new Puffs(this.scene, 160, { ground: true, origin: [-1.25, FLOOR_Y + 0.06, 0], dir: [0, 1, 0], speed: 0.2, radius: 0.34, ring: 0.6, spread: -0.14, swirl: 6, buoy: [0.12, 0.12, 0], life: 0.9, size0: 0.14, size1: 0.45, turb: 0.05, drag: 0.2,
+      colA: [0.62, 0.6, 0.56], colB: [0.7, 0.69, 0.66], colC: [0.78, 0.78, 0.77], alpha: 0.16, lit: 0.3, seed: 41 });
+    // exhaust: almost invisible in reality. A faint glow of hot gas close to the nozzle, the rest is heat shimmer.
+    this.jetGlow = new Puffs(this.scene, 200, { origin: [3.5, 0, 0], dir: [1, 0, 0], speed: 12, radius: 0.36, spread: 0.1, life: 0.45, size0: 0.5, size1: 1.5, turb: 0.08, drag: 0.4,
+      colA: [0.3, 0.22, 0.16], colB: [0.12, 0.11, 0.11], colC: [0.03, 0.03, 0.04], alpha: 0.07, soft: 1.1, additive: true, seed: 47, order: 4 });
     this.bang = puffs(160, 0.75, THREE.AdditiveBlending);
     // failure effects: glowing fragments and molten metal from the tailpipe, black smoke, fire round the core
     const S = this.scene;
@@ -979,11 +1001,8 @@ export class Scene3D {
     // opaque blob over the engine, so it fades out as the view lines up with the engine axis.
     const fwd = new THREE.Vector3(); this.camera.getWorldDirection(fwd);
     const endOn = clamp((Math.abs(fwd.x) - 0.7) / 0.25, 0, 1), pk = 1 - endOn * endOn * (3 - 2 * endOn);
-    setPl(this.plumeOuter, L, o.W9 > 5 ? (0.02 + 0.07 * thr) * (1 - 0.8 * (o.rev || 0)) * pk : 0, 0.6 + 2.5 * thr);
-    setPl(this.plumeMid, L * 0.9, o.W9 > 5 ? (0.02 + 0.09 * thr) * (0.4 + 0.6 * hotK) * pk : 0, 0.7 + 2.8 * thr);
-    setPl(this.plumeCore, L * 0.8, (0.08 + 0.26 * thr) * hotK * pk, 0.8 + 3 * thr);
-    setPl(this.plumeHot, L * 0.45, (0.14 + 0.3 * thr) * clamp((o.T5 - 560) / 300, 0, 1) * pk, 1 + 3 * thr);
-    this.plumeCore.material.uniforms.uC.value.setRGB(1.0, 0.35 + 0.35 * hotK, 0.12 + 0.2 * hotK);
+    for (const m of [this.plumeOuter, this.plumeMid, this.plumeCore, this.plumeHot]) m.visible = false; // the nested shells read as tubes; replaced by the glow below
+    this.jetGlow.u.uSpeed.value = 4 + 22 * thr; this.jetGlow.set(t, clamp(hotK * (0.25 + 0.75 * thr) * (o.W9 > 5 ? 1 : 0.3), 0, 1) * pk);
     const hz = this.haze.uniforms, a = new THREE.Vector3(3.3, 0, 0).project(this.camera), b = new THREE.Vector3(3.6 + L * 1.1, 0.25, 0).project(this.camera);
     const edge = new THREE.Vector3(3.3, 0.62, 0).project(this.camera);
     hz.uA.value.set(a.x * 0.5 + 0.5, a.y * 0.5 + 0.5); hz.uB.value.set(b.x * 0.5 + 0.5, b.y * 0.5 + 0.5);
@@ -1004,9 +1023,7 @@ export class Scene3D {
     const foot = [-1.25 + 0.14 * Math.sin(t * 0.7) + 0.05 * Math.sin(t * 2.3), 0.28 * Math.sin(t * 0.43)];
     this.vortexRopes.forEach((m, k) => { const u = m.material.uniforms; m.visible = vk > 0.01; u.uT.value = t % 1000; u.uK.value = vk * (k === 0 ? 0.3 + 0.4 * fogA : 0.1 + 0.15 * fogA); u.uFoot.value.set(foot[0], FLOOR_Y, foot[1]); });
     // dust and spray kicked up where the vortex touches the ground
-    this.dust.material.opacity += (vk * 0.22 - this.dust.material.opacity) * Math.min(1, dt * 2);
-    this.dust.visible = this.dust.material.opacity > 0.004;
-    if (this.dust.visible) fill(this.dust, 140, (i, pos, col, j) => { const f = (i / 140 + t * 0.35 + (i % 5) * 0.21) % 1, a = i * 2.399 + t * (2.5 - 1.8 * f), r = 0.08 + 0.5 * f; pos[j] = foot[0] + r * Math.cos(a); pos[j + 1] = FLOOR_Y + 0.03 + 0.22 * f * f; pos[j + 2] = foot[1] + r * Math.sin(a); const k = Math.sin(f * Math.PI) * 0.6; col[j] = k * 0.8; col[j + 1] = k * 0.78; col[j + 2] = k * 0.74; });
+    this.dust.u.uOrigin.value.set(foot[0], FLOOR_Y + 0.06, foot[1]); this.dust.set(t, vk);
 
     // ---- surge: flame out of the intake and tailpipe
     this.bang.visible = this.flash > 0.03;

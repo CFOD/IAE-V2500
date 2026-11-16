@@ -10,7 +10,7 @@ import * as THREE from './vendor/three.module.js';
 
 const VERT = `
   attribute vec4 aSeed;
-  uniform float uT, uLife, uSpeed, uSpread, uRadius, uRing, uSize0, uSize1, uTurb, uK, uDrag, uSwirl;
+  uniform float uT, uLife, uSpeed, uSpread, uRadius, uRing, uSize0, uSize1, uTurb, uK, uDrag, uSwirl, uGround;
   uniform vec3 uOrigin, uDir, uBuoy, uBox;
   varying vec2 vUv; varying float vAge; varying vec4 vSeed; varying float vOn;
   void main(){
@@ -19,7 +19,7 @@ const VERT = `
     float t = age * life;
     float ang = aSeed.z * 6.2831853 + uSwirl * t;
     float rad = uRadius * mix(sqrt(aSeed.w), 0.72 + 0.28 * aSeed.w, uRing);
-    vec3 radial = vec3(0.0, cos(ang), sin(ang));
+    vec3 radial = mix(vec3(0.0, cos(ang), sin(ang)), vec3(cos(ang), 0.0, sin(ang)), uGround); // emitter disc across the engine axis, or lying on the ground
     vec3 p = uOrigin + vec3((aSeed.x - 0.5) * uBox.x, (aSeed.y - 0.5) * uBox.y, (aSeed.w - 0.5) * uBox.z) + radial * rad;
     float tt = t * (1.0 - uDrag * age);                       // puffs slow down as they entrain air
     p += (uDir * uSpeed * (0.6 + 0.8 * aSeed.w) + radial * uSpread * (0.4 + aSeed.x)) * tt;
@@ -70,7 +70,7 @@ export class Puffs {
     g.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seed, 4)); g.instanceCount = n;
     const V3 = (a) => new THREE.Vector3(...a), u = {
       uT: { value: 0 }, uK: { value: 0 }, uLife: { value: o.life ?? 3 }, uSpeed: { value: o.speed ?? 1 }, uSpread: { value: o.spread ?? 0.1 }, uRadius: { value: o.radius ?? 0.2 }, uRing: { value: o.ring ?? 0 },
-      uSize0: { value: o.size0 ?? 0.3 }, uSize1: { value: o.size1 ?? 1.5 }, uTurb: { value: o.turb ?? 0.15 }, uDrag: { value: o.drag ?? 0.35 }, uSwirl: { value: o.swirl ?? 0 },
+      uSize0: { value: o.size0 ?? 0.3 }, uSize1: { value: o.size1 ?? 1.5 }, uTurb: { value: o.turb ?? 0.15 }, uDrag: { value: o.drag ?? 0.35 }, uSwirl: { value: o.swirl ?? 0 }, uGround: { value: o.ground ? 1 : 0 },
       uOrigin: { value: V3(o.origin || [0, 0, 0]) }, uDir: { value: V3(o.dir || [1, 0, 0]) }, uBuoy: { value: V3(o.buoy || [0, 0, 0]) }, uBox: { value: V3(o.box || [0, 0, 0]) },
       uColA: { value: V3(o.colA || [1, 1, 1]) }, uColB: { value: V3(o.colB || [1, 1, 1]) }, uColC: { value: V3(o.colC || [1, 1, 1]) },
       uAlpha: { value: o.alpha ?? 0.5 }, uLit: { value: o.lit ?? 0 }, uSoft: { value: o.soft ?? 1 }, uAdd: { value: o.additive ? 1 : 0 },

@@ -392,6 +392,17 @@ def build():
     put(0, box('mount', th_pos(1.12, 0, 0.93), (0.12, 0.3, 0.07), 0, cast))
     for dth in (-9, 9): put(dth % 360, cylinder('link', th_pos(1.12, dth, 0.93), th_pos(1.12, dth * 0.45, 1.03), 0.022, 0.022, steel, seg=12))
     put(4, box('p2t2', th_pos(-0.2, 4, r_at(P['inletInner'], -0.2) - 0.035), (0.06, 0.012, 0.07), 4, steel))
+    # fire detection loops round the gearbox (two elements side by side), per the booklet diagram
+    for d in (0.0, 0.012):
+        put(180, tube('fire', [(0.33 + d, 152, 1.0), (0.33 + d, 180, 1.012), (0.33 + d, 208, 1.0), (0.57, 211, 0.99), (0.81 - d, 208, 1.0), (0.81 - d, 180, 1.012), (0.81 - d, 152, 1.0), (0.57, 150, 0.995), (0.33 + d, 152, 1.0)], 0.0035, gold))
+    # hydraulic control unit for the reverser and the pylon disconnect panels at the top of the fan frame
+    put(352, box('hcu', th_pos(1.0, 352, 0.915), (0.2, 0.14, 0.07), 352, gold))
+    for k in range(3): put(352, stack('hcus', 0.93 + 0.06 * k, 349, 0.96, [(0.012, 0.016, 0.016), (0.04, 0.02, 0.02)], steel))
+    put(352, cylinder('hcuf', th_pos(1.12, 354, 0.93), th_pos(1.12, 354, 1.0), 0.028, 0.028, steel, seg=14))
+    for th0 in (346, 12):
+        put(th0, box('disc', th_pos(1.16, th0, 0.99), (0.012, 0.2, 0.09), th0, steel))
+        for k in range(5): put(th0, cylinder('dc', th_pos(1.12, th0 - 6 + 3 * k, 0.99), th_pos(1.2, th0 - 6 + 3 * k, 0.99), 0.012, 0.012, gold, seg=10))
+        for k in range(5): put(th0, tube('dh', [(1.12, th0 - 6 + 3 * k, 0.99), (1.02, th0 - 8 + 4 * k, 0.96), (0.9, th0 - 14 + 6 * k, 0.9), (0.7, th0 - 16 + 7 * k, 0.895)], 0.007, loom if k % 2 else steel))
     made.append(finish(join('fancase_dressing', kept), 0))
     made.append(finish(join('fancase_dressing2__full', full), 0))
     # ---- thrust reverser: fixed torque box, translating sleeve, cascades, blocker doors
@@ -502,7 +513,7 @@ def build():
     # latches along the bottom centreline, and the drain mast
     lat = [box('latch', th_pos(x, 180, OML(x) + 0.001), (0.09, 0.032, 0.007), 180, bare) for x in (0.2, 0.6, 1.0)]
     made.append(join('fancowl_latches', lat))
-    made.append(join('cna_latches', [box('latch', th_pos(x, 180, OML(x) + 0.001), (0.09, 0.032, 0.007), 180, bare) for x in (1.45, 2.0, 2.5)]))
+    made.append(join('cna_latches', [box('latch', th_pos(x, 180, OML(x) + 0.001), (0.09, 0.032, 0.007), 180, bare) for x in (1.28, 1.6, 1.85, 2.1, 2.5, 2.62)]))
     made.append(finish(loft('fancowl_drainmast', [(0.84, 0.004, -1.06, -1.03), (0.9, 0.012, -1.16, -1.0), (0.98, 0.012, -1.17, -1.0), (1.06, 0.004, -1.12, -1.0)], bare, n=12), 0))
 
     for helper in (wedge, latch): bpy.data.objects.remove(helper, do_unlink=True)
