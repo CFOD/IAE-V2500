@@ -72,6 +72,20 @@ rates are engineering estimates, not IAE data.
 
 Vibration is shown in cockpit units (advisory at 5). Reset, or "Restore new-engine condition", repairs everything.
 
+## Oil system (`src/sim/oil.js`)
+
+One 25-quart tank feeds a gear pump on the gearbox; the oil is cooled by fan air (air-cooled oil
+cooler, modulated) and then by fuel (fuel-cooled oil cooler), and scavenged back to the tank.
+
+- **Pressure** follows N2 and oil viscosity: high on a cold start, about 150 psi at idle, 240-270 at take-off. The low-pressure warning is at 60 psi.
+- **Quantity** drops by about 4.5 quarts as the engine runs up (oil in circulation) and comes back after shut-down. Normal consumption is about 0.3 qt/h.
+- **Temperature** is a balance of bearing, gearbox and hot-core heat against the two coolers. At idle little fuel flows, so the air cooler does most of the work; with its valve stuck shut the oil overheats at idle but not at take-off.
+- **Bearings**: with pressure lost they last about a minute at take-off power and a few minutes at idle. Metal appears on the chip detector, vibration and drag rise, then the HP rotor seizes. Overheated oil (above 165 °C) and oil coked by a hot shut-down do the same more slowly.
+- Faults: external leak, pump drive failure, No. 4 bearing seal failure (oil lost into the gas path, smoke from the exhaust), cooler valve stuck shut, clogged filter.
+
+The tank size, the 60 psi switch and the 12 psi filter switch are from the SR Technics booklet. Flows,
+heat loads, the 155 / 165 °C temperature limits and the failure times are estimates.
+
 ## Component maps
 
 The compressor and turbine characteristics are the reference maps published with NASA's T-MATS
@@ -179,5 +193,5 @@ which suggests the real figure may be somewhat higher.
   max-continuous / climb use the published thrusts, but the real altitude-Mach-temperature EPR tables
   and the bleed / stator schedule break-points are proprietary; the ones here are tuned to this model.
 - Start time (about 35 s to idle) and peak start EGT are not checked against a published figure.
-- No Reynolds-number effects, active clearance control, oil or fuel system (so no oil starvation or bearing failures), humidity or icing; one lumped heat-soak mass.
+- No Reynolds-number effects, active clearance control, fuel system components, humidity or icing; one lumped heat-soak mass.
 - Ambient changes are a test-cell step, not a flight model.

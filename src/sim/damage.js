@@ -27,6 +27,7 @@ export class Damage {
     };
     this.eng.wear = defaultWear();
     this._lit = false; this._ev = 0;
+    if (this.eng.oil) this.eng.oil.reset();
     Object.assign(this.eng.out, { vib1: 0.2, vib2: 0.2, fire: 0, TbH: 288, TbL: 288, torch: 0 });
   }
 
@@ -99,14 +100,18 @@ export class Damage {
     w.effFan = -0.3 * d.fan; w.flowFan = 1 - 0.3 * d.fan;
     w.drag2 = 60 * d.rub + 500 * H + 300 * (d.hpc >= 1 ? 1 : 0) + 250 * d.bowRub * bell(o.N2pct, 45, 25) + (d.burst === 'hp' ? 6000 : 0);
     w.drag1 = 900 * L + (d.burst === 'lp' ? 20000 : 0);
-    w.dead = !!d.burst || H >= 0.98;
+    // main bearing distress from the oil system: rising drag and vibration, then seizure
+    const B = e.oil ? e.oil.s.brg : 0, seizedBrg = e.oil && e.oil.s.failed;
+    w.drag2 += 500 * B * B + (seizedBrg ? 9000 : 0);
+    if (seizedBrg && o.N2pct < 3) w.seized2 = true;
+    w.dead = !!d.burst || H >= 0.98 || !!seizedBrg;
     if ((H > 0.9 || d.burst === 'hp') && o.N2pct < 3) w.seized2 = true;
     if ((L > 0.9 || d.burst === 'lp') && o.N1pct < 3) w.seized1 = true;
     // fuel still arriving in a wrecked or burnt-through core burns outside it
     if ((w.dead || d.liner >= 1) && s.wf > 0.01) d.fire = 1;
 
     // ---- vibration, in the cockpit's units (advisory at 5)
-    const v2 = 0.2 + 0.5 * n2 + 28 * H * n2 + 6 * (d.hpc >= 1 ? 1 : d.hpc * 0.3) * n2 + 9 * d.bow * bell(o.N2pct, 45, 25) + 3 * d.rub * n2 + (o.hpc && o.hpc.stalled ? 3 : 0);
+    const v2 = 0.2 + 0.5 * n2 + 9 * B * n2 + 28 * H * n2 + 6 * (d.hpc >= 1 ? 1 : d.hpc * 0.3) * n2 + 9 * d.bow * bell(o.N2pct, 45, 25) + 3 * d.rub * n2 + (o.hpc && o.hpc.stalled ? 3 : 0);
     const v1 = 0.2 + 0.4 * n1 + 24 * L * n1 + 30 * d.fan * n1 + (o.fan && o.fan.stalled ? 3 : 0);
     d.vib2 += (clamp(v2, 0, 10) - d.vib2) * Math.min(1, dt / 0.4); d.vib1 += (clamp(v1, 0, 10) - d.vib1) * Math.min(1, dt / 0.4);
     o.vib1 = d.vib1; o.vib2 = d.vib2; o.fire = d.fire; o.TbH = d.TbH; o.TbL = d.TbL;

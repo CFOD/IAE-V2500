@@ -14,6 +14,7 @@ import MAPS from './maps/jt9d.js';
 import { makeCompressorMap, makeTableCompressor, makeTurbineTable, compressor, qFlow, turbineFlow, turbineExpand, nozzle, orifice } from './components.js';
 import { DESIGN, LIMITS } from './v2500.js';
 import { Damage, defaultWear } from './damage.js';
+import { Oil } from './oil.js';
 
 const RPM2RAD = 0.104719755;
 const T_REF = 298.15;
@@ -188,6 +189,7 @@ export class Engine {
     this.events = []; // {t, type}
     this.subDt = 0.0005;
     this.initCold();
+    this.oil = new Oil(this);
     this.damage = new Damage(this);
   }
 
@@ -243,6 +245,7 @@ export class Engine {
     if (w.seized2) this.s.N2 = 0;
     if (w.seized1) this.s.N1 = 0;
     if (this.out.W45 < 0.5) this.s.Tm -= (this.s.Tm - (this.out.T0 = this.ambient().T0)) * Math.min(1, dt / 2400); // standing engine cools to ambient over an hour or so
+    if (this.oil) this.oil.update(dt);
     if (this.damage) this.damage.update(dt);
   }
 

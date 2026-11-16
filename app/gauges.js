@@ -31,7 +31,7 @@ function gauge(ctx, cx, cy, rad, o) {
 export function drawEcam(cv, o, f, peaks, egtRed = 635) {
   const [ctx, w, h] = fit(cv);
   const egt = o.egt - 273.15;
-  const tiles = w > 780 ? 3 : w > 560 ? 2 : w > 440 ? 1 : 0, tw = tiles ? 118 : 0;
+  const tiles = w > 900 ? 4 : w > 780 ? 3 : w > 560 ? 2 : w > 440 ? 1 : 0, tw = tiles ? 118 : 0;
   const gw = (w - tiles * tw - 18) / 4, rad = Math.max(8, Math.min(gw / 2 - 9, h / 2 - 13)), cy = h / 2 - 7;
   if (w < 120) return;
   const x = (i) => 18 + gw * (i + 0.5);
@@ -39,12 +39,12 @@ export function drawEcam(cv, o, f, peaks, egtRed = 635) {
   gauge(ctx, x(1), cy, rad, { min: 0, max: 800, value: egt, amber: 610, red: egtRed, label: 'EGT °C', text: egt.toFixed(0) });
   gauge(ctx, x(2), cy, rad, { min: 0, max: 110, value: o.N1pct, red: 100, label: 'N1 %', text: o.N1pct.toFixed(1) });
   gauge(ctx, x(3), cy, rad, { min: 0, max: 110, value: o.N2pct, red: 100, label: 'N2 %', text: o.N2pct.toFixed(1) });
-  const data = [['Thrust', (o.thrust / 1000).toFixed(1), 'kN', `${(o.thrust / 4.4482216).toFixed(0)} lbf`], ['Fuel flow', (o.wf * 3600).toFixed(0), 'kg/h', `${o.fuelUsed.toFixed(1)} kg used`], ['TSFC', o.sfc > 0 ? o.sfc.toFixed(3) : '—', '', 'lb/lbf·h']];
+  const data = [['Thrust', (o.thrust / 1000).toFixed(1), 'kN', `${(o.thrust / 4.4482216).toFixed(0)} lbf`], ['Fuel flow', (o.wf * 3600).toFixed(0), 'kg/h', `${o.fuelUsed.toFixed(1)} kg used`], ['Oil', (o.oilP || 0).toFixed(0), 'psi', `${(o.oilT || 0).toFixed(0)} °C · ${(o.oilQ || 0).toFixed(1)} qt`], ['TSFC', o.sfc > 0 ? o.sfc.toFixed(3) : '—', '', 'lb/lbf·h']];
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   for (let i = 0; i < tiles; i++) {
     const [label, val, unit, sub] = data[i], tx = w - (tiles - i) * tw + 6;
     ctx.fillStyle = INK3; ctx.font = F(540, 11); ctx.fillText(label, tx, h / 2 - 24);
-    ctx.fillStyle = INK; ctx.font = F(620, 22); ctx.fillText(val, tx, h / 2 + 4);
+    ctx.fillStyle = label === 'Oil' && o.oilLowP ? '#ff5a4d' : INK; ctx.font = F(620, 22); ctx.fillText(val, tx, h / 2 + 4);
     const vw = ctx.measureText(val).width; ctx.fillStyle = INK2; ctx.font = F(520, 11); ctx.fillText(unit, tx + vw + 4, h / 2 + 4);
     ctx.fillStyle = INK3; ctx.fillText(sub, tx, h / 2 + 22);
   }

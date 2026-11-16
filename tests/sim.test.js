@@ -217,3 +217,23 @@ test('bowed rotor: a hot engine restarted after ten minutes rubs unless it is mo
   const b = hot(); b.f.manStart = true; run(b.e, b.f, 90); b.f.manStart = false; b.f.master = true; run(b.e, b.f, 60);
   assert.ok(!has(b.e, 'bowed-rotor-rub') && b.e.out.lit);
 });
+
+test('oil system: normal pressures and temperatures; an oil leak ends in a seized bearing', () => {
+  const { e, f } = rig(); f.master = true;
+  run(e, f, 20); assert.ok(e.out.oilP > 100, `cold oil reads high on start: ${e.out.oilP}`);
+  run(e, f, 580);
+  assert.ok(e.out.oilP > 110 && e.out.oilP < 220 && e.out.oilT > 55 && e.out.oilT < 105 && !e.out.oilLowP, `idle ${e.out.oilP} psi ${e.out.oilT} C`);
+  assert.ok(e.out.oilQ > 18 && e.out.oilQ < 22, `tank level with oil in circulation: ${e.out.oilQ}`);
+  f.tla = 1; run(e, f, 240);
+  assert.ok(e.out.oilP > 200 && e.out.oilP < 320 && e.out.oilT < 140 && e.oil.s.brg === 0, `take-off ${e.out.oilP} psi ${e.out.oilT} C`);
+  e.oil.faults.leak = 6; run(e, f, 300);
+  assert.ok(has(e, 'chip-detector') && has(e, 'bearing-failure'), 'bearing failed after the oil ran out');
+  assert.ok(e.out.N2pct < 1 && !e.out.lit && e.wear.dead);
+});
+
+test('oil system: cooler air valve stuck shut overheats the oil at idle, not at take-off', () => {
+  const { e, f } = idling(); e.oil.faults.acocStuck = true; f.tla = 1; run(e, f, 400);
+  const hot = e.out.oilT; assert.ok(hot < 150, `take-off: fuel cooling is enough (${hot})`);
+  f.tla = 0; run(e, f, 2400); // the oil and its metalwork take many minutes to heat up
+  assert.ok(e.out.oilT > 150, `idle: oil overheats (${e.out.oilT})`);
+});

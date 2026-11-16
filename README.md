@@ -140,6 +140,8 @@ The engine fails the way a real one would (details in [docs/PHYSICS.md](docs/PHY
 - **Cut the fuel at take-off power** and the casings shrink onto the hot rotors (tip rub). Let it idle three minutes first.
 - **Restart it ten minutes after a hot shut-down** and the bowed rotor rubs. Crank it dry for a minute first.
 
+- **Lose the oil** (Panel → Faults: leak, pump failure, seal failure) and the pressure goes, metal shows on the chip detector, and a main bearing seizes. Shut down when OIL LO PR comes on and it survives.
+
 Reset repairs everything.
 
 ## Layout

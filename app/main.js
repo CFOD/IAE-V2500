@@ -150,6 +150,11 @@ const FAULTS = [
   { id: 'b25', name: '2.5 bleed stuck closed', desc: 'The booster bleed ring cannot open. Risk of LP compressor surge at low power and on decelerations.', on: () => { ov.bleed25 = 0; }, off: () => { ov.bleed25 = null; } },
   { id: 'startv', name: 'Start valve stuck open', desc: 'The starter stays engaged above its cut-out speed.', on: () => { ov.starter = true; }, off: () => { ov.starter = null; } },
   { id: 'epr', name: 'EPR sensing lost', desc: 'P4.9 / P2 signal fails. The FADEC reverts to rated-N1 mode.', on: () => { fadec.n1Mode = true; }, off: () => { fadec.n1Mode = false; } },
+  { id: 'oilleak', name: 'Oil leak', desc: 'A pipe union lets go: about 3 quarts a minute overboard. Watch the quantity fall, then the pressure.', on: () => { eng.oil.faults.leak = 3; }, off: () => { eng.oil.faults.leak = 0; } },
+  { id: 'oilpump', name: 'Oil pump drive failure', desc: 'Pressure drops to zero at once. The bearings last about a minute at take-off power, a few minutes at idle.', on: () => { eng.oil.faults.pumpFail = true; }, off: () => { eng.oil.faults.pumpFail = false; } },
+  { id: 'seal4', name: 'No. 4 bearing seal failure', desc: 'Oil is lost into the gas path: quantity falls steadily and smoke trails from the exhaust.', on: () => { eng.oil.faults.seal4 = true; }, off: () => { eng.oil.faults.seal4 = false; } },
+  { id: 'acoc', name: 'Oil cooler air valve stuck shut', desc: 'Only the fuel is left to cool the oil. Fine at high power; at idle, with little fuel flowing, the oil overheats.', on: () => { eng.oil.faults.acocStuck = true; }, off: () => { eng.oil.faults.acocStuck = false; } },
+  { id: 'oilfilter', name: 'Oil filter clogged', desc: 'Scavenge filter differential pressure rises past the 12 psi switch and the filter bypasses.', on: () => { eng.oil.faults.filterClog = true; }, off: () => { eng.oil.faults.filterClog = false; } },
   { id: 'flame', name: 'Flame-out', desc: 'Blow the flame out now (momentary). With protections on the FADEC relights it.', once: () => { eng.s.lit = false; eng.events.push({ t: eng.s.t, type: 'flameout-lean' }); } },
 ];
 const applyMods = (mods, undo) => { for (const [k, v] of Object.entries(mods)) { if (k.startsWith('eff')) m[k] += undo ? -v : v; else m[k] = undo ? m[k] / v : m[k] * v; } };
@@ -278,6 +283,8 @@ const FAIL = {
   'hpc-blade-damage': 'HP compressor blades damaged by repeated surging',
   'hpc-blade-failure': 'HP COMPRESSOR BLADE FAILURE - debris through the core',
   'tip-rub-shutdown': 'Tip rub: fuel cut at high power, casings shrank onto the hot rotors',
+  'chip-detector': 'Metal on the master chip detector - a main bearing is breaking up',
+  'bearing-failure': 'MAIN BEARING FAILURE - HP rotor seized. ENGINE DESTROYED',
   'bowed-rotor-rub': 'BOWED ROTOR - hot engine restarted without motoring; blades rubbing',
 };
 const EV = { ...FAIL, lightoff: 'Light-off', 'flameout-lean': 'FLAME-OUT (mixture too lean)', 'flameout-rich': 'FLAME-OUT (rich / no airflow)', 'surge-fan': 'FAN SURGE', 'surge-lpc': 'LPC SURGE', 'surge-hpc': 'HPC SURGE' };
@@ -291,7 +298,7 @@ function handleEvents(dt) {
     } else {
       logMsg(EV[ev.type] || ev.type);
       if (FAIL[ev.type]) {
-        const big = /burst|release|failure|burn-through/.test(ev.type);
+        const big = /burst|release|failure|burn-through/.test(ev.type) && ev.type !== 'chip-detector';
         if (big) { audio.bang(/burst/.test(ev.type) ? 2 : 1.4); view3d && view3d.surge(/lp|fan/.test(ev.type) ? 'fan' : 'hpc'); view2d.surge('hpc'); }
         if (/release|melting|burst|failure/.test(ev.type)) sparkK = 1;
       }
@@ -308,7 +315,7 @@ function handleEvents(dt) {
   // failure visuals follow the damage state
   const dm = eng.damage.d, losing = dm.hptLost + dm.lptLost > lostPrev + 1e-5; lostPrev = dm.hptLost + dm.lptLost;
   sparkK = Math.max(losing && o.N2pct > 5 ? 0.8 : 0, sparkK - dt * 0.35);
-  if (view3d) Object.assign(view3d.fail, { sparks: sparkK, fire: dm.fire, smoke: Math.max(dm.fire, o.W9 > 3 ? Math.min(1, 2 * (dm.hptLost + dm.lptLost) + (o.torch > 0.01 ? 0.5 : 0)) : 0) });
+  if (view3d) Object.assign(view3d.fail, { sparks: sparkK, fire: dm.fire, smoke: Math.max(dm.fire, o.oilSmoke ? 0.45 : 0, o.W9 > 3 ? Math.min(1, 2 * (dm.hptLost + dm.lptLost) + (o.torch > 0.01 ? 0.5 : 0)) : 0) });
 }
 
 // ------------------------------------------------------------ stations page
@@ -323,6 +330,7 @@ function dataHtml(o, w) {
     ['HPT / LPT expansion ratio', `${o.hptPR.toFixed(2)} / ${o.lptPR.toFixed(2)}`],
     ['Power: fan, LPC, HPC', `${MW(o.pwrFan)}, ${MW(o.pwrLpc)}, ${MW(o.pwrHpc)}`], ['Power: HPT, LPT', `${MW(o.pwrHpt)}, ${MW(o.pwrLpt)}`],
     ['Jet velocity', `${o.V9.toFixed(0)} m/s · Mach ${o.M9.toFixed(2)}`], ['Mixing plane static pressure', `${B(o.Pm)} bar`],
+    ['Oil pressure / temperature / quantity', `${o.oilP.toFixed(0)} psi / ${o.oilT.toFixed(0)} °C / ${o.oilQ.toFixed(1)} qt`], ['Oil filter differential', `${o.oilFilterDp.toFixed(1)} psi`],
     ['Turbine metal', `${C(o.Tm)} °C`], ['HPT / LPT blade metal', `${C(o.TbH)} / ${C(o.TbL)} °C`], ['Vibration N1 / N2', `${o.vib1.toFixed(1)} / ${o.vib2.toFixed(1)} units`],
     ['Creep life used HPT / LPT', `${(100 * eng.damage.d.hptCreep).toFixed(1)} / ${(100 * eng.damage.d.lptCreep).toFixed(1)} %`], ['Blading lost HPT / LPT', `${(100 * eng.damage.d.hptLost).toFixed(0)} / ${(100 * eng.damage.d.lptLost).toFixed(0)} %`], ['N1 / N2', `${o.N1.toFixed(0)} / ${o.N2.toFixed(0)} rpm`],
     ['Bleeds 2.5 / stg 7 / stg 10', `${o.Wb25.toFixed(1)} / ${o.Wb7.toFixed(1)} / ${o.Wb10.toFixed(1)} kg/s`], ['Turbine cooling air', `${o.Wcool.toFixed(1)} kg/s`],
@@ -340,6 +348,11 @@ function statusHtml(o) {
   if (o.N1pct > 100 || o.N2pct > 100) add('Overspeed', 'bad');
   const dm = eng.damage.d;
   if (o.fire) add('ENGINE FIRE', 'bad');
+  if (o.oilLowP) add('OIL LO PR - shut the engine down', 'bad');
+  if (o.oilT > 165) add(`OIL HI TEMP ${o.oilT.toFixed(0)} °C`, 'bad'); else if (o.oilT > 155) add(`Oil temperature ${o.oilT.toFixed(0)} °C`, 'warn');
+  if (o.oilQ < 5 && o.N2pct > 20) add(`Oil quantity ${o.oilQ.toFixed(1)} qt`, o.oilQ < 2.5 ? 'bad' : 'warn');
+  if (o.oilFilterDp > 12) add('Oil filter clogged', 'warn');
+  if (o.oilChips) add('Chip detector: metal in the oil', 'bad');
   if (dm.burst) add('Rotor burst - engine destroyed', 'bad'); else if (dm.hptLost > 0.01 || dm.lptLost > 0.01) add(`Turbine damage ${(100 * Math.max(dm.hptLost, dm.lptLost)).toFixed(0)} %`, 'bad');
   else if (dm.hptCreep > 0.2 || dm.lptCreep > 0.2) add(`Turbine creep life ${(100 * Math.max(dm.hptCreep, dm.lptCreep)).toFixed(0)} % used`, 'warn');
   if (dm.hpc > 0.3) add('Compressor blade damage', 'bad');
