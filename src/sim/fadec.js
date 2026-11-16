@@ -26,12 +26,12 @@ const lerpTable = (tab, x) => {
 // Sea-level-static thrust [kN] -> EPR for this model (tools/calibrate.js; checked by tests).
 // Ratings are stored as certified thrust and converted to an EPR target, as the
 // real EEC stores EPR rating tables.
-export const EPR_VS_THRUST = [[0,1.0],[4.2,1.011],[6,1.016],[7.8,1.021],[13.9,1.037],[19.6,1.052],[25.1,1.073],[34.3,1.108],[44.3,1.147],[56.4,1.218],[67.6,1.284],[79.6,1.365],[88,1.427],[96,1.491],[103.7,1.556],[111.1,1.622],[118.3,1.688],[125.2,1.754],[133,1.832],[140.5,1.909],[146.7,1.971]];
+export const EPR_VS_THRUST = [[0,1.0],[4.3,1.011],[5.6,1.015],[7.1,1.019],[13.3,1.038],[18.9,1.055],[25.8,1.077],[34.7,1.112],[43.8,1.153],[54.5,1.224],[65.2,1.288],[76.8,1.366],[85.2,1.427],[93.5,1.49],[101.5,1.555],[109.2,1.619],[116.7,1.684],[123.9,1.748],[132.2,1.824],[140.5,1.908],[145.8,1.969]];
 export const eprForThrust = (kN) => lerpTable(EPR_VS_THRUST, kN);
 
 // Steady-state fuel ratio Wf/P3 [kg/s per bar] vs corrected N2 % (from calibration)
-export const RU_STEADY = [[20,0.03],[45,0.031],[55.9,0.0307],[62.2,0.0293],[71.5,0.03],[78.1,0.0298],[83.7,0.0318],[88.2,0.0344],[90.8,0.0363],[93.1,0.0381],[95,0.0398],[97,0.0417],[98.5,0.0426],[104.5,0.046]];
-const ACCEL_MARGIN = [[20, 1.25], [36, 1.3], [44, 1.55], [56, 1.45], [62, 1.38], [75, 1.42], [97, 1.3]];
+export const RU_STEADY = [[20,0.0314],[45,0.0317],[54.2,0.0308],[64.4,0.0303],[76.2,0.0292],[80.9,0.0294],[86.5,0.0314],[89.8,0.0345],[91.9,0.0365],[93.7,0.0383],[95.3,0.0402],[97,0.0417],[98.1,0.0426],[104.1,0.046]];
+const ACCEL_MARGIN = [[20, 1.25], [36, 1.3], [44, 1.55], [56, 1.45], [62, 1.5], [75, 1.55], [88, 1.45], [97, 1.3]];
 const DECEL_FRAC = 0.5;
 export const MAX_REVERSE_N1 = 80; // % - reverse thrust is limited well below take-off fan speed (assumed value)
 
@@ -204,7 +204,7 @@ export class Fadec {
 
     // ---------------- handling bleeds & stators
     const decel = n2dot < -1.0;
-    let b25 = clamp((80 - n1c) / 28, 0, 1);
+    let b25 = clamp((82 - n1c) / 30, 0, 1);
     if (decel || this.surgeHold > 0) b25 = Math.max(b25, 0.6);
     let b7 = n2c < 63 ? 3 : n2c < 70 ? 2 : n2c < 77 ? 1 : 0;
     if (this.surgeHold > 0) b7 = 3;

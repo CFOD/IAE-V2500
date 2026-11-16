@@ -10,7 +10,8 @@
 // transients, starting, surge and flame-out all fall out of the same equations.
 
 import { cp, gamma, h, tFromH, tIsentropic, phi, isa, R_GAS, FAR_STOICH, LHV_JET_A } from './gas.js';
-import { makeCompressorMap, compressor, qFlow, turbineFlow, turbineExpand, nozzle, orifice } from './components.js';
+import MAPS from './maps/jt9d.js';
+import { makeCompressorMap, makeTableCompressor, makeTurbineTable, compressor, qFlow, turbineFlow, turbineExpand, nozzle, orifice } from './components.js';
 import { DESIGN, LIMITS } from './v2500.js';
 
 const RPM2RAD = 0.104719755;
@@ -99,23 +100,34 @@ export function sizeEngine(d = DESIGN) {
   }
   const dp = designCycle(d, b);
   const cfg = { d, dp };
-  cfg.fan = makeCompressorMap({
+  // Compressor and turbine characteristics: NASA T-MATS JT9D reference maps, scaled to this design point.
+  cfg.fan = makeTableCompressor({
     Nd: d.N1d, Td: dp.T2, Pd: dp.P2, Wd: dp.Wb, PRd: d.FPR, effD: d.effFan,
     aW: 0.5, kW: 1.6, sW: 0.7, aP: 0.6, kP: 3, sP: 2.2, c0: 0.05, c1: 0.3,
     xs: (n) => 1.27 - 0.05 * n, U2d: 2.0e5, Awm: 1.1, kEff: 0.7, effFloor: 0.6,
-  });
-  cfg.lpc = makeCompressorMap({
+  }, MAPS.Fan, 2.3);
+  cfg.lpc = makeTableCompressor({
     Nd: d.N1d, Td: dp.T2, Pd: dp.P2, Wd: dp.Wc, PRd: d.LPCPR, effD: d.effLpc,
     aW: 0.3, kW: 2.6, sW: 0.9, aP: 0.4, kP: 3.5, sP: 2.8, c0: 0.05, c1: 0.3,
     xs: () => 1.22, U2d: 0.7e5, Awm: 0.15, kEff: 0.5, effFloor: 0.6,
-  });
-  cfg.hpc = makeCompressorMap({
+  }, MAPS.LPC);
+  cfg.hpc = makeTableCompressor({
     Nd: d.N2d, Td: dp.T25, Pd: dp.P25, Wd: dp.Wc, PRd: dp.HPCPR, effD: d.effHpc,
     aW: 0.12, kW: 3.6, sW: 1.5, aP: 0.08, kP: 4.5, sP: 3.0, c0: 0.04, c1: 0.3,
     xs: (n) => 1.24 - 0.12 * Math.exp(-(((n - 0.74) / 0.12) ** 2)), U2d: 1.8e5, Awm: 0.05, kEff: 1.3, effFloor: 0.78,
-  });
-  cfg.hpt = { Nd: d.N2d, dhsD: dp.dhsHpt, effD: d.effHpt, K: dp.Khpt, PRd: dp.PRhpt, kPR: 0.04 };
-  cfg.lpt = { Nd: d.N1d, dhsD: dp.dhsLpt, effD: d.effLpt, K: dp.Klpt, PRd: dp.PRlpt, kPR: 0.32 };
+  }, MAPS.HPC);
+  cfg.hpt = { Nd: d.N2d, Td: dp.T41, dhsD: dp.dhsHpt, effD: d.effHpt, K: dp.Khpt, PRd: dp.PRhpt, kPR: 0.04, kClr: 0.15, table: makeTurbineTable(MAPS.HPT, 100, 4.5) };
+  cfg.lpt = { Nd: d.N1d, Td: dp.T45, dhsD: dp.dhsLpt, effD: d.effLpt, K: dp.Klpt, PRd: dp.PRlpt, kPR: 0.15, kClr: 0.08, table: makeTurbineTable(MAPS.LPT, 100, 5.9) };
+  // Adaptation of the scaled reference maps to this engine (see docs/PHYSICS.md, "Map adaptation").
+  // The JT9D tables peak well above their design-line efficiency; scaled as they are that would give
+  // a fan better than any built. The peaks are held to values typical of this generation.
+  cfg.fan.effPeak = 0.915; cfg.hpc.effPeak = 0.875;
+  cfg.lpc.effTrim = (n) => 1 - 0.2 * Math.max(0, 1 - n);
+  // The V2500 core idles at 58.5 % N2 with far more flow than the JT9D HPC passes at that speed
+  // (ten stages with five variable rows against eleven with four): low-speed flow and pressure
+  // rise are raised together so the working line keeps its place on the map.
+  { const fw = cfg.hpc.fW, fp = cfg.hpc.fP, r = (n) => 1 + 0.45 * clamp((0.85 - n) / 0.25, 0, 1.2);
+    cfg.hpc.fW = (n) => fw(n) * r(n); cfg.hpc.fP = (n) => fp(n) * r(n); }
   cfg.q4d = dp.q4d;
   cfg.A8 = dp.A8;
   cfg.A18 = dp.A18;
@@ -353,6 +365,15 @@ export class Engine {
       const T7 = tFromH((Wb7m * h(s.T13) + Wc7 * h(s.T5, far45)) / W7, far7, s.T7);
       s.T7 += (T7 - s.T7) * kT;
       Pt7 = Math.max(s.Pm, ((Wb7m * Pt13 + Wc7 * Pt5) / W7) * (1 - d.dpMix * clamp((s.Pm / P0 - 1) / (c.dp.Pm / 101325 - 1), 0, 1.3)));
+    }
+    if (rev > 0 && W7 > 0.01) {
+      // Blocker doors shut: the core jet dumps into a tailpipe sized for five times its flow and
+      // loses its dynamic head. Total pressure there is what continuity over the whole duct allows.
+      const g7 = gamma(s.T7, far7), At = c.A8 + c.A18;
+      let M = 0.3;
+      for (let i = 0; i < 3; i++) M = Math.min(1, (W7 * Math.sqrt((R_GAS * s.T7) / (g7 * (1 + 0.5 * (g7 - 1) * M * M)))) / (Math.max(s.Pm, 2e4) * At));
+      const cap = s.Pm * (1 + 0.5 * (g7 - 1) * M * M) ** (g7 / (g7 - 1));
+      Pt7 += (Math.min(Pt7, cap) - Pt7) * rev;
     }
     nozzle(c.A9 * m.a9, Pt7, s.T7, far7, P0, o.n9);
 

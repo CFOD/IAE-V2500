@@ -31,6 +31,68 @@ export function makeCompressorMap(p) {
   m.fP = (n) => (n <= 1 ? p.aP * n * n + (1 - p.aP) * Math.pow(n, p.kP) : 1 + p.sP * (n - 1));
   m.c = (n) => p.c0 + p.c1 * Math.pow(Math.max(0, 1 - n), 1.5);
   m.xs = p.xs; // surge line x as function of n
+  /** Shape of a speed line: flow relative to the backbone (g), -dg/dx, efficiency relative to design (e). */
+  m.line = (n, x, out) => {
+    const c = m.c(n);
+    out.g = 1 + c * (1 - x * x * x); out.dg = 3 * c * x * x;
+    out.e = Math.max(p.effFloor, 1 - p.kEff * (1 - n) * (1 - n)) * (1 - 0.45 * (x - 1) * (x - 1));
+    return out;
+  };
+  return m;
+}
+
+/**
+ * Compressor map from a measured / reference table (NASA T-MATS R-line format: corrected flow,
+ * pressure ratio and efficiency against corrected speed and R-line, R = 1 being the surge line).
+ * The table is scaled so its design point (speed 1.0, R-line rDes) lands on this engine's design
+ * point, which is the standard way to use a reference map for a different engine.
+ * Below the table's lowest speed the backbone is continued with the parametric laws in `p`
+ * (needed for starting and windmilling, which no published map covers).
+ */
+export function makeTableCompressor(p, tab, rDes = 2.0) {
+  const m = makeCompressorMap(p);
+  const Nc = tab.NcVec, R = tab.RlineVec, nR = R.length, nMin = Nc[0], nMax = Nc[Nc.length - 1];
+  let jD = 0; while (jD < nR - 2 && R[jD + 1] < rDes) jD++;
+  const fD = (rDes - R[jD]) / (R[jD + 1] - R[jD]);
+  const W = new Float64Array(nR), PR = new Float64Array(nR), E = new Float64Array(nR);
+  let cached = -1;
+  const rows = (n) => {
+    n = clamp(n, nMin, nMax); if (n === cached) return; cached = n;
+    let i = 0; while (i < Nc.length - 2 && Nc[i + 1] < n) i++;
+    const f = (n - Nc[i]) / (Nc[i + 1] - Nc[i]);
+    for (let j = 0; j < nR; j++) { W[j] = tab.WcArray[i][j] + (tab.WcArray[i + 1][j] - tab.WcArray[i][j]) * f; PR[j] = tab.PRArray[i][j] + (tab.PRArray[i + 1][j] - tab.PRArray[i][j]) * f; E[j] = tab.EffArray[i][j] + (tab.EffArray[i + 1][j] - tab.EffArray[i][j]) * f; }
+  };
+  const des = (a) => a[jD] + (a[jD + 1] - a[jD]) * fD;
+  // Several of these maps carry the stalled side of the low-speed lines (pressure ratio falling
+  // again towards R = 1). The stability limit is the pressure peak, not the edge of the table.
+  const peak = () => { let j = 0; while (j < jD && PR[j + 1] > PR[j]) j++; return j; };
+  rows(1); const WcD = des(W), dpD = des(PR) - 1, effDt = des(E);
+  const lawW = m.fW, lawP = m.fP, lawE = (n) => Math.max(p.effFloor, 1 - p.kEff * (1 - n) * (1 - n));
+  rows(nMin); const w0 = des(W) / WcD, p0 = (des(PR) - 1) / dpD, xs0 = (PR[peak()] - 1) / (des(PR) - 1);
+  m.table = true; m.nMin = nMin; m.source = tab;
+  m.fW = (n) => { if (n < nMin) return (w0 * lawW(n)) / lawW(nMin); rows(n); return des(W) / WcD; };
+  m.fP = (n) => { if (n < nMin) return (p0 * lawP(n)) / lawP(nMin); rows(n); return (des(PR) - 1) / dpD; };
+  m.xs = (n) => { if (n < nMin) return xs0; rows(n); return (PR[peak()] - 1) / Math.max(des(PR) - 1, 1e-6); };
+  m.line = (n, x, out) => {
+    rows(n);
+    const dpRef = Math.max(des(PR) - 1, 1e-6), wRef = des(W);
+    const xj = (j) => (PR[j] - 1) / dpRef; // falls as j rises (towards choke)
+    let j = peak(); if (j > nR - 2) j = nR - 2; while (j < nR - 2 && xj(j + 1) > x) j++;
+    const xa = xj(j), xb = xj(j + 1), span = Math.max(xa - xb, 1e-6);
+    let f = (xa - x) / span, e;
+    if (f > 1) { // past the last R-line: choked, flow no longer rises, efficiency collapses
+      out.g = W[nR - 1] / wRef; out.dg = 0.002; e = (E[nR - 1] / effDt) * Math.max(0.25, 1 - (f - 1) * span * 1.2);
+    } else {
+      f = Math.max(f, -0.5);
+      out.g = (W[j] + (W[j + 1] - W[j]) * f) / wRef; out.dg = Math.max((W[j + 1] - W[j]) / wRef / span, 0.002);
+      e = (E[j] + (E[j + 1] - E[j]) * f) / effDt;
+    }
+    if (n < nMin) e *= Math.max(0.6, lawE(n) / lawE(nMin));
+    if (m.effTrim) e *= m.effTrim(n);
+    if (m.effPeak) e = Math.min(e, m.effPeak / m.effD);
+    out.e = Math.max(e, 0.05);
+    return out;
+  };
   return m;
 }
 
@@ -46,6 +108,7 @@ export function speedFraction(m, N, Tin) {
  * @param mod   {flow: multiplier, eff: delta, xs: delta surge margin}
  * @returns     {W, Tout, power, torque, n, x, xs, eff, dWdPout, dWdPin, stalled}
  */
+const LINE = { g: 1, dg: 0, e: 1 };
 export function compressor(m, st, N, Tin, Pin, Pout, mod, dt, out) {
   const n = speedFraction(m, N, Tin);
   const dpRef = Math.max((m.PRd - 1) * m.fP(n), 2e-4);
@@ -54,7 +117,6 @@ export function compressor(m, st, N, Tin, Pin, Pout, mod, dt, out) {
   const PR = Pout / Pin;
   const x = (PR - 1) / dpRef;
   const xs = m.xs(n) + mod.xs;
-  const c = m.c(n);
 
   // stall / surge hysteresis
   let surgeEvent = false;
@@ -72,8 +134,9 @@ export function compressor(m, st, N, Tin, Pin, Pout, mod, dt, out) {
   let W, eff, dWdx, leakSens = 0;
   const xc = clamp(x, -1.5, xs);
   if (!st.stalled) {
-    W = wRef * (1 + c * (1 - xc * xc * xc));
-    dWdx = wRef * 3 * c * xc * xc + 1e-9;
+    m.line(n, xc, LINE);
+    W = wRef * LINE.g;
+    dWdx = wRef * LINE.dg + 1e-9;
     if (x > xs) {
       // rotor too slow to stall "properly": it simply cannot hold the back
       // pressure and air leaks backwards through the blading
@@ -82,8 +145,7 @@ export function compressor(m, st, N, Tin, Pin, Pout, mod, dt, out) {
       W -= leak;
       leakSens = leak / (Pin * Math.max(e, 2e-3));
     }
-    const fn = Math.max(m.effFloor, 1 - m.kEff * (1 - n) * (1 - n));
-    eff = clamp((m.effD + mod.eff) * fn * (1 - 0.45 * (xc - 1) * (xc - 1)), 0.25, 0.95);
+    eff = clamp((m.effD + mod.eff) * LINE.e, 0.2, 0.95);
   } else {
     // stalled characteristic: can only hold ~55% of surge pressure rise at
     // zero flow; above that the flow reverses and the plenum blows down.
@@ -138,12 +200,12 @@ export function compressor(m, st, N, Tin, Pin, Pout, mod, dt, out) {
 
 /** Points along a speed line and the surge line, for plotting maps. */
 export function mapSpeedLine(m, n, mod = { flow: 1, xs: 0 }) {
-  const pts = [];
+  const pts = [], L = {};
   const xs = m.xs(n) + mod.xs;
   const dp = (m.PRd - 1) * m.fP(n);
-  for (let i = 0; i <= 12; i++) {
-    const x = (xs * i) / 12;
-    pts.push({ wc: m.Wd * m.fW(n) * mod.flow * (1 + m.c(n) * (1 - x * x * x)), pr: 1 + x * dp });
+  for (let i = 0; i <= 14; i++) {
+    const x = (xs * i) / 14; m.line(n, x, L);
+    pts.push({ wc: m.Wd * m.fW(n) * mod.flow * L.g, pr: 1 + x * dp });
   }
   return pts;
 }
@@ -188,6 +250,26 @@ export function turbineFlow(K, Tin, Pin, Pout, out) {
  * which gives finite stall torque at zero speed and zero torque at runaway.
  * @param t {Nd, dhsD, effD}
  */
+/**
+ * Turbine efficiency table (NASA T-MATS format: efficiency against corrected speed and pressure
+ * ratio). Returns a function giving efficiency relative to the table's design point.
+ * ncD / prD: where this engine's design point sits in the table's own coordinates.
+ */
+export function makeTurbineTable(tab, ncD, prD) {
+  const Nc = tab.NcVec, P = tab.PRVec, E = tab.EffArray;
+  const look = (nc, pr) => {
+    nc = clamp(nc, Nc[0], Nc[Nc.length - 1]); pr = clamp(pr, P[0], P[P.length - 1]);
+    let i = 0; while (i < Nc.length - 2 && Nc[i + 1] < nc) i++;
+    let j = 0; while (j < P.length - 2 && P[j + 1] < pr) j++;
+    const f = (nc - Nc[i]) / (Nc[i + 1] - Nc[i]), g = (pr - P[j]) / (P[j + 1] - P[j]);
+    return (E[i][j] * (1 - g) + E[i][j + 1] * g) * (1 - f) + (E[i + 1][j] * (1 - g) + E[i + 1][j + 1] * g) * f;
+  };
+  const eD = look(ncD, prD);
+  return { ncD, prD, ncMin: Nc[0], ncMax: Nc[Nc.length - 1], prMin: P[0], prMax: P[P.length - 1], rel: (nc, pr) => look(nc, pr) / eD };
+}
+// isentropic work per unit inlet temperature, as a function of pressure ratio (gamma ~ 1.33)
+const workFn = (pr) => 1 - Math.pow(Math.max(pr, 1.0001), -0.248);
+
 export function turbineExpand(t, W, Tin, far, PR, N, effDelta, out) {
   if (PR <= 1.0005 || W <= 0) {
     out.Tout = Tin;
@@ -204,7 +286,19 @@ export function turbineExpand(t, W, Tin, far, PR, N, effDelta, out) {
   // part-load loss: at low expansion ratio the blading runs far off its design
   // incidence and Reynolds number
   const u = Math.max(0, 1 - (PR - 1) / (t.PRd - 1));
-  const effD = (t.effD + effDelta) * (1 - t.kPR * u * u);
+  let effD = (t.effD + effDelta) * (1 - t.kPR * u * u);
+  if (t.table) {
+    // Inside the table's range the efficiency is the table's. Outside it (low pressure ratio at idle
+    // and during starts) the analytic model continues from the table's edge without a step.
+    const T = t.table, ncRel = (N / t.Nd) * Math.sqrt(t.Td / Tin);
+    const prMap = 1 + ((PR - 1) * (T.prD - 1)) / (t.PRd - 1), ncMap = ncRel * T.ncD;
+    const ncC = clamp(ncMap, T.ncMin, T.ncMax) / T.ncD, prMapC = clamp(prMap, T.prMin, T.prMax);
+    const prC = 1 + ((prMapC - 1) * (t.PRd - 1)) / (T.prD - 1);
+    const nuC = ncC * Math.sqrt(workFn(t.PRd) / workFn(prC)), uC = Math.max(0, 1 - (prC - 1) / (t.PRd - 1));
+    const analytic = Math.max(nuC * (2 - nuC), 0.05) * (1 - t.kPR * uC * uC);
+    effD *= clamp(T.rel(ncC * T.ncD, prMapC) / analytic, 0.7, 1.3);
+  }
+  if (t.kClr) effD *= 1 - t.kClr * clamp(1 - N / t.Nd, 0, 0.35);
   const shape = clamp(2 - nu, -1, 2);
   const omegaD = t.Nd * 0.104719755;
   out.torque = (W * dhs * effD * shape * root) / omegaD;

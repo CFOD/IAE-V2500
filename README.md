@@ -126,6 +126,7 @@ Running above the EGT red line permanently costs HPT efficiency.
 src/sim/      physics, no UI dependencies (runs under plain Node)
   gas.js        air / combustion-product properties, ISA atmosphere
   components.js compressor & turbine maps, nozzles
+  maps/jt9d.js  NASA T-MATS reference maps (Apache 2.0), scaled to the V2500 in engine.js
   engine.js     engine sizing + two-spool dynamic model
   fadec.js      engine control: start sequence, EPR governor, limiters, schedules
   v2500.js      published V2500-A5 data and model assumptions
@@ -135,7 +136,8 @@ app/          renderer: scene3d.js (three.js 3D engine), cutaway.js (2D section)
   vendor/       three.js and add-ons (MIT)    fonts/  Inter, B612 Mono (SIL OFL)
   assets/       optional authored model (docs/MODEL.md)
 electron/     desktop window
-tests/        physics tests        tools/calibrate.js  prints steady-state tables
+tests/        physics tests        tools/icao.js  compares the model with the ICAO databank
+              tools/retune.py  re-derives the FADEC tables after a map change
 docs/PHYSICS.md  how the model works, what it is validated against, known limits
 ```
 
@@ -144,6 +146,7 @@ docs/PHYSICS.md  how the model works, what it is validated against, known limits
 See [docs/PHYSICS.md](docs/PHYSICS.md) for the model, the source of every number and the comparison
 table. In short: the V2527-A5's ICAO fuel flows at take-off, climb, approach and idle, its pressure
 ratio, bypass ratio and idle speeds are reproduced within a few percent and asserted by `npm test`.
-What cannot be made exact is IAE's proprietary compressor/turbine maps and FADEC tables, so surge
+The compressor and turbine maps are NASA's public JT9D reference maps (T-MATS, Apache 2.0) scaled
+to this engine. What cannot be made exact is IAE's proprietary maps and FADEC tables, so surge
 margins and schedule break-points are representative. Not for training or engineering use. Not
 affiliated with or endorsed by International Aero Engines.

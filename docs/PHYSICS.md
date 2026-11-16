@@ -51,7 +51,40 @@ through the cascades instead, modelled as a nozzle to ambient whose gross thrust
 The core still exhausts through the common nozzle. Because the core no longer exhausts against the
 bypass stream, EPR stops tracking thrust, so the FADEC governs reverse on fan speed between idle and
 80 % N1. The cascade area, turning efficiency and the 80 % limit are assumptions; the real limits
-were not found in a public source. Net thrust at maximum reverse is about -18.6 kN at sea level static.
+were not found in a public source. With the doors shut the core jet dumps into a tailpipe sized for
+the whole engine flow and loses its dynamic head, so it contributes little forward thrust. Net thrust
+at maximum reverse is about -32 kN at sea level static (roughly 30 % of V2527 take-off thrust).
+
+## Component maps
+
+The compressor and turbine characteristics are the reference maps published with NASA's T-MATS
+toolbox (the JT9D example, Apache License 2.0), imported by `tools/import-tmats-maps.py` into
+`src/sim/maps/jt9d.js` and scaled so that each map's design point lands on this engine's design
+flow, pressure ratio, speed and efficiency. They are real turbofan maps in R-line form: corrected
+flow, pressure ratio and efficiency against corrected speed for the fan, LP and HP compressors, and
+efficiency against speed and pressure ratio for both turbines. They are not IAE's maps, which are
+not public.
+
+Where the table carries the stalled side of a speed line (pressure ratio falling again towards the
+edge), the stability limit is taken at the pressure peak. Below each table's lowest speed (starting
+and sub-idle) the characteristic is continued with smooth analytic laws.
+
+### Map adaptation
+
+A scaled map from another engine does not reproduce this one everywhere, so it is adapted against
+the ICAO fuel flows and the published ground idle, the usual practice when only overall engine data
+is available. Everything adapted is listed here:
+
+| Adaptation | Why |
+|---|---|
+| Fan design point on R-line 2.3 rather than 2.0 | working line clear of stall at part speed with a mixed exhaust |
+| Fan and HPC efficiency held to peaks of 0.915 and 0.875 | the JT9D tables peak 4 % above their design line; scaled as they are the fan would reach 0.95 |
+| LPC efficiency falls 2 % per 10 % of speed below design | ICAO approach and idle fuel flows |
+| HPC low-speed flow and pressure rise raised up to 45 % at 60 % speed | ground idle: the V2500 core passes far more air at 58.5 % N2 than the JT9D HPC does |
+| Turbine efficiency falls 1.5 % (HP) and 0.8 % (LP) per 10 % of speed | tip clearance opening at low power; ICAO part-power fuel flows |
+
+After any change to the maps, `python3 tools/retune.py` re-derives the FADEC's thrust-to-EPR and
+steady fuel schedule tables from the model and `node tools/icao.js` prints the comparison below.
 
 ## Sizing
 
@@ -97,36 +130,37 @@ Two things worth knowing:
 Assumed (not published): fan and LPC pressure-ratio split, component efficiencies, cooling flows,
 mixing-plane Mach number, spool inertias, volumes, all schedule break-points.
 
-## How it compares (`npm test` asserts these; `node tools/calibrate.js` prints them)
+## How it compares (`npm test` asserts these; `node tools/icao.js` prints them)
 
 | Quantity | Model | Published |
 |---|---|---|
-| V2527-A5 take-off fuel flow at 111.2 kN | 1.04 kg/s | 1.053 |
-| V2527-A5 climb-out (85 %) fuel flow | 0.855 kg/s | 0.880 |
-| V2527-A5 approach (30 %) fuel flow | 0.308 kg/s | 0.319 |
-| V2527-A5 idle (7 %) fuel flow | 0.127 kg/s | 0.128 |
-| V2527-A5 overall pressure ratio | 27.0 | 27.2 |
-| V2527-A5 bypass ratio | 4.84 | 4.82 |
-| All five ratings at take-off: fuel flow / pressure ratio / bypass ratio | within 4 % / 3 % / 3 % | ICAO databank |
-| V2527-A5 take-off EPR | 1.615 | about 1.6 (crew report) |
-| Ground idle | N1 24 %, N2 58.5 %, 365 kg/h, EGT 381 °C | N1 21.7 (+3.8/-2), N2 60 (±2), 300-378 kg/h, EGT 400 (+90/-25) |
-| V2527-A5 take-off EGT, ISA / ISA+30 | 499 / 582 °C | limit 635 °C |
-| Cruise TSFC, FL350 M0.78 | 0.555 lb/lbf/h | about 0.54-0.58 (unverified) |
-| Idle to 95 % take-off thrust | about 6 s | certification requires <= 5 s from flight idle |
+| V2527-A5 take-off fuel flow at 111.2 kN | 1.063 kg/s | 1.053 |
+| V2527-A5 climb-out (85 %) fuel flow | 0.883 kg/s | 0.880 |
+| V2527-A5 approach (30 %) fuel flow | 0.304 kg/s | 0.319 |
+| V2527-A5 idle (7 %) fuel flow | 0.128 kg/s | 0.128 |
+| V2527-A5 overall pressure ratio | 27.3 | 27.2 |
+| V2527-A5 bypass ratio | 4.79 | 4.82 |
+| All five ratings at take-off: fuel flow / pressure ratio / bypass ratio | within 1.3 % / 1.0 % / 0.8 % | ICAO databank |
+| V2527-A5 take-off EPR | 1.63 | about 1.6 (crew report) |
+| Ground idle | N1 20.9 %, N2 58.5 %, 387 kg/h, EGT 423 °C | N1 21.7 (+3.8/-2), N2 60 (±2), 300-378 kg/h, EGT 400 (+90/-25) |
+| V2527-A5 take-off EGT, ISA / ISA+30 | 515 / 591 °C | limit 635 °C |
+| Cruise TSFC, FL350 M0.78 | 0.572 lb/lbf/h | about 0.54-0.58 (unverified) |
+| Idle to 95 % take-off thrust | about 6.4 s | certification requires <= 5 s from flight idle |
+| Start to idle / peak start EGT | 27 s / 528 °C | limit 635 °C; time not checked against a published figure |
 
-Only the V2533 design point and the low-power component losses were tuned. The V2527 pressure ratio,
-bypass ratio, EPR and the four ICAO fuel flows then follow.
+The approach point is the weakest (4.8 % low). Ground-idle fuel flow is slightly above the quoted
+range. Fan speed at 1.05 EPR is about 36 %; crews stabilise at 1.05 EPR where CFM crews use 50 % N1,
+which suggests the real figure may be somewhat higher.
 
 ## Remaining limitations
 
 - **Compressor and turbine maps are not IAE's.** They are proprietary and were not found in any
-  public source. The maps here are generic shapes constrained to reproduce the published points
-  above. Between and beyond those points (exact surge margins, the speeds at which each bleed valve
-  must be open, sub-idle behaviour) the model is plausible, not measured.
+  public source. The maps are NASA's public JT9D reference maps, scaled and adapted as listed under
+  "Component maps". Between and beyond the published points (exact surge margins, the speeds at
+  which each bleed valve must be open, sub-idle behaviour) the model is plausible, not measured.
 - **FADEC rating tables are not IAE's.** Take-off is flat rated to the published corner temperature and
   max-continuous / climb use the published thrusts, but the real altitude-Mach-temperature EPR tables
   and the bleed / stator schedule break-points are proprietary; the ones here are tuned to this model.
 - Start time (about 35 s to idle) and peak start EGT are not checked against a published figure.
-- No Reynolds-number effects, tip clearance or active clearance control, oil or fuel system,
-  thrust reverser, humidity or icing; one lumped heat-soak mass.
+- No Reynolds-number effects, active clearance control, oil or fuel system, humidity or icing; one lumped heat-soak mass.
 - Ambient changes are a test-cell step, not a flight model.
