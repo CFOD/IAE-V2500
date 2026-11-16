@@ -17,6 +17,7 @@ import { P, ROWS, rAt, tempRGB } from './cutaway.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const lerp = (a, b, t) => a + (b - a) * t;
+const bell = (x, c, w) => Math.exp(-(((x - c) / w) ** 2));
 const TAU = Math.PI * 2, DEG = Math.PI / 180;
 const FLOOR_Y = -1.75;
 // Cutaway wedge: the sector of casing that is removed, in the angle convention
@@ -33,6 +34,19 @@ const softSprite = () => { const t = canvasTex(64, 64, (g) => { const gr = g.cre
 const linerTex = () => canvasTex(64, 64, (g) => { g.fillStyle = '#8a8a8a'; g.fillRect(0, 0, 64, 64); g.fillStyle = '#1c1c1c'; for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { g.beginPath(); g.arc(8 + x * 16 + (y % 2) * 8, 8 + y * 16, 3.2, 0, 7); g.fill(); } }, [150, 18]);
 // fine circumferential machining marks
 const brushedTex = () => canvasTex(8, 256, (g, w, h) => { for (let y = 0; y < h; y++) { const v = 110 + Math.random() * 80; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(0, y, w, 1); } }, [1, 6]);
+
+// Shared GLSL: value noise and fractal noise. All inputs are finite and all pow / smoothstep
+// arguments are kept inside their defined ranges (see the note above HeatHaze).
+const NOISE = `
+  float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
+  float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+    return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),f.x), mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),f.x), f.y); }
+  float fbm(vec2 p){ float a=0.5, s=0.0; for(int i=0;i<4;i++){ s+=a*vnoise(p); p=p*2.03+vec2(17.1,9.3); a*=0.5; } return s; }
+`;
+// soft, lumpy puff for mist, smoke and fireballs (not a plain disc)
+const puffSprite = () => { const t = canvasTex(128, 128, (g) => { g.clearRect(0, 0, 128, 128); let s = 7; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  for (let i = 0; i < 26; i++) { const x = 64 + (r() - 0.5) * 56, y = 64 + (r() - 0.5) * 56, rad = 16 + r() * 26, gr = g.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, 'rgba(255,255,255,0.20)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); }
+  const m = g.createRadialGradient(64, 64, 30, 64, 64, 64); m.addColorStop(0, 'rgba(0,0,0,0)'); m.addColorStop(1, 'rgba(0,0,0,1)'); g.globalCompositeOperation = 'destination-out'; g.fillStyle = m; g.fillRect(0, 0, 128, 128); }); t.colorSpace = THREE.SRGBColorSpace; return t; };
 
 const sample = (prof, x0, x1, n = 14) => Array.from({ length: n + 1 }, (_, i) => { const x = lerp(x0, x1, i / n); return [x, rAt(prof, x)]; });
 const CONST = (r) => [[-9, r], [9, r]];
@@ -399,35 +413,89 @@ export class Scene3D {
     const p = new THREE.Points(g, m); p.frustumCulled = false; this.scene.add(p); return p;
   }
   _buildEffects() {
-    const N = (this.nAir = 3600);
-    this.air = this._points(N, 0.026);
-    this.airP = Array.from({ length: N }, (_, i) => ({ core: i % 4 === 0, u: Math.random(), v: Math.random(), th: Math.random() * TAU }));
-    this.flame = this._points(300, 0.15);
-    this.fuelP = this._points(200, 0.03);
-    this.fog = this._points(520, 0.55, THREE.NormalBlending); this.fog.material.opacity = 0;
-    this.fogSeed = Array.from({ length: 520 }, () => [Math.random(), Math.random(), Math.random() * TAU]);
-    this.vortex = this._points(360, 0.1, THREE.NormalBlending); this.vortex.material.opacity = 0;
-    this.torch = this._points(160, 0.4);
-    this.bang = this._points(120, 0.7);
+    const add = (o) => { o.frustumCulled = false; this.scene.add(o); return o; };
+    this.puff = puffSprite();
+    // airflow: streaks (head + fading tail) instead of dots, so speed and direction read at a glance
+    const N = (this.nAir = 5200);
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 6), 3));
+    lg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N * 6), 3));
+    this.air = add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
+    this.airP = Array.from({ length: N }, (_, i) => ({ core: i % 4 === 0, u: Math.random(), v: Math.random(), th: Math.random() * TAU, k: 0.6 + 0.8 * Math.random() }));
+    this.fuelP = this._points(240, 0.028);
+
+    // flame: nested annular sheets with a flowing fractal-noise shader
+    const flameMat = () => new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      uniforms: { uT: { value: 0 }, uI: { value: 0 }, uSeed: { value: 0 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+      fragmentShader: `uniform float uT,uI,uSeed; varying vec2 vUv; ${NOISE}
+        void main(){ float x=clamp(vUv.y,0.0,1.0); float n=fbm(vec2(vUv.x*26.0+uSeed, x*3.2-uT*2.6))*0.65+fbm(vec2(vUv.x*61.0-uSeed, x*7.0-uT*4.4))*0.35;
+          float reach=clamp(0.35+0.55*uI,0.05,1.0);
+          float body=clamp(1.0-x/reach,0.0,1.0); float tongue=smoothstep(0.25,0.8,n+body*0.7-0.25);
+          float a=clamp(tongue*body*(0.3+0.5*uI),0.0,1.0)*smoothstep(0.0,0.04,x);
+          vec3 hot=vec3(0.75,0.85,1.0), mid=vec3(1.0,0.78,0.3), cool=vec3(1.0,0.32,0.05);
+          vec3 c=mix(mix(hot,mid,smoothstep(0.0,0.28,x)), cool, smoothstep(0.25,0.9,x));
+          gl_FragColor=vec4(c*(0.35+0.9*n)*a, a); }`,
+    });
+    this.flameSheets = [0.222, 0.238, 0.252, 0.266, 0.28].map((r, i) => { const g = new THREE.LatheGeometry([new THREE.Vector2(r, 1.972), new THREE.Vector2(r + (i - 2) * 0.004, 2.19)], 96); g.rotateZ(-Math.PI / 2); const m = add(new THREE.Mesh(g, flameMat())); m.material.uniforms.uSeed.value = i * 3.7; m.visible = false; return m; });
+
+    // mist, smoke and fire use lumpy puffs
+    const puffs = (n, size, blending) => { const p = this._points(n, size, blending); p.material.map = this.puff; return p; };
+    this.fog = puffs(700, 0.5, THREE.NormalBlending); this.fog.material.opacity = 0;
+    this.fogSeed = Array.from({ length: 700 }, () => [Math.random(), Math.random(), Math.random() * TAU, Math.random()]);
+    this.dust = puffs(140, 0.34, THREE.NormalBlending); this.dust.material.opacity = 0;
+    this.torch = puffs(200, 0.42, THREE.AdditiveBlending);
+    this.bang = puffs(160, 0.75, THREE.AdditiveBlending);
+
+    // ground vortex: a twisting rope of condensed air, bent in the vertex shader from the floor into the intake
+    const rope = (layer) => new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      uniforms: { uT: { value: 0 }, uK: { value: 0 }, uFoot: { value: new THREE.Vector3(-1.25, FLOOR_Y, 0) }, uTop: { value: new THREE.Vector3(-0.42, -0.5, 0) }, uFat: { value: 1 + layer * 0.9 }, uPhase: { value: layer * 2.1 } },
+      vertexShader: `uniform float uT,uFat,uPhase; uniform vec3 uFoot,uTop; varying float vT; varying float vA; varying float vFacing;
+        void main(){ float t=clamp(position.y+0.5,0.0,1.0); vT=t; float a=atan(position.z,position.x); vA=a;
+          float e=t*t*(3.0-2.0*t);
+          vec3 c=vec3(mix(uFoot.x,uTop.x,e), mix(uFoot.y,uTop.y,t), mix(uFoot.z,uTop.z,e));
+          float sway=(1.0-t)*t*4.0; c.x+=0.07*sway*sin(t*5.0+uT*1.3+uPhase); c.z+=0.07*sway*cos(t*4.0+uT*1.1+uPhase);
+          float r=(mix(0.13,0.022,smoothstep(0.0,0.5,t))+0.008*t)*uFat;
+          float tw=a+t*9.0-uT*5.0;
+          vec3 p=c+r*vec3(cos(tw),0.0,sin(tw));
+          vec4 mv=modelViewMatrix*vec4(p,1.0); vec3 nrm=normalMatrix*vec3(cos(tw),0.0,sin(tw));
+          vFacing=abs(nrm.z)/max(length(nrm),1e-4);
+          gl_Position=projectionMatrix*mv; }`,
+      fragmentShader: `uniform float uT,uK,uPhase; varying float vT; varying float vA; varying float vFacing; ${NOISE}
+        void main(){ float streak=fbm(vec2(vA*2.2+vT*16.0-uT*6.0+uPhase, vT*9.0-uT*1.5));
+          float ends=smoothstep(0.0,0.06,vT)*(1.0-smoothstep(0.86,1.0,vT));
+          float a=clamp(uK,0.0,1.0)*ends*(0.2+0.8*streak)*pow(clamp(vFacing,1e-3,1.0),1.5);
+          gl_FragColor=vec4(vec3(0.92,0.95,1.0), clamp(a,0.0,1.0)); }`,
+    });
+    this.vortexRopes = [0, 1].map((k) => add(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 28, 80, true), rope(k))));
+
+    // exhaust plume: nested cones, fractal noise breaking up along the flow
     const plumeMat = (rgb) => new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
       uniforms: { uT: { value: 0 }, uA: { value: 0 }, uC: { value: new THREE.Color(...rgb) }, uSpeed: { value: 1 } },
-      vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv=uv; vec4 mv=modelViewMatrix*vec4(position,1.0); vN=normalMatrix*normal; vV=-mv.xyz; gl_Position=projectionMatrix*mv; }',
-      fragmentShader: `uniform float uT,uA,uSpeed; uniform vec3 uC; varying vec2 vUv; varying vec3 vN; varying vec3 vV;
-        float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);} 
-        float n(vec2 p){vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);} 
-        void main(){ float along=clamp(1.0-vUv.y,0.0,1.0); float t=uT*uSpeed; float nz=n(vec2(vUv.x*14.0, along*7.0-t*3.0))*0.6+n(vec2(vUv.x*31.0, along*18.0-t*6.0))*0.4;
-          float body=pow(max(1.0-along,1e-4),1.6)*smoothstep(0.0,0.06,along);
-          float nv=dot(vN,vV)/max(length(vN)*length(vV),1e-4); float rimF=pow(clamp(abs(nv),1e-4,1.0),1.4);
-          gl_FragColor=vec4(uC*(0.55+0.9*nz), clamp(uA*body*rimF*(0.35+0.75*nz),0.0,1.0)); }`,
+      vertexShader: `uniform float uT,uSpeed; varying vec2 vUv; varying vec3 vN; varying vec3 vV;
+        void main(){ vUv=uv; float along=clamp(1.0-uv.y,0.0,1.0);
+          vec3 p=position; float wob=along*along*0.11; p.y+=wob*sin(along*7.0-uT*uSpeed*2.2+uv.x*6.283); p.z+=wob*cos(along*6.0-uT*uSpeed*1.9+uv.x*6.283);
+          vec4 mv=modelViewMatrix*vec4(p,1.0); vN=normalMatrix*normal; vV=-mv.xyz; gl_Position=projectionMatrix*mv; }`,
+      fragmentShader: `uniform float uT,uA,uSpeed; uniform vec3 uC; varying vec2 vUv; varying vec3 vN; varying vec3 vV; ${NOISE}
+        void main(){ float along=clamp(1.0-vUv.y,0.0,1.0); float t=uT*uSpeed;
+          float nz=fbm(vec2(vUv.x*9.0, along*5.0-t*2.4))*0.6+fbm(vec2(vUv.x*24.0+3.0, along*13.0-t*5.0))*0.4;
+          float body=pow(max(1.0-along,1e-4),1.5)*smoothstep(0.0,0.05,along);
+          float breakup=smoothstep(0.15,0.75,nz+0.55*(1.0-along));
+          float nv=dot(vN,vV)/max(length(vN)*length(vV),1e-4); float rimF=pow(clamp(abs(nv),1e-4,1.0),1.3);
+          gl_FragColor=vec4(uC*(0.5+1.1*nz), clamp(uA*body*rimF*breakup,0.0,1.0)); }`,
     });
-    const cone = (r0, r1, rgb, x) => { const g = new THREE.CylinderGeometry(r1, r0, 1, 48, 24, true); g.translate(0, 0.5, 0); g.rotateZ(-Math.PI / 2); const m = new THREE.Mesh(g, plumeMat(rgb)); m.frustumCulled = false; m.position.x = x; this.scene.add(m); return m; };
-    this.plumeOuter = cone(0.6, 0.78, [0.5, 0.7, 1.0], 3.55);
+    const cone = (r0, r1, rgb, x) => { const g = new THREE.CylinderGeometry(r1, r0, 1, 56, 40, true); g.translate(0, 0.5, 0); g.rotateZ(-Math.PI / 2); const m = add(new THREE.Mesh(g, plumeMat(rgb))); m.position.x = x; return m; };
+    this.plumeOuter = cone(0.6, 0.86, [0.5, 0.7, 1.0], 3.55);
+    this.plumeMid = cone(0.5, 0.68, [0.85, 0.75, 0.7], 3.4);
     this.plumeCore = cone(0.4, 0.5, [1.0, 0.55, 0.2], 3.2);
     this.plumeHot = cone(0.26, 0.2, [1.0, 0.85, 0.6], 3.15);
     const blur = new THREE.Mesh(new THREE.RingGeometry(0.25, 0.8, 64), new THREE.MeshBasicMaterial({ color: 0xb8c0c8, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
     blur.rotation.y = Math.PI / 2; blur.position.x = 0.16; this.fanBlur = blur; this.scene.add(blur);
   }
+
 
   _buildPost() {
     const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
@@ -610,42 +678,52 @@ export class Scene3D {
     }
 
     const fill = (pts, n, fn) => { const pos = pts.geometry.attributes.position.array, col = pts.geometry.attributes.color.array; for (let i = 0; i < n; i++) fn(i, pos, col, i * 3); pts.geometry.attributes.position.needsUpdate = true; pts.geometry.attributes.color.needsUpdate = true; };
-    // ---- air
+    // ---- airflow streaks
     const show = this.showFlow;
     this.air.visible = show;
     if (show) {
       const vB = Math.sign(o.Wbypass) * (0.12 + 3.2 * Math.sqrt(Math.abs(o.Wbypass) / 315)) * (Math.abs(o.Wbypass) > 0.5 ? 1 : 0);
       const vC = Math.sign(o.Wcore) * (0.12 + 3.2 * Math.sqrt(Math.abs(o.Wcore) / 70)) * (Math.abs(o.Wcore) > 0.05 ? 1 : 0);
       const cB = tempRGB(o.T13 + 120), c2 = tempRGB(o.T2 + 120), c25 = tempRGB(o.T25 + 150), c3 = tempRGB(o.T3 + 150), c4 = tempRGB(o.T4 + 150), c5 = tempRGB(o.T5 + 150);
-      const ex = this.explode, x0 = -1.8, span = 6.2;
-      fill(this.air, this.nAir, (i, pos, col, j) => {
-        const p = this.airP[i], v = p.core ? vC : vB;
+      const ex = this.explode, x0 = -1.9, span = 6.4, swirl1 = 0.5 * p1, swirl2 = 0.4 * p2;
+      const pos = this.air.geometry.attributes.position.array, col = this.air.geometry.attributes.color.array;
+      // where a particle sits for a given progress u along its path
+      const at = (p, u, out) => {
+        const x = x0 + u * span; let lo, hi, c, a = 1;
+        if (x < 0) { const far = x < -0.78 ? 1 + (-0.78 - x) * 0.8 : 1; hi = rAt(P.inletInner, Math.max(x, -0.78)) * far; lo = 0; c = c2; if (p.core) hi *= 0.42; else lo = hi * 0.42; a = x < -0.78 ? 0.35 : 0.75; }
+        else if (x < 0.4) { lo = rAt(P.spinner, x); hi = 0.8; c = c2; const m = lerp(lo, hi, 0.36); if (p.core) hi = m; else lo = m; }
+        else if (p.core) { lo = rAt(P.coreInner, Math.min(x, 3.44)); hi = x > 3.12 ? lerp(0.44, 0.3, clamp((x - 3.12) / 1.3, 0, 1)) : rAt(P.coreOuter, x); c = x < 1.0 ? c25 : x < 1.9 ? c3 : x < 2.3 ? c4 : c5; a = x > 3.3 ? clamp(1 - (x - 3.3) / 1.1, 0, 1) : 1; }
+        else { lo = x > 3.12 ? lerp(0.46, 0.3, clamp((x - 3.12) / 1.3, 0, 1)) : rAt(P.bypInner, x); hi = rAt(P.bypOuter, Math.min(x, 3.55)); c = cB; a = x > 3.55 ? clamp(1 - (x - 3.55) / 0.9, 0, 1) : 1; }
+        const rr = lerp(lo, hi, 0.06 + 0.88 * p.v);
+        // swirl picked up from the rotating blade rows, taken out again by the stators behind them
+        const sw = p.core ? swirl2 * (bell(x, 1.5, 0.35) + bell(x, 2.32, 0.1)) + swirl1 * (bell(x, 0.65, 0.2) + bell(x, 2.72, 0.25)) : swirl1 * bell(x, 0.35, 0.3);
+        const th = p.th + sw * 2.2;
+        out[0] = x + ex * 0.2 * (x - 1.5); out[1] = rr * Math.cos(th); out[2] = rr * Math.sin(th); out[3] = c; out[4] = a;
+      };
+      const h = [0, 0, 0, null, 0], tl = [0, 0, 0, null, 0];
+      for (let i = 0; i < this.nAir; i++) {
+        const p = this.airP[i], v = (p.core ? vC : vB) * p.k;
         p.u += (v * dt) / span;
         if (p.u > 1 || p.u < 0) { p.u -= Math.floor(p.u); p.v = Math.random(); p.th = Math.random() * TAU; }
-        const x = x0 + p.u * span;
-        let lo, hi, c, a = 1;
-        if (x < 0) { const far = x < -0.78 ? 1 + (-0.78 - x) * 0.75 : 1; hi = rAt(P.inletInner, Math.max(x, -0.78)) * far; lo = 0; c = c2; if (p.core) hi *= 0.42; else lo = hi * 0.42; a = x < -0.78 ? 0.45 : 0.8; }
-        else if (x < 0.4) { lo = rAt(P.spinner, x); hi = 0.8; c = c2; const m = lerp(lo, hi, 0.36); if (p.core) hi = m; else lo = m; }
-        else if (p.core) { lo = rAt(P.coreInner, Math.min(x, 3.7)); hi = x > 3.12 ? lerp(0.44, 0.3, clamp((x - 3.12) / 1.3, 0, 1)) : rAt(P.coreOuter, x); c = x < 1.0 ? c25 : x < 1.9 ? c3 : x < 2.3 ? c4 : c5; a = x > 3.3 ? clamp(1 - (x - 3.3) / 1.1, 0, 1) : 1; }
-        else { lo = x > 3.12 ? lerp(0.46, 0.3, clamp((x - 3.12) / 1.3, 0, 1)) : rAt(P.bypInner, x); hi = rAt(P.bypOuter, Math.min(x, 3.55)); c = cB; a = x > 3.55 ? clamp(1 - (x - 3.55) / 0.85, 0, 1) : 1; }
-        const rr = lerp(lo, hi, 0.06 + 0.88 * p.v), th = p.th + (x > 0.3 && x < 3 ? 0.25 * Math.sin(x * 3 + i) : 0);
-        pos[j] = x + ex * 0.2 * (x - 1.5); pos[j + 1] = rr * Math.cos(th); pos[j + 2] = rr * Math.sin(th);
-        const k = v === 0 ? 0 : a * 0.6;
-        col[j] = c[0] * k; col[j + 1] = c[1] * k; col[j + 2] = c[2] * k;
-      });
+        const len = clamp(Math.abs(v) * 0.045, 0.012, 0.16) / span * Math.sign(v || 1);
+        at(p, p.u, h); at(p, clamp(p.u - len, 0, 1), tl);
+        const j = i * 6, k = v === 0 ? 0 : h[4] * 0.85, c = h[3];
+        pos[j] = h[0]; pos[j + 1] = h[1]; pos[j + 2] = h[2]; pos[j + 3] = tl[0]; pos[j + 4] = tl[1]; pos[j + 5] = tl[2];
+        col[j] = c[0] * k; col[j + 1] = c[1] * k; col[j + 2] = c[2] * k; col[j + 3] = 0; col[j + 4] = 0; col[j + 5] = 0;
+      }
+      this.air.geometry.attributes.position.needsUpdate = true; this.air.geometry.attributes.color.needsUpdate = true;
     }
     // ---- fuel spray and flame
     const exC = this.byId.liner.ex * this.explode * 1.5;
     const fuelOn = o.wf > 0.002 && show;
     this.fuelP.visible = fuelOn;
-    if (fuelOn) fill(this.fuelP, 200, (i, pos, col, j) => { const th = ((i % 20) / 20) * TAU + 0.157, f = (t * 3 + i * 0.137) % 1, r = 0.25 + (((i * 7) % 11) / 11 - 0.5) * 0.05 * f; pos[j] = 1.95 + f * 0.09 + exC; pos[j + 1] = r * Math.cos(th); pos[j + 2] = r * Math.sin(th); const k = (1 - f) * clamp(o.wf / 0.4, 0.25, 1); col[j] = k; col[j + 1] = 0.85 * k; col[j + 2] = 0.25 * k; });
+    if (fuelOn) fill(this.fuelP, 240, (i, pos, col, j) => { const th = ((i % 20) / 20) * TAU + 0.157, f = (t * 3 + i * 0.137) % 1, cone = (((i * 7) % 11) / 11 - 0.5) * 0.06 * f, r = 0.25 + cone; pos[j] = 1.955 + f * 0.085 + exC; pos[j + 1] = r * Math.cos(th + cone * 2); pos[j + 2] = r * Math.sin(th + cone * 2); const k = (1 - f) * clamp(o.wf / 0.4, 0.25, 1); col[j] = k; col[j + 1] = 0.85 * k; col[j + 2] = 0.25 * k; });
     const inten = o.lit ? clamp(o.farBurn / 0.026, 0.2, 1.4) : 0;
-    this.flame.visible = inten > 0;
-    this.flameLight.intensity = inten * (2.6 + 0.6 * Math.sin(t * 40)); this.flameLight.position.x = 2.05 + exC;
-    if (inten > 0) fill(this.flame, 300, (i, pos, col, j) => { const th = Math.random() * TAU, f = Math.random(), r = 0.25 + (Math.random() - 0.5) * 0.06; pos[j] = 1.98 + f * 0.2 * Math.min(1.2, inten + 0.3) + exC; pos[j + 1] = r * Math.cos(th); pos[j + 2] = r * Math.sin(th); const k = (1 - f * 0.7) * inten * 0.5; col[j] = k; col[j + 1] = k * (0.35 + 0.5 * (1 - f)); col[j + 2] = k * 0.12 * (1 - f); });
+    this.flameLight.intensity = inten * (1.1 + 0.25 * Math.sin(t * 40)); this.flameLight.position.x = 2.05 + exC;
+    for (const m of this.flameSheets) { m.visible = inten > 0; m.position.x = exC; m.material.uniforms.uT.value = t % 1000; m.material.uniforms.uI.value = inten; }
     const torch = o.wfUnburnt > 0.01 || (o.lit && o.pool > 0.02);
     this.torch.visible = torch;
-    if (torch) fill(this.torch, 160, (i, pos, col, j) => { const f = Math.random(), th = Math.random() * TAU, r = Math.random() * (0.3 + 0.25 * f); pos[j] = 3.1 + f * 2.2; pos[j + 1] = r * Math.cos(th) + f * f * 0.3; pos[j + 2] = r * Math.sin(th); const k = (1 - f) * 0.5; col[j] = k; col[j + 1] = k * 0.5; col[j + 2] = k * 0.08; });
+    if (torch) fill(this.torch, 200, (i, pos, col, j) => { const f = (i / 200 + t * 0.9 + (i % 7) * 0.13) % 1, th = i * 2.399, r = (0.08 + 0.3 * f) * Math.sqrt(((i * 13) % 17) / 17); pos[j] = 3.1 + f * 2.6; pos[j + 1] = r * Math.cos(th) + f * f * 0.45; pos[j + 2] = r * Math.sin(th); const k = Math.sin(Math.min(1, f * 1.1) * Math.PI) * 0.4; col[j] = k; col[j + 1] = k * (0.55 - 0.35 * f); col[j + 2] = k * 0.06; });
 
     // ---- exhaust plume and heat haze
     const thr = clamp(o.Fg / 140e3, 0, 1), hotK = clamp((o.T5 - 400) / 500, 0, 1);
@@ -655,9 +733,10 @@ export class Scene3D {
     // opaque blob over the engine, so it fades out as the view lines up with the engine axis.
     const fwd = new THREE.Vector3(); this.camera.getWorldDirection(fwd);
     const endOn = clamp((Math.abs(fwd.x) - 0.7) / 0.25, 0, 1), pk = 1 - endOn * endOn * (3 - 2 * endOn);
-    setPl(this.plumeOuter, L, o.W9 > 5 ? (0.06 + 0.3 * thr) * (1 - 0.8 * (o.rev || 0)) * pk : 0, 0.6 + 2.5 * thr);
-    setPl(this.plumeCore, L * 0.8, (0.2 + 0.6 * thr) * hotK * pk, 0.8 + 3 * thr);
-    setPl(this.plumeHot, L * 0.45, (0.3 + 0.6 * thr) * clamp((o.T5 - 560) / 300, 0, 1) * pk, 1 + 3 * thr);
+    setPl(this.plumeOuter, L, o.W9 > 5 ? (0.02 + 0.07 * thr) * (1 - 0.8 * (o.rev || 0)) * pk : 0, 0.6 + 2.5 * thr);
+    setPl(this.plumeMid, L * 0.9, o.W9 > 5 ? (0.02 + 0.09 * thr) * (0.4 + 0.6 * hotK) * pk : 0, 0.7 + 2.8 * thr);
+    setPl(this.plumeCore, L * 0.8, (0.08 + 0.26 * thr) * hotK * pk, 0.8 + 3 * thr);
+    setPl(this.plumeHot, L * 0.45, (0.14 + 0.3 * thr) * clamp((o.T5 - 560) / 300, 0, 1) * pk, 1 + 3 * thr);
     this.plumeCore.material.uniforms.uC.value.setRGB(1.0, 0.35 + 0.35 * hotK, 0.12 + 0.2 * hotK);
     const hz = this.haze.uniforms, a = new THREE.Vector3(3.3, 0, 0).project(this.camera), b = new THREE.Vector3(3.6 + L * 1.1, 0.25, 0).project(this.camera);
     const edge = new THREE.Vector3(3.3, 0.62, 0).project(this.camera);
@@ -672,20 +751,23 @@ export class Scene3D {
 
     // ---- inlet condensation and ground vortex (physics in main.js inletWeather)
     const fogA = env ? env.fog : 0, vx = env ? env.vortex : 0;
-    this.fog.material.opacity += (fogA * 0.12 - this.fog.material.opacity) * Math.min(1, dt * 2);
+    this.fog.material.opacity += (fogA * 0.22 - this.fog.material.opacity) * Math.min(1, dt * 2);
     this.fog.visible = this.fog.material.opacity > 0.004;
-    if (this.fog.visible) fill(this.fog, 520, (i, pos, col, j) => { const s = this.fogSeed[i], f = (s[0] + t * (0.25 + 0.5 * p1)) % 1, x = -1.05 + f * 1.05, r = Math.sqrt(s[1]) * 0.76 * (x < -0.78 ? 1.08 : 1), th = s[2] + t * 0.2; pos[j] = x; pos[j + 1] = r * Math.cos(th); pos[j + 2] = r * Math.sin(th); const k = Math.sin(f * Math.PI); col[j] = col[j + 1] = col[j + 2] = 0.92 * k; });
-    this.vortex.material.opacity += (vx * (0.22 + 0.6 * fogA) - this.vortex.material.opacity) * Math.min(1, dt * 1.5);
-    this.vortex.visible = this.vortex.material.opacity > 0.004;
-    if (this.vortex.visible) {
-      const gx = -1.25 + 0.12 * Math.sin(t * 0.7), gz = 0.25 * Math.sin(t * 0.43);
-      fill(this.vortex, 360, (i, pos, col, j) => { const f = (i / 360 + t * 0.6) % 1, e = f * f * (3 - 2 * f), jit = ((i * 7919) % 97) / 97; const cx = lerp(gx, -0.45, e), cy = lerp(FLOOR_Y, -0.5, f), cz = lerp(gz, 0, e); const rad = (lerp(0.22, 0.03, Math.min(1, f * 2.2)) + 0.03 * f) * (0.55 + 0.6 * jit), an = f * 22 - t * 9 + jit * 6.283; pos[j] = cx + rad * Math.cos(an); pos[j + 1] = cy; pos[j + 2] = cz + rad * Math.sin(an); const k = 0.75 * Math.sin(Math.min(1, f * 1.15) * Math.PI) + 0.1; col[j] = col[j + 1] = col[j + 2] = k; });
-    }
+    // mist forms where the air is fastest and coldest: just inside the lip, thickening toward the fan
+    if (this.fog.visible) fill(this.fog, 700, (i, pos, col, j) => { const sd = this.fogSeed[i], f = (sd[0] + t * (0.2 + 0.55 * p1)) % 1, x = -0.95 + f * 0.95, wall = sd[3] < 0.6, r = (wall ? 0.6 + 0.4 * Math.sqrt(sd[1]) : Math.sqrt(sd[1])) * 0.76 * (x < -0.78 ? 1.06 : 1), th = sd[2] + t * (0.15 + 0.5 * p1) * (0.5 + f); pos[j] = x; pos[j + 1] = r * Math.cos(th); pos[j + 2] = r * Math.sin(th); const k = Math.sin(f * Math.PI) * (0.55 + 0.45 * Math.sin(t * 1.7 + i)); col[j] = col[j + 1] = col[j + 2] = 0.95 * k; });
+    const vk = (this._vk = (this._vk || 0) + (vx - (this._vk || 0)) * Math.min(1, dt * 1.5));
+    const foot = [-1.25 + 0.14 * Math.sin(t * 0.7) + 0.05 * Math.sin(t * 2.3), 0.28 * Math.sin(t * 0.43)];
+    this.vortexRopes.forEach((m, k) => { const u = m.material.uniforms; m.visible = vk > 0.01; u.uT.value = t % 1000; u.uK.value = vk * (k === 0 ? 0.3 + 0.4 * fogA : 0.1 + 0.15 * fogA); u.uFoot.value.set(foot[0], FLOOR_Y, foot[1]); });
+    // dust and spray kicked up where the vortex touches the ground
+    this.dust.material.opacity += (vk * 0.22 - this.dust.material.opacity) * Math.min(1, dt * 2);
+    this.dust.visible = this.dust.material.opacity > 0.004;
+    if (this.dust.visible) fill(this.dust, 140, (i, pos, col, j) => { const f = (i / 140 + t * 0.35 + (i % 5) * 0.21) % 1, a = i * 2.399 + t * (2.5 - 1.8 * f), r = 0.08 + 0.5 * f; pos[j] = foot[0] + r * Math.cos(a); pos[j + 1] = FLOOR_Y + 0.03 + 0.22 * f * f; pos[j + 2] = foot[1] + r * Math.sin(a); const k = Math.sin(f * Math.PI) * 0.6; col[j] = k * 0.8; col[j + 1] = k * 0.78; col[j + 2] = k * 0.74; });
+
     // ---- surge: flame out of the intake and tailpipe
     this.bang.visible = this.flash > 0.03;
     if (this.bang.visible) {
       const fl = this.flash, front = this.flashFront;
-      fill(this.bang, 120, (i, pos, col, j) => { const f = Math.random(), th = Math.random() * TAU, back = i % 3 === 0 || !front, r = Math.random() * (back ? 0.4 : 0.75); pos[j] = back ? 3.2 + f * 2 : -0.2 - f * 1.4 * (1.2 - fl); pos[j + 1] = r * Math.cos(th); pos[j + 2] = r * Math.sin(th); const k = fl * (1 - f) * 0.7; col[j] = k; col[j + 1] = k * 0.55; col[j + 2] = k * 0.12; });
+      fill(this.bang, 160, (i, pos, col, j) => { const f = Math.random(), th = Math.random() * TAU, back = i % 3 === 0 || !front, r = Math.random() * (back ? 0.4 : 0.75); pos[j] = back ? 3.2 + f * 2 : -0.2 - f * 1.4 * (1.2 - fl); pos[j + 1] = r * Math.cos(th); pos[j + 2] = r * Math.sin(th); const k = fl * (1 - f) * 0.7; col[j] = k; col[j + 1] = k * 0.55; col[j + 2] = k * 0.12; });
       this.flash *= Math.pow(0.004, dt);
     }
     if (this.quality === 'low') this.renderer.render(this.scene, this.camera); else this.composer.render();
