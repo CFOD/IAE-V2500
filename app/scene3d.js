@@ -467,7 +467,9 @@ export class Scene3D {
   }
   _pick(e, click) {
     const r = this.canvas.getBoundingClientRect();
-    const ndc = new THREE.Vector2(((e.clientX - r.left + this.offsetX) / r.width) * 2 - 1, -((e.clientY - r.top + this.offsetY) / r.height) * 2 + 1);
+    // The camera's projection already includes the view offset used to keep the engine clear of the
+    // panels, so the cursor position is used as-is (adding the offset again shifts every hit sideways).
+    const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     this.ray.setFromCamera(ndc, this.camera);
     let part = null;
     for (const h of this.ray.intersectObjects(this.engine.children, true)) {
