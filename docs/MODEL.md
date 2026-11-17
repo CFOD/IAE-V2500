@@ -22,6 +22,11 @@ Conventions the loader understands:
 
 - **Node names** are `<component>_<piece>`. A node whose name ends in `__cut` is shown when the
   cutaway is on, and its un-suffixed twin when it is off.
+- **Cowl halves**: in the `fancowl` and `cna` components, a node whose name ends in `_L` or `_R`
+  (before any `__cut` / `__full`, optionally followed by `_<number>`) belongs to the left or right
+  half and turns about that half's hinge beside the pylon when the cowls are opened. A `__full` node
+  is shown only with the cutaway off; the build uses this for pieces of the left half that lie inside
+  the cutaway sector.
 - **Material names** `paint`, `bare`, `lip`, `section` are replaced by the simulator's own materials,
   so authored and generated parts match. Other materials are used as exported.
 - **`drop`** in `model.json` lists tags of generated objects to remove (currently `skin`). Without

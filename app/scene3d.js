@@ -28,6 +28,13 @@ const CUT_A = -8 * DEG, CUT_B = 112 * DEG;
 // discs, shafts and bearings can be seen. Its lower face is shared with the casing cut.
 const DEEP_A = 60 * DEG;
 const inDeep = (th) => { const t = ((th % TAU) + TAU) % TAU; return t > DEEP_A && t < CUT_B; };
+// Cowls that open for maintenance (Airbus TTM, ATA 71): the fan cowl doors hinge on the pylon either
+// side and stand open on hold-open struts; each thrust reverser C-duct (outer cowl, inner barrel and
+// bifurcation walls together) hinges on the pylon and opens to 45 deg on two hold-open rods.
+const HINGES = {
+  fan: { L: { th: 9 * DEG, r: 1.045 }, R: { th: -9 * DEG, r: 1.045 }, open: 62 * DEG },
+  cd: { L: { th: 7 * DEG, r: 1.0 }, R: { th: -7 * DEG, r: 1.0 }, open: 45 * DEG },
+};
 const inCut = (th) => { const t = ((th % TAU) + TAU) % TAU; return t > TAU + CUT_A || t < CUT_B; };
 
 function canvasTex(w, h, draw, repeat) {
@@ -230,7 +237,7 @@ export class Scene3D {
     this.flameLight = new THREE.PointLight(0xff8a30, 0, 3.5, 1.6); this.flameLight.position.set(2.05, 0, 0); scene.add(this.flameLight);
 
     this.cutaway = true; this.explode = 0; this.showFlow = true; this.quality = 'medium';
-    this.parts = []; this.byId = {}; this.vsvRows = []; this.cutInst = []; this.rotorRows = []; this.hover = null; this.selected = null;
+    this.parts = []; this.byId = {}; this.vsvRows = []; this.cutInst = []; this.rotorRows = []; this.hingePivots = []; this.cowl = { open: false, fan: 0, cd: 0 }; this.hover = null; this.selected = null;
     this.sprite = softSprite(); this.tex = { liner: linerTex(), brushed: brushedTex(), blade: bladeTex(false), fanBlade: bladeTex(true), cast: castTex(), paint: paintTextures(), concrete: concreteTex() };
     this.capMat = new THREE.MeshStandardMaterial({ color: 0xb8402a, metalness: 0.1, roughness: 0.7, side: THREE.DoubleSide });
     this.t = 0; this.flash = 0;
@@ -257,6 +264,36 @@ export class Scene3D {
     part.mat = d.mat.isMaterial ? d.mat : new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...d.mat });
     this.parts.push(part); this.byId[part.id] = part;
     return part;
+  }
+  /** Group that turns with one cowl half about its hinge. Objects added to the returned group are given in engine coordinates. */
+  _hingeInner(part, kind, side) {
+    const key = `${part.id}:${kind}:${side}`; this._hg ||= {};
+    if (this._hg[key]) return this._hg[key];
+    const h = HINGES[kind][side], wrap = new THREE.Group(), piv = new THREE.Group(), inner = new THREE.Group();
+    piv.position.set(0, h.r * Math.cos(h.th), h.r * Math.sin(h.th)); inner.position.copy(piv.position).negate();
+    wrap.add(piv); piv.add(inner); this._reg(part, wrap);
+    (this.hingePivots ||= []).push({ obj: piv, kind, side });
+    return (this._hg[key] = inner);
+  }
+  _into(group, part, obj) { obj.traverse((m) => { if (m.isMesh) { m.userData.part = part; m.castShadow = true; m.receiveShadow = true; } }); group.add(obj); return obj; }
+  /** Part of a solid of revolution between instance angles th0 and th1, turning with one cowl half; it gets a cut variant where it meets the cutaway sector. */
+  _halfLathe(part, kind, side, loop, th0, th1, mat, seg = 64) {
+    const inner = this._hingeInner(part, kind, side), mk = (a, b, n, capA) => {
+      const m = new THREE.Mesh(lathe(loop, n, a - Math.PI / 2, b - a), mat);
+      m.add(new THREE.Mesh(capGeo(loop, a), capA || mat), new THREE.Mesh(capGeo(loop, b), mat)); return m; };
+    const full = this._into(inner, part, mk(th0, th1, seg));
+    if (th0 < CUT_B && th1 > CUT_B) { full.userData.variant = 'full'; this._into(inner, part, mk(CUT_B, th1, Math.max(8, Math.round(seg * (th1 - CUT_B) / (th1 - th0))), this.capMat)).userData.variant = 'cut'; }
+    return inner;
+  }
+  /** Move the authored model's cowl halves (nodes named ..._L / ..._R) onto hinge pivots inside their holder. */
+  _rigExternalHinges(holder, kind) {
+    const piv = {};
+    for (const n of [...holder.children]) {
+      const m = /_(L|R)(?:_\d+)?(?:__(?:cut|full))?$/.exec(n.name || ''); if (!m) continue;
+      const side = m[1];
+      if (!piv[side]) { const h = HINGES[kind][side]; piv[side] = new THREE.Group(); piv[side].position.set(0, h.r * Math.cos(h.th), h.r * Math.sin(h.th)); holder.add(piv[side]); this.hingePivots.push({ obj: piv[side], kind, side }); }
+      piv[side].attach(n);
+    }
   }
   _reg(part, obj, parent = this.engine) {
     obj.traverse((m) => { if (m.isMesh) { m.userData.part = part; m.castShadow = true; m.receiveShadow = true; } });
@@ -508,7 +545,10 @@ export class Scene3D {
 
     // ---------------- core cowl, exhaust
     const cowl = A({ id: 'corecowl', name: 'Core cowl (inner fixed structure)', ex: 0.15, mat: composite, desc: 'Inner wall of the bypass duct, wrapped around the core engine. Remove it to see the pipework underneath.', live: (o) => `Bypass duct ${B(o.P13)} · mixing plane ${B(o.Pm)}` });
-    this._solid(cowl, band(offset(P.bypInner, -0.016), P.bypInner, 0.42, 3.12, 30));
+    this._solid(cowl, band(offset(P.bypInner, -0.016), P.bypInner, 0.42, 1.22, 10));
+    this._solid(cowl, band(offset(P.bypInner, -0.016), P.bypInner, 2.86, 3.12, 4));
+    { const barrel = band(offset(P.bypInner, -0.016), P.bypInner, 1.22, 2.86, 22), m = new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...composite });
+      this._halfLathe(cowl, 'cd', 'L', barrel, 8 * DEG, 179.75 * DEG, m); this._halfLathe(cowl, 'cd', 'R', barrel, 180.25 * DEG, 352 * DEG, m); }
     const tec = A({ id: 'tec', name: 'Turbine exhaust case and plug', ex: 1.35, mat: { ...hotM, color: 0x9c8263 }, glow: (o) => o.T5 - 170, desc: 'Carries the rear bearing. The EGT thermocouples and the P4.9 pressure probes used for EPR sit in its struts.', live: (o) => `EGT ${C(o.egt)} · EPR ${o.epr.toFixed(3)} · core jet Mach ${o.M8.toFixed(2)}` });
     this._solid(tec, [[3.0, rAt(P.coreInner, 3.0)], [3.12, 0.262], [3.12, 0.1], [3.0, 0.1]]);                                 // inner hub of the exhaust case
     this._solid(tec, [[3.12, 0.262], [3.16, 0.258], [3.56, 0.115], [3.57, 0.105], [3.56, 0.098], [3.16, 0.246], [3.12, 0.25]], { seg: 96 }); // exhaust cone: thin perforated shell, open at the rear
@@ -516,7 +556,7 @@ export class Scene3D {
     // four struts inside the common nozzle (upper, lower and two side) carrying its inner duct
     { const st = bladeGeo({ span: 0.2, chord: [0.26, 0.2], stagger: [0, 0], camber: [0, 0], thick: [0.12, 0.12], nSpan: 2 });
       this._ring(cna, st, 4, (m, th) => { m.makeRotationX(th); m.setPosition(3.22, 0.46 * Math.cos(th), 0.46 * Math.sin(th)); }, { mat: this.shared.bare });
-      this._solid(cna, [[3.1, 0.45], [3.1, 0.462], [3.4, 0.43], [3.4, 0.42]], { tag: 'liner', mat: this.shared.bare, seg: 96 }); }
+      this._solid(cna, [[3.1, 0.45], [3.1, 0.462], [3.4, 0.43], [3.4, 0.42]], { mat: this.shared.bare, seg: 96 }); }
     this._solid(tec, band(CO, offset(CO, 0.02), 3.02, 3.12, 3));
     // bolt circles on the plug and the outer ring, borescope and probe bosses, rear mount lugs at the top
     { const bolt = new THREE.CylinderGeometry(0.006, 0.006, 0.014, 6); bolt.rotateZ(Math.PI / 2);
@@ -575,20 +615,21 @@ export class Scene3D {
     // thrust reverser drag links: one per blocker door, from the core cowl across the duct to the door. They pull the doors down as the sleeve slides aft.
     { const g = new THREE.CylinderGeometry(0.008, 0.008, 1, 8), mk = (ths) => { const im = new THREE.InstancedMesh(g, pipeSteel, ths.length); im.userData.ths = ths; return im; };
       const all = Array.from({ length: 10 }, (_, k) => (k * 36 + 18) * DEG);
-      this.dragLinks = [mk(all.filter((t) => !inCut(t))), mk(all.filter((t) => inCut(t)))];
+      const L = all.filter((t) => t < Math.PI), R = all.filter((t) => t > Math.PI);
+      this.dragLinks = [mk(L.filter((t) => !inCut(t))), mk(L.filter((t) => inCut(t))), mk(R)];
       this.dragLinks[1].userData.variant = 'full';
-      for (const im of this.dragLinks) this._reg(this.byId.cna, im); }
+      this.dragLinks.forEach((im, i) => this._into(this._hingeInner(this.byId.cna, 'cd', i < 2 ? 'L' : 'R'), this.byId.cna, im)); }
     // P4.9 pressure rakes in three exhaust-case struts, joined by a small-bore manifold
     for (const k of [4, 7, 10]) { const th = ((k - 1) * 360) / 13, rk = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 8), pipeGold); onCore(tec, rk, 3.03, th, 0.37); } // struts 4, 7 and 10
     this._pipe(tec, Array.from({ length: 16 }, (_, i) => [3.0, co(3.0) + 0.07, 120 + i * 15]), 0.004, pipeGold);
     // lower and upper bifurcations: the walls where the two C-ducts meet, splitting the bypass duct at 6 and 12 o'clock
     { const bi = (th, full) => { const sh = new THREE.Shape(); const xs = [1.22, 1.32, 2.6, 2.86]; sh.moveTo(xs[0], rAt(P.bypInner, xs[0])); sh.lineTo(xs[1], rAt(P.bypOuter, xs[1]) - 0.004); sh.lineTo(xs[2], rAt(P.bypOuter, xs[2]) - 0.004); sh.lineTo(xs[3], rAt(P.bypInner, xs[3]) + 0.02); sh.lineTo(2.4, rAt(P.bypInner, 2.4)); sh.lineTo(1.6, rAt(P.bypInner, 1.6)); sh.lineTo(xs[0], rAt(P.bypInner, xs[0]));
-        const g = new THREE.ExtrudeGeometry(sh, { depth: 0.1, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 2 }); g.translate(0, 0, -0.05);
-        const m = new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ ...composite, side: THREE.DoubleSide })); m.rotation.x = th * DEG; m.userData.tag = 'liner'; const o2 = this._reg(cna, m); if (full) o2.userData.variant = 'full'; };
-      bi(180, false); bi(0, true); }
+        const g = new THREE.ExtrudeGeometry(sh, { depth: 0.045, bevelEnabled: true, bevelSize: 0.012, bevelThickness: 0.012, bevelSegments: 2 }); g.translate(0, 0, -0.0225);
+        const m = new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ ...composite, side: THREE.DoubleSide })); m.rotation.x = th * DEG; const o2 = this._into(this._hingeInner(cna, 'cd', th < 180 ? 'L' : 'R'), cna, m); if (full) o2.userData.variant = 'full'; };
+      bi(178.4, false); bi(181.6, false); bi(4, true); bi(356, true); }
     // fire detection: two sensing loops clipped side by side round the core, and the nacelle temperature sensor
     for (const dx of [0, 0.012]) this._pipe(ext, Array.from({ length: 40 }, (_, i) => { const f = i / 39; return [1.45 + dx + 1.3 * f, co(1.45 + 1.3 * f) + 0.125, 122 + 226 * (0.5 - 0.5 * Math.cos(f * Math.PI * 3))]; }), 0.003, pipeGold);
-    for (const [x, th] of [[1.6, 262], [1.6, 302], [1.8, 282], [1.6, 128]]) { const h = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.012, 24), new THREE.MeshStandardMaterial({ color: 0x0c0d0e, roughness: 0.9 })); const r = rAt(P.bypInner, x) + 0.004; h.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); h.rotation.x = th * DEG; this._reg(this.byId.corecowl, h); }
+    for (const [x, th] of [[1.6, 262], [1.6, 302], [1.8, 282], [1.6, 128]]) { const h = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.012, 24), new THREE.MeshStandardMaterial({ color: 0x0c0d0e, roughness: 0.9 })); const r = rAt(P.bypInner, x) + 0.004; h.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); h.rotation.x = th * DEG; this._into(this._hingeInner(this.byId.corecowl, 'cd', th < 180 ? 'L' : 'R'), this.byId.corecowl, h); }
     // ---- core units placed from the component-location manual
     { const unit = (part, geo, mat, x, th, dr) => onCore(part, new THREE.Mesh(geo, mat), x, th, co(x) + dr);
       // VSV actuator and its crank shaft (left), high-pressure bleed valve
@@ -837,6 +878,33 @@ export class Scene3D {
     const v = { hero: [-0.72, 0.2, 9.6, 1.45], front: [-1.3, 0.1, 7.6, 0.3], rear: [0.95, 0.14, 10.5, 3.6], side: [0, 0.03, 9.4, 1.45], core: [-0.2, 0.22, 4.4, 1.95] }[name];
     if (v) Object.assign(this.orbit, { az: v[0], el: v[1], dist: v[2] }), this.orbit.target.set(v[3], -0.05, 0);
   }
+  /** Open or close the cowls: fan cowl doors first, then the C-ducts (which need the reverser stowed). */
+  setCowls(open) { this.cowl.open = open; }
+  _cowls(o, dt) {
+    const c = this.cowl, rate = dt / 2.5, revOut = (o.rev || 0) > 0.02;
+    const fanT = c.open || c.cd > 0.01 ? 1 : 0, cdT = c.open && c.fan > 0.98 && !revOut ? 1 : 0;
+    c.fan += clamp(fanT - c.fan, -rate, rate); c.cd += clamp(cdT - c.cd, -rate, rate);
+    c.blocked = c.open && revOut;
+    const key = `${c.fan.toFixed(4)}:${c.cd.toFixed(4)}:${this.explode}`; if (key === this._cowlApplied) return; this._cowlApplied = key;
+    const ease = (k) => k * k * (3 - 2 * k), ang = { fan: HINGES.fan.open * ease(c.fan), cd: HINGES.cd.open * ease(c.cd) };
+    for (const h of this.hingePivots) h.obj.rotation.x = (h.side === 'L' ? -1 : 1) * ang[h.kind];
+    // hold-open struts and rods: one end fixed on the engine, the other on the door
+    if (!this.holdRods) {
+      const g = new THREE.CylinderGeometry(0.011, 0.011, 1, 8), m = new THREE.MeshStandardMaterial({ color: 0xc9a02a, metalness: 0.8, roughness: 0.35 }), P3 = (x, th, r) => new THREE.Vector3(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG));
+      this.holdRods = [];
+      for (const s of [1, -1]) for (const x of [0.35, 0.85]) this.holdRods.push({ kind: 'fan', side: s > 0 ? 'L' : 'R', a: P3(x, s * 128, 0.9), b: P3(x, s * 108, 1.0) });
+      for (const s of [1, -1]) for (const x of [1.5, 2.5]) this.holdRods.push({ kind: 'cd', side: s > 0 ? 'L' : 'R', a: P3(x, s * 100, rAt(P.coreOuter, x) + 0.06), b: P3(x, s * 112, rAt(P.bypInner, x) - 0.02) });
+      for (const r of this.holdRods) { r.mesh = new THREE.Mesh(g, m); r.mesh.castShadow = true; r.mesh.visible = false; this.engine.add(r.mesh); }
+    }
+    const up = new THREE.Vector3(0, 1, 0), d = new THREE.Vector3(), b = new THREE.Vector3();
+    for (const r of this.holdRods) {
+      const a = ang[r.kind] * (r.side === 'L' ? -1 : 1), h = HINGES[r.kind][r.side], hy = h.r * Math.cos(h.th), hz = h.r * Math.sin(h.th);
+      const y = r.b.y - hy, z = r.b.z - hz; b.set(r.b.x, hy + y * Math.cos(a) - z * Math.sin(a), hz + y * Math.sin(a) + z * Math.cos(a));
+      r.mesh.visible = Math.abs(a) > 0.08 && this.explode < 0.01;
+      if (!r.mesh.visible) continue;
+      d.subVectors(b, r.a); r.mesh.position.copy(r.a).addScaledVector(d, 0.5); r.mesh.scale.set(1, d.length(), 1); r.mesh.quaternion.setFromUnitVectors(up, d.normalize());
+    }
+  }
   setCutaway(on) {
     this.cutaway = on;
     this.engine.traverse((n) => { if (n.userData.cutPair) { n.userData.cutPair[0].visible = !on; n.userData.cutPair[1].visible = on; } });
@@ -897,7 +965,8 @@ export class Scene3D {
       taken.push(id);
     }
     this.scene.remove(root);
-    this.setCutaway(this.cutaway); this.revNodes = null; this._rev = -1;
+    for (const [id, kind] of [['fancowl', 'fan'], ['cna', 'cd']]) { const p = this.byId[id]; if (p && taken.includes(id)) for (const ob of p.objs) if (/^ext:/.test(ob.name)) this._rigExternalHinges(ob, kind); }
+    this.setCutaway(this.cutaway); this.revNodes = null; this._rev = -1; this._cowlApplied = -1;
     return taken;
   }
 
@@ -940,6 +1009,7 @@ export class Scene3D {
     this.fanBlur.material.opacity = this.byId.fan.removed ? 0 : clamp(p1 * 0.2, 0, 0.16);
     this.fanBlur.position.x = 0.16 + this.byId.fan.ex * this.explode * 1.5;
     this._reverser(o.rev || 0);
+    this._cowls(o, dt);
 
     // variable stators turn about their own radial axis
     if (Math.abs(o.vsv - (this._vsv ?? 1e9)) > 0.2) {

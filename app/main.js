@@ -209,6 +209,12 @@ function setMode(v) {
   requestAnimationFrame(() => { view2d.resize(); frame3d(); });
 }
 for (const b of $('viewMode').children) b.onclick = () => setMode(b.dataset.v);
+$('btnCowl').onclick = () => {
+  const on = !$('btnCowl').classList.contains('on'); $('btnCowl').classList.toggle('on', on); if (!view3d) return; view3d.setCowls(on);
+  logMsg(on ? 'Opening fan cowl doors, then thrust reverser C-ducts' : 'Closing C-ducts, then fan cowl doors');
+  if (on && eng.out.N2pct > 5) logMsg('Cowls open with the engine turning: never done in service');
+  if (on && (eng.out.rev || 0) > 0.02) logMsg('C-ducts stay shut until the reverser is stowed');
+};
 $('btnCut').onclick = () => { const on = !$('btnCut').classList.contains('on'); $('btnCut').classList.toggle('on', on); view3d && view3d.setCutaway(on); };
 $('btnFlow').onclick = () => { const on = !$('btnFlow').classList.contains('on'); $('btnFlow').classList.toggle('on', on); if (view3d) view3d.showFlow = on; };
 $('explode').oninput = () => view3d && view3d.setExplode(+$('explode').value);
@@ -237,6 +243,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowDown') { setTla(fadec.tla - 0.05); e.preventDefault(); }
   else if (e.key === 'm' || e.key === 'M') setMaster(!fadec.master);
   else if (e.key === 'c' || e.key === 'C') $('btnCut').click();
+  else if (e.key === 'o' || e.key === 'O') $('btnCowl').click();
   else if (e.key === ' ') { $('btnPause').click(); e.preventDefault(); }
 });
 window.addEventListener('resize', () => { view2d.resize(); frame3d(); });

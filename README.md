@@ -43,7 +43,7 @@ one) and run `Start V2500.bat` again.
 | The engine view is black, flickers, flashes or is very slow | Click **Quality** in the top bar until it says **Low**, which turns every visual effect off. Then please report it with the graphics card name shown under **Panel > Monitor > Log**. Updating your graphics driver may also help. |
 | Anything else | Press **F12** in the game window, click the **Console** tab, and copy the red text into a GitHub issue or back to whoever is helping you. |
 
-Useful keys: **F11** full screen, **Space** pause, **M** master switch, **C** cutaway, up/down arrows
+Useful keys: **F11** full screen, **Space** pause, **M** master switch, **C** cutaway, **O** open cowls, up/down arrows
 move the thrust lever.
 
 ### Sound
@@ -75,6 +75,8 @@ npm run dist       # build an unpacked distributable in dist/ (electron-builder)
 **The engine (3D view)**
 - Drag to orbit, scroll to zoom, right-drag (or shift-drag) to pan. Camera presets in the top bar.
 - **Cutaway** (or `C`) removes a wedge of every casing, museum-style, with painted section faces;
+  **Cowls** (or `O`) opens the fan cowl doors and then the thrust reverser C-ducts on their hinges, the way
+  a mechanic does (the C-ducts stay shut while the reverser is deployed).
   **Explode** pulls the modules apart along the axis. **Quality** cycles Medium (default: shadows, bloom,
   heat haze), High (adds ambient occlusion), Ultra (adds supersampling) and Low (no effects).
 - The model is generated in code. An authored glTF model can replace any component: see

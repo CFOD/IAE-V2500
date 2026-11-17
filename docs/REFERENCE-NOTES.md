@@ -112,4 +112,6 @@ Not in the repository. Read as text (all 434 pages) plus selected figures.
   No. 1 bearing well forward under the fan with a long support cone, Nos 2 and 3 together at the intermediate case; strake on the left-hand fan cowl door;
   twenty triangular fuel-nozzle pads on the diffuser case; handling-bleed discharge holes in the C-duct inner barrel; ventilation intake and P2/T2 access door on top of the intake cowl;
   vent grilles and breather outlet under the right-hand fan cowl door; master chip detector quick-access door on the left.
+- [x] Opening cowls (figures pp. 31-35, 369-371): fan cowl doors hinge on the pylon each side and stand open on two hold-open struts; each C-duct (outer cowl, inner barrel and bifurcation walls) hinges on the pylon and opens to 45 deg on two hold-open rods. Inside faces in green primer, bypass-duct side in dark acoustic panels. The C-ducts cannot open with the reverser deployed (the manual's procedure has the sleeves stowed first).
+- [x] Hydraulic control unit and shut-off valve on the pylon above the engine, immediately forward of the C-duct; oil tank, supply pump and scavenge filter on the gearbox (figures pp. 19-21).
 - [ ] Figures still unread: fuel system, heat management, FADEC and EIU interfaces, starting, thrust reverser hydraulics, oil system schematics, cowl opening, borescope ports, line maintenance.

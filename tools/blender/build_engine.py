@@ -216,6 +216,40 @@ def loft(name, stations, mat, n=16):
     obj = link(bpy.data.objects.new(name, me)); me.materials.append(mat)
     return obj
 
+def mean_th(obj):
+    """Instance angle (deg) of an object's mean vertex position. Engine left (+z) is Blender -Y."""
+    mw = obj.matrix_world; vs = obj.data.vertices; n = max(len(vs), 1)
+    y = sum((mw @ v.co).y for v in vs) / n; z = sum((mw @ v.co).z for v in vs) / n
+    return math.degrees(math.atan2(-y, z)) % 360
+
+def join_sides(name, objs, made, bevel=None):
+    """Join objects into <name>_L / <name>_R by which cowl half they sit on. Pieces of the left half
+    inside the cutaway sector become <name>B_L__full, shown only with the cutaway closed."""
+    groups = {}
+    for o in objs:
+        th = mean_th(o); side = 'L' if 0 < th < 180 else 'R'
+        groups.setdefault((side, in_cut(th)), []).append(o)
+    for (side, cut), lst in sorted(groups.items()):
+        nm = name + ('B' if cut else '') + '_' + side + ('__full' if cut else '')
+        o = join(nm, lst); made.append(finish(o, bevel) if bevel is not None else o)
+
+def zone_mats(obj, outer_fn, inner_fn, primer_m, acoustic_m=None):
+    """Faces on the outer skin keep the paint; faces on the duct side get the acoustic panel material;
+    everything in between (inner faces of a cowl, bulkheads, door edges) gets green zinc-chromate primer."""
+    me = obj.data
+    def idx(m):
+        names = [mm.name for mm in me.materials]
+        if m.name not in names: me.materials.append(m); names.append(m.name)
+        return names.index(m.name)
+    ip = idx(primer_m); ia = idx(acoustic_m) if acoustic_m else None
+    for p in me.polygons:
+        c = obj.matrix_world @ p.center; r = math.hypot(c.y, c.z); x = c.x
+        if r > outer_fn(x) - 0.004: continue
+        if inner_fn and r < inner_fn(x) + 0.004:
+            if ia is not None: p.material_index = ia
+            continue
+        p.material_index = ip
+
 def in_cut(th_deg):
     t = math.radians(th_deg % 360); return t > 2 * math.pi + CUT_A or t < CUT_B
 
@@ -228,6 +262,8 @@ def build():
     bare = material('bare', (0.62, 0.64, 0.66), 1.0, 0.32)
     lipm = material('lip', (0.74, 0.76, 0.78), 1.0, 0.28)
     section = material('section', (0.5, 0.11, 0.07), 0.1, 0.7)
+    primer = material('primer', (0.2, 0.33, 0.06), 0.0, 0.6)       # zinc-chromate green inside the cowls (photos in the Airbus TTM)
+    acoustic = material('acoustic', (0.1, 0.105, 0.11), 0.1, 0.75) # acoustic sandwich panels lining the bypass duct
     R = 3.0
     wedge = prism('wedge', [(0, 0)] + [(R * math.cos(a), R * math.sin(a)) for a in [CUT_A + (CUT_B - CUT_A) * i / 12 for i in range(13)]], -2, 6, section)
     # longitudinal split along the bottom centreline (cowl door latch line)
@@ -235,20 +271,31 @@ def build():
 
     skin_in = lambda x: (r_at(P['inletInner'], x) if x < 0 else r_at(P['bypOuter'], x)) + 0.013
     made = []
-    def cowl(name, x0, x1, mat, n, inset=0.0, split=False):
+    def cowl(name, x0, x1, mat, n, inset=0.0, split=False, zones=None):
         loop = sample(lambda x: smooth_nacelle(x) - inset, x0, x1, n) + list(reversed(sample(skin_in, x0, x1, n)))
         o = revolve(name, loop, mat)
+        if zones: zones(o)
         if split: boolean(o, latch)
         c = duplicate(o, name + '__cut'); boolean(c, wedge)
         made.extend([finish(o), finish(c)])
 
     G = 0.004  # half panel gap
-    cowl('inlet_cowl', -0.655, -G, paint, 14)
+    cowl('inlet_cowl', -0.655, -G, paint, 14, zones=lambda o: zone_mats(o, smooth_nacelle, skin_in, primer))
     # Fan cowl doors: a thin skin. The bare fan case and its accessories sit in the gap underneath.
+    # Cowls that open (fan cowl doors, thrust reverser C-ducts) are built as left and right halves, each
+    # running from a hinge beside the pylon to the latch line at the bottom. Only the left half meets the
+    # cutaway sector, so only it has a __cut variant.
+    GAP_TOP = 7.0
+    def halves(name, loop, mat, zones=None, steps=72):
+        for side, a0, a1 in (('L', GAP_TOP, 179.75), ('R', 180.25, 360 - GAP_TOP)):
+            o = arc_solid(name + '_' + side, loop, a0, a1, mat, steps=steps)
+            if zones: zones(o)
+            if side == 'L':
+                c = duplicate(o, name + '_L__cut'); boolean(c, wedge); made.extend([finish(o), finish(c)])
+            else: made.append(finish(o))
     def skin(name, x0, x1, thick, n):
         loop = sample(smooth_nacelle, x0, x1, n) + list(reversed(sample(lambda x: smooth_nacelle(x) - thick, x0, x1, n)))
-        o = revolve(name, loop, paint); boolean(o, latch)
-        c = duplicate(o, name + '__cut'); boolean(c, wedge); made.extend([finish(o), finish(c)])
+        halves(name, loop, paint, zones=lambda o: zone_mats(o, smooth_nacelle, None, primer))
     skin('fancowl_doors', G, 1.2 - G, 0.022, 16)
 
     # ---- bare fan case (reference: MTU and manufacturer photos, museum model)
@@ -411,22 +458,24 @@ def build():
         o = revolve(name, loop, mat)
         if split: boolean(o, latch)
         c = duplicate(o, name + '__cut'); boolean(c, wedge); made.extend([finish(o), finish(c)])
-    shell('cna_torquebox', sample(OML, 1.2 + G, 1.74, 8) + list(reversed(sample(duct, 1.2 + G, 1.74, 8))), paint)
+    cduct_zones = lambda o: zone_mats(o, OML, duct, primer, acoustic)
+    halves('cna_torquebox', sample(OML, 1.2 + G, 1.74, 8) + list(reversed(sample(duct, 1.2 + G, 1.74, 8))), paint, zones=cduct_zones)
     X0, XC, X1 = 1.74 + G, 2.24, 2.86 - G   # sleeve start, end of the cascade bay, sleeve end
     sleeve = (sample(OML, X0, X1, 16) + list(reversed(sample(duct, X0, X1, 16)))
               + sample(lambda x: duct(x) + 0.014, X0, XC, 6) + list(reversed(sample(lambda x: OML(x) - 0.02, X0, XC, 6))))
-    shell('cna_sleeve', sleeve, paint)
+    halves('cna_sleeve', sleeve, paint, zones=cduct_zones)
     # cascades: turning-vane hoops and axial strongbacks in the bay the sleeve uncovers
-    cas_full, cas_cut = [], []
+    casL, casLc, casR = [], [], []
     for k in range(10):
         x = 1.775 + k * 0.047; lo, hi = duct(x) + 0.03, OML(x) - 0.035
         hoop = [[x, lo], [x - 0.016, hi], [x - 0.008, hi], [x + 0.008, lo]]   # leaned forward to turn the flow
-        cas_full.append(revolve('h', hoop, comp, steps=96)); cas_cut.append(arc_solid('h', hoop, 112, 352, comp, steps=72))
+        casL.append(arc_solid('h', hoop, GAP_TOP, 179.75, comp, steps=48)); casLc.append(arc_solid('h', hoop, 112, 179.75, comp, steps=32))
+        casR.append(arc_solid('h', hoop, 180.25, 360 - GAP_TOP, comp, steps=48))
     for k in range(24):
         th = k * 15 + 7.5; rm = (duct(2.0) + OML(2.0)) / 2 - 0.002
-        for lst in ([cas_full] if in_cut(th) else [cas_full, cas_cut]):
+        for lst in (([casL] if in_cut(th) else [casL, casLc]) if th < 180 else [casR]):
             lst.append(box('s', th_pos(1.99, th, rm), (0.46, 0.012, OML(2.0) - duct(2.0) - 0.07), th, comp))
-    made.extend([join('cna_cascades', cas_full), join('cna_cascades__cut', cas_cut)])
+    made.extend([join('cna_cascades_L', casL), join('cna_cascades_L__cut', casLc), join('cna_cascades_R', casR)])
     # ten blocker doors: stowed flush in the sleeve's inner wall, hinged at their forward edge
     from mathutils import Matrix
     for k in range(10):
@@ -437,7 +486,7 @@ def build():
         vs = [bm.verts.new(v) for v in [(0, -hw0, 0), (0, hw0, 0), (L, hw1, slope), (L, -hw1, slope), (0, -hw0, -0.012), (0, hw0, -0.012), (L, hw1, slope - 0.012), (L, -hw1, slope - 0.012)]]
         for f in [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)]: bm.faces.new([vs[i] for i in f])
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-        nm = f'cna_blocker_{k:02d}' + ('__full' if in_cut(th) else '')
+        nm = f'cna_blocker_{"L" if th < 180 else "R"}_{k:02d}' + ('__full' if in_cut(th) else '')
         me = bpy.data.meshes.new(nm); bm.to_mesh(me); bm.free(); me.materials.append(cast)
         door = link(bpy.data.objects.new(nm, me))
         door.matrix_world = Matrix.Translation(th_pos(xh, th, rh)) @ Matrix.Rotation(-math.radians(th), 4, 'X')
@@ -458,8 +507,8 @@ def build():
     bm.verts.ensure_lookup_table()
     for i in range(4): bm.faces.new((bm.verts[i], bm.verts[(i + 1) % 4], bm.verts[4 + (i + 1) % 4], bm.verts[4 + i]))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    me = bpy.data.meshes.new('fancowl_strake__full'); bm.to_mesh(me); bm.free(); me.materials.append(paint)
-    made.append(finish(link(bpy.data.objects.new('fancowl_strake__full', me)), 0.002))
+    me = bpy.data.meshes.new('fancowl_strakeB_L__full'); bm.to_mesh(me); bm.free(); me.materials.append(paint)
+    made.append(finish(link(bpy.data.objects.new('fancowl_strakeB_L__full', me)), 0.002))
 
     # ---- pylon fairing
     # Narrow leading-edge fairing rising off the fan cowl, deep box under the wing, aft fairing tapering to a point.
@@ -483,14 +532,14 @@ def build():
     from mathutils import Matrix as _M
     for lst, th in ((hk, 347), (hf, 13)):
         for o in lst: o.matrix_world = _M.Rotation(-math.radians(th), 4, 'X') @ o.matrix_world
-    made.append(join('fancowl_hinges', hk)); made.append(join('fancowl_hinges2__full', hf))
-    acts_k, acts_f = [], []
+    made.append(join('fancowl_hinges_R', hk)); made.append(join('fancowl_hingesB_L__full', hf))
+    acts = []
     for th in (40, 140, 220, 320):
         rm = (duct(1.9) + OML(1.9)) / 2
         a = [cylinder('act', th_pos(1.6, th, rm), th_pos(2.02, th, rm), 0.024, 0.024, steel, seg=14), cylinder('actrod', th_pos(2.02, th, rm), th_pos(2.2, th, rm), 0.011, 0.011, steel, seg=10),
              box('actlug', th_pos(1.6, th, rm), (0.05, 0.06, 0.05), th, cast), tube('acthose', [(1.62, th + 2, rm + 0.02), (1.5, th + 5, rm + 0.02), (1.3, th + 8, rm + 0.01)], 0.007, dark)]
-        (acts_f if in_cut(th) else acts_k).extend(a)
-    made.append(join('cna_actuators', acts_k)); made.append(join('cna_actuators2__full', acts_f))
+        acts.append(join('act', a))
+    join_sides('cna_actuators', acts, made)
 
     # ---- markings, panel lines and hardware (from the on-wing photos)
     line = material('panelline', (0.12, 0.13, 0.14), 0.0, 0.6)
@@ -515,7 +564,7 @@ def build():
     for x0 in (0.35, 0.75): marks.append(patch('m', x0, x0 + 0.16, 186, 192, black, surf))                      # two ventilation grilles at the bottom of the right-hand door
     marks.append(patch('m', 1.0, 1.06, 200, 204, black, surf))                                                  # gearbox breather outlet
     marks += outline('m', 0.3, 0.44, 162, 170, line, surf); marks.append(patch('m', 0.31, 0.43, 164.5, 166.5, label('MASTER CHIP DETECTOR'), surf, lift=0.0026))
-    made.append(join('fancowl_markings', marks))
+    join_sides('fancowl_markings', marks, made)
     # nose cowl: anti-ice exhaust slot low on the right, interphone jack panel, hoist points near the top (booklet photo)
     im = [patch('m', -0.36, -0.2, 236, 246, black, surf), patch('m', -0.3, -0.24, 270, 273, placard, surf)] + outline('m', -0.33, -0.21, 268, 275, line, surf)
     for th in (332, 28): im += [patch('m', -0.42, -0.4, th - 0.6, th + 0.6, black, surf), patch('m', -0.39, -0.3, th - 1.2, th + 1.2, label('HOIST POINT'), surf)]
@@ -523,11 +572,11 @@ def build():
     im += outline('m', -0.34, -0.2, 352, 364, line, surf) + [patch('m', -0.3, -0.24, 340, 346, black, surf)]   # P2/T2 probe access door, ventilation intake scoop
     made.append(join('inlet_markings', [m for m in im]))
     rmarks = outline('m', 1.3, 1.6, 150, 162, line, surf) + [patch('m', 1.32, 1.58, 152.5, 155.5, label('THRUST REVERSER|ACTUATOR ACCESS'), surf, lift=0.0026), patch('m', 2.0, 2.3, 128, 133, label('R:REVERSER HAZARD AREA'), surf)]
-    made.append(join('cna_markings', rmarks))
+    join_sides('cna_markings', rmarks, made)
     # latches along the bottom centreline, and the drain mast
     lat = [box('latch', th_pos(x, 180, OML(x) + 0.001), (0.09, 0.032, 0.007), 180, bare) for x in (0.2, 0.6, 1.0)]
-    made.append(join('fancowl_latches', lat))
-    made.append(join('cna_latches', [box('latch', th_pos(x, 180, OML(x) + 0.001), (0.09, 0.032, 0.007), 180, bare) for x in (1.28, 1.6, 1.85, 2.1, 2.5, 2.62)]))
+    join_sides('fancowl_latches', lat, made)
+    join_sides('cna_latches', [box('latch', th_pos(x, 180, OML(x) + 0.001), (0.09, 0.032, 0.007), 180, bare) for x in (1.28, 1.6, 1.85, 2.1, 2.5, 2.62)], made)
     made.append(finish(loft('fancowl_drainmast', [(0.84, 0.004, -1.06, -1.03), (0.9, 0.012, -1.16, -1.0), (0.98, 0.012, -1.17, -1.0), (1.06, 0.004, -1.12, -1.0)], bare, n=12), 0))
 
     for helper in (wedge, latch): bpy.data.objects.remove(helper, do_unlink=True)
