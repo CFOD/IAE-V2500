@@ -979,7 +979,7 @@ export class Scene3D {
         panelline: FINISH.nacellePaint, panelline2: FINISH.nacellePaint, panel2: FINISH.nacellePaint, placard: FINISH.nacellePaint, hazard: FINISH.nacellePaint, marking: FINISH.nacellePaint,
       }[name] || null;
     };
-    const gltf = await new GLTFLoader().loadAsync(base + manifest.file);
+    const gltf = await new GLTFLoader().loadAsync(base + manifest.file, (e) => this.onModelProgress && this.onModelProgress(e.lengthComputable ? e.loaded / e.total : null));
     const root = gltf.scene; root.scale.setScalar(manifest.scale || 1);
     if (manifest.position) root.position.fromArray(manifest.position);
     if (manifest.rotation) root.rotation.set(...manifest.rotation.map((d) => d * DEG));

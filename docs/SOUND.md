@@ -10,6 +10,13 @@ When recordings load, **Panel > Monitor > Log** shows a line such as
 `Sound: playing recordings (Flight simulator sound pack: 6 loops, 3 events)` and lists any files it
 could not find.
 
+## In the browser version
+
+The website has no recordings on it. Choose **Sound > Load recordings from a folder** and pick your
+`sounds` folder (the one with `sounds.json` or `sound.cfg` and the audio files). The browser reads them
+from your disk; nothing is uploaded. You pick the folder again on each visit. The desktop app reads
+`app/sounds/` automatically.
+
 ## Easiest route: drop in a flight-simulator sound pack
 
 Sound packs for Flight Simulator X / Prepar3D are folders of `.wav` files with a `sound.cfg` that

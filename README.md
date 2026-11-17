@@ -46,6 +46,15 @@ one) and run `Start V2500.bat` again.
 Useful keys: **F11** full screen, **Space** pause, **M** master switch, **C** cutaway, **O** open cowls, **H** hide or show the HUD, up/down arrows
 move the thrust lever (down at idle lifts it into reverse).
 
+### In a web browser
+
+The game is plain web code, so it also runs in a browser (Chrome or Edge recommended; Firefox works).
+`npm run serve` and open <http://localhost:5173>, or put it on a website: `npm run build:web` writes
+`dist-web/`, a static site you can upload to any web host (Cloudflare Pages, Netlify, your own server).
+The website never contains a sound pack: each player loads their own recordings with **Sound > Load
+recordings from a folder** (the files are read on their computer and not uploaded), and everyone else
+hears the built-in synthesised sound.
+
 ### Sound
 
 Out of the box the engine sound is synthesised. For real recordings, drop a flight-simulator V2500

@@ -9,6 +9,7 @@
 <body>
 <div id="stage"><canvas id="stage3d"></canvas><canvas id="cutaway" hidden></canvas><div id="tip" hidden></div></div>
 <button id="hudShow" title="Show the interface (H)">Show HUD</button>
+<div id="loading" hidden><i></i><span>Loading the detailed engine model</span></div>
 
 <div class="pill" id="camsPill"><div class="seg ghost" id="cams"><button data-v="hero">Overview</button><button data-v="front">Intake</button><button data-v="core">Core</button><button data-v="rear">Exhaust</button></div></div>
 <header id="top">
@@ -25,7 +26,7 @@
     <button id="btnPause" class="chip">Pause</button>
     <div class="seg ghost" id="speed"><button data-v="0.25">¼×</button><button data-v="1" class="on">1×</button><button data-v="4">4×</button><button data-v="10">10×</button></div>
     <span class="sep"></span>
-    <button id="btnSound" class="chip">Sound</button>
+    <div class="menu" id="soundMenu"><button id="btnSound" class="chip" aria-haspopup="true" aria-expanded="false">Sound</button><div class="pop glass" role="menu"><button id="sndToggle" role="menuitem">Sound on<small id="sndState">Synthesised from the simulation</small></button><button id="sndFolder" role="menuitem">Load recordings from a folder…<small>Pick the folder with sounds.json and the .wav files. They are read on your computer, nothing is uploaded.</small></button></div><input type="file" id="sndPick" webkitdirectory multiple hidden></div>
     <button id="btnQ" class="chip" title="Medium: shadows, bloom, haze. High: adds ambient occlusion. Ultra: adds supersampling. Low: no effects.">Quality: Medium</button>
     <span class="sep"></span>
     <div class="menu" id="resetMenu"><button id="btnReset" class="chip" aria-haspopup="true" aria-expanded="false">Reset</button><div class="pop glass" role="menu"><button id="btnCold" role="menuitem">Cold and dark<small>Engine stopped, switches off</small></button><button id="btnIdle" role="menuitem">Running at idle<small>Started, MODE back to NORM</small></button></div></div>

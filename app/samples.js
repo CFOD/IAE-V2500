@@ -51,13 +51,22 @@ export function manifestFromFsx(text) {
 export class SamplePlayer {
   constructor(ctx, bus) { this.ctx = ctx; this.bus = bus; this.layers = []; this.tracks = []; this.shots = {}; this.mute = new Set(); this.ready = false; this.name = ''; this.synth = 'off'; this.missing = []; this._prev = {}; }
 
-  /** Look for a manifest in `base` and load every recording it lists. Resolves true if any loaded. */
-  async load(base = 'sounds/') {
+  /**
+   * Look for a manifest and load every recording it lists. Resolves true if any loaded.
+   * Reads from `base` on the server, or, given `files` (a FileList / array of File, as picked with a
+   * folder chooser in the browser), straight from the player's own disk: nothing is uploaded.
+   */
+  async load(base = 'sounds/', files = null) {
+    const local = files ? new Map([...files].map((f) => [f.name.toLowerCase(), f])) : null;
+    const get = async (name) => {
+      if (local) { const f = local.get(name.split(/[\\/]/).pop().toLowerCase()); if (!f) throw new Error('missing'); return f; }
+      const r = await fetch(base + name); if (!r.ok) throw new Error(String(r.status)); return r;
+    };
     let manifest = null;
-    try { const r = await fetch(base + 'sounds.json'); if (r.ok) manifest = await r.json(); } catch (e) { /* none */ }
-    if (!manifest) { try { const r = await fetch(base + 'sound.cfg'); if (r.ok) manifest = manifestFromFsx(await r.text()); } catch (e) { /* none */ } }
+    try { manifest = JSON.parse(await (await get('sounds.json')).text()); } catch (e) { /* none */ }
+    if (!manifest) { try { manifest = manifestFromFsx(await (await get('sound.cfg')).text()); } catch (e) { /* none */ } }
     if (!manifest) return false;
-    const buf = async (file) => { try { const r = await fetch(base + file); if (!r.ok) throw new Error(String(r.status)); return await this.ctx.decodeAudioData(await r.arrayBuffer()); } catch (e) { this.missing.push(file); return null; } };
+    const buf = async (file) => { try { return await this.ctx.decodeAudioData(await (await get(file)).arrayBuffer()); } catch (e) { this.missing.push(file); return null; } };
     for (const L of manifest.layers || []) {
       const b = await buf(L.file); if (!b) continue;
       if (L.track) { // a long recording kept in step with the engine (see update)
@@ -75,6 +84,14 @@ export class SamplePlayer {
     for (const ev of manifest.mute || []) this.mute.add(ev); // synthesised events the recordings already contain
     this.ready = this.layers.length > 0 || this.tracks.length > 0 || Object.keys(this.shots).length > 0;
     return this.ready;
+  }
+
+  /** Stop and disconnect everything (before loading a different set of recordings). */
+  dispose() {
+    for (const L of this.layers) { try { L.src.stop(); } catch (e) { /* stopped */ } L.g.disconnect(); }
+    for (const T of this.tracks) { try { T.src && T.src.stop(); } catch (e) { /* stopped */ } T.g.disconnect(); }
+    for (const l of Object.values(this._live || {})) { try { l.src.stop(); } catch (e) { /* stopped */ } }
+    this.layers = []; this.tracks = []; this.shots = {}; this.ready = false;
   }
 
   play(ev, gainK = 1) {

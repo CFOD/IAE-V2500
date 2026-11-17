@@ -11,3 +11,4 @@ app/sounds/*
 !app/sounds/.gitkeep
 __pycache__/
 *.pyc
+dist-web/

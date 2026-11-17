@@ -28,6 +28,15 @@ export class EngineAudio {
     this.out.gain.setTargetAtTime(this.volume, this.ctx.currentTime, 0.3);
   }
   stop() { if (!this.ctx) return; this.on = false; this.out.gain.setTargetAtTime(0, this.ctx.currentTime, 0.08); }
+  /** Replace the recordings with ones picked from the player's disk (browser folder chooser). */
+  async loadRecordings(files) {
+    if (!this.ctx) this.start();
+    const old = this.samples; old.dispose();
+    const sp = new SamplePlayer(this.ctx, this.sbus); const ok = await sp.load('', files);
+    if (!ok) { this.samples = sp; this.bus.gain.setTargetAtTime(1, this.ctx.currentTime, 0.3); return null; }
+    this.samples = sp; this.bus.gain.setTargetAtTime(sp.synth === 'mix' ? 0.5 : 0, this.ctx.currentTime, 0.3);
+    return sp;
+  }
   setVolume(v) { this.volume = v; if (this.on) this.out.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05); }
 
   _noiseBuffer(seconds, seed) {

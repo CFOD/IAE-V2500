@@ -218,8 +218,23 @@ $('btnQ').onclick = () => { qi = (qi + 1) % QUAL.length; view3d && view3d.setQua
 try { const saved = localStorage.getItem('v2500.quality'); if (saved && QUAL.includes(saved)) { qi = QUAL.indexOf(saved); view3d && view3d.setQuality(saved); } } catch (e) { /* ignore */ }
 qLabel();
 for (const b of $('speed').children) b.onclick = () => { speed = +b.dataset.v; for (const c of $('speed').children) c.classList.toggle('on', c === b); };
-$('btnSound').onclick = () => { if (audio.on) audio.stop(); else audio.start(); $('btnSound').classList.toggle('on', audio.on); try { localStorage.setItem('v2500.sound', audio.on ? '1' : '0'); } catch (e) { /* ignore */ } };
-audio.onSamples = (sp) => logMsg(`Sound: playing recordings (${sp.name}: ${sp.layers.length} loops, ${Object.keys(sp.shots).length} events)${sp.missing.length ? `; missing files: ${sp.missing.join(', ')}` : ''}`);
+// Sound menu: on / off, and recordings read from a folder on the player's own computer (browser builds
+// do not ship a sound pack; the files are decoded locally and never uploaded)
+const soundMenu = $('soundMenu'), openSound = (on) => { soundMenu.classList.toggle('open', on); $('btnSound').setAttribute('aria-expanded', on); };
+const soundLabel = () => { $('btnSound').classList.toggle('on', audio.on); $('sndToggle').firstChild.textContent = audio.on ? 'Sound off' : 'Sound on'; };
+const sndState = (sp) => { $('sndState').textContent = sp && sp.ready ? `Recordings: ${sp.name} (${sp.layers.length + sp.tracks.length} loops)` : 'Synthesised from the simulation'; };
+$('btnSound').onclick = (e) => { e.stopPropagation(); soundLabel(); openSound(!soundMenu.classList.contains('open')); };
+window.addEventListener('pointerdown', (e) => { if (!soundMenu.contains(e.target)) openSound(false); });
+$('sndToggle').onclick = () => { if (audio.on) audio.stop(); else audio.start(); soundLabel(); openSound(false); try { localStorage.setItem('v2500.sound', audio.on ? '1' : '0'); } catch (e) { /* ignore */ } };
+$('sndFolder').onclick = () => { openSound(false); $('sndPick').click(); };
+$('sndPick').onchange = async () => {
+  const files = $('sndPick').files; if (!files || !files.length) return;
+  logMsg(`Sound: reading ${files.length} files from your computer…`);
+  const sp = await audio.loadRecordings(files); soundLabel(); sndState(sp);
+  if (sp) audio.onSamples(sp); else logMsg('Sound: no sounds.json or sound.cfg in that folder (see the sound guide); staying synthesised');
+  $('sndPick').value = '';
+};
+audio.onSamples = (sp) => { sndState(sp); logMsg(`Sound: playing recordings (${sp.name}: ${sp.layers.length} loops${sp.tracks.length ? `, ${sp.tracks.length} start / spool-down tracks` : ''}, ${Object.keys(sp.shots).length} events)${sp.missing.length ? `; missing files: ${sp.missing.join(', ')}` : ''}`); };
 // sound is on unless it was switched off last time; browsers only allow it after the first click
 let wantSound = true; try { wantSound = localStorage.getItem('v2500.sound') !== '0'; } catch (e) { /* ignore */ }
 if (wantSound) { const go = () => { if (!audio.on) { audio.start(); $('btnSound').classList.add('on'); } }; try { go(); } catch (e) { /* needs a gesture */ } window.addEventListener('pointerdown', go, { once: true }); window.addEventListener('keydown', go, { once: true }); }
@@ -450,9 +465,12 @@ function tick(now) {
 // tools/blender/build_engine.py), then an optional local override (app/assets, see docs/MODEL.md).
 async function loadModels() {
   const taken = [];
+  const pill = $('loading'); let shown = false;
+  view3d.onModelProgress = (f) => { if (!shown) { pill.hidden = false; shown = true; } pill.classList.toggle('indet', f == null); if (f != null) pill.style.setProperty('--p', `${Math.round(f * 100)}%`); };
   for (const dir of ['models/', 'assets/']) {
     try { const r = await fetch(dir + 'model.json'); if (!r.ok) continue; taken.push(...(await view3d.loadExternalModel(dir, await r.json()))); } catch (e) { console.warn('model load failed', dir, e); }
   }
+  pill.hidden = true;
   window.sim.externalParts = taken;
   if (taken.length) logMsg(`Authored model loaded: ${taken.join(', ')}`);
 }
