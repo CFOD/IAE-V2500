@@ -11,6 +11,19 @@ Two layers make up the engine you see:
 A replaced component keeps working as that component: clickable, removable, highlighted, moved by
 the exploded view, and turning with its spool.
 
+## Surface finishes
+
+`app/surfaces.js` gives every material its wear: cast grain and pitting, paint and chromate
+mottling, scratches, oil and dirt blotches that collect underneath, drip streaks, heat
+discolouration along the hot section and soot towards the exhaust, plus fine surface relief. The
+detail is projected from each object's own coordinates (triplanar), so it needs no UVs and stays put
+on rotating spools and opening cowls. Presets (`FINISH`) are chosen per part and per material name;
+the authored model's materials get the same treatment on load. Colours and finishes follow the
+reference photos: painted blue-grey fan and compressor cases, bare grey castings, gold chromate
+accessories, stainless and titanium tubes, white braided looms with red sleeves on red P-clamps,
+green primer inside the cowls, straw-bronze-purple heat tint on the turbine cases and a bronze
+exhaust cone.
+
 ## Building the project's model
 
 `tools/blender/build_engine.py` runs Blender headless, builds components from the same profiles as
