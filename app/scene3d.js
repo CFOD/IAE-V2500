@@ -15,7 +15,7 @@ import { SMAAPass } from './vendor/jsm/postprocessing/SMAAPass.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { P, ROWS, rAt, tempRGB } from './cutaway.js';
 import { Puffs, Sparks } from './fx.js';
-import { makeSurfaceTexture, setSurfaceTexture, finish, FINISH } from './surfaces.js';
+import { setSurfaceQuality, finish, FINISH } from './surfaces.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -228,7 +228,7 @@ export class Scene3D {
 
     this.cutaway = true; this.explode = 0; this.showFlow = true; this.quality = 'medium';
     this.parts = []; this.byId = {}; this.vsvRows = []; this.cutInst = []; this.rotorRows = []; this.hingePivots = []; this.cowl = { open: false, fan: 0, cd: 0 }; this.hover = null; this.selected = null;
-    setSurfaceTexture(makeSurfaceTexture());
+    setSurfaceQuality(this.quality || 'medium', this.renderer);
     this.sprite = softSprite(); this.tex = { liner: linerTex(), brushed: brushedTex(), braid: braidTex(), blade: bladeTex(false), fanBlade: bladeTex(true), cast: castTex(), paint: paintTextures(), concrete: concreteTex() };
     this.capMat = new THREE.MeshStandardMaterial({ color: 0xb8402a, metalness: 0.1, roughness: 0.7, side: THREE.DoubleSide });
     this.t = 0; this.flash = 0;
@@ -958,6 +958,7 @@ export class Scene3D {
     this.quality = q;
     this.renderer.shadowMap.enabled = q !== 'low'; this.key.castShadow = q !== 'low';
     this.ao.enabled = q === 'high' || q === 'ultra';
+    setSurfaceQuality(q, this.renderer);
     this.resize();
   }
 

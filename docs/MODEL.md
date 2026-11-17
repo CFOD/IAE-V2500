@@ -24,6 +24,11 @@ accessories, stainless and titanium tubes, white braided looms with red sleeves 
 green primer inside the cowls, straw-bronze-purple heat tint on the turbine cases and a bronze
 exhaust cone.
 
+The detail follows the Quality button: Low draws plain materials (heat tint and soot stay, since they
+show temperature), Medium adds grain, mottling, scratches and grime, High adds the micro-bump, and
+Ultra switches to a 1024-pixel detail texture with 16x anisotropic filtering for close-ups. The
+texture and level are shared uniforms, so switching never recompiles a shader.
+
 ## Building the project's model
 
 `tools/blender/build_engine.py` runs Blender headless, builds components from the same profiles as

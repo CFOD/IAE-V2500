@@ -96,8 +96,24 @@ export const FINISH = {
   fireSleeve: { scale: 12, grain: 0.1, grime: 0.3, grimeCol: [0.2, 0.1, 0.05], bottom: 0.3, rough: 0.08, bump: 0.5 },
 };
 
-let SURF_TEX = null;
-export const setSurfaceTexture = (t) => { SURF_TEX = t; };
+// Uniforms shared by every finished material, so the texture and the detail level change everywhere at once.
+const SHARED = { uSurf: { value: null }, uSurfQ: { value: 1 }, uSurfBumpQ: { value: 1 } };
+export const setSurfaceTexture = (t) => { SHARED.uSurf.value = t; };
+const texCache = {};
+/**
+ * Detail level follows the renderer quality. Low: plain materials (heat tint and soot stay, they show
+ * temperature). Medium: grain, mottling, scratches, grime. High: adds the micro-bump. Ultra: the detail
+ * texture at twice the resolution with 16x anisotropic filtering, for close-ups.
+ */
+export function setSurfaceQuality(q, renderer) {
+  SHARED.uSurfQ.value = q === 'low' ? 0 : 1;
+  SHARED.uSurfBumpQ.value = q === 'high' || q === 'ultra' ? 1 : 0;
+  const size = q === 'ultra' ? 1024 : 512;
+  if (!texCache[size]) texCache[size] = makeSurfaceTexture(size);
+  const t = texCache[size];
+  t.anisotropy = Math.min(q === 'ultra' ? 16 : 8, renderer ? renderer.capabilities.getMaxAnisotropy() : 8); t.needsUpdate = true;
+  SHARED.uSurf.value = t;
+}
 
 /**
  * Apply a finish to a MeshStandard/Physical material. cfg extends a FINISH preset with optional
@@ -111,7 +127,7 @@ export function finish(mat, cfg) {
   const v3 = (a, d) => new THREE.Vector3(...(a || d));
   mat.onBeforeCompile = (sh) => {
     const U = {
-      uSurf: { value: SURF_TEX }, uSurfScale: { value: c.scale || 5 },
+      uSurf: SHARED.uSurf, uSurfQ: SHARED.uSurfQ, uSurfBumpQ: SHARED.uSurfBumpQ, uSurfScale: { value: c.scale || 5 },
       uSurfA: { value: new THREE.Vector4(c.grain || 0, c.mottle || 0, c.scratch || 0, c.streak || 0) },
       uSurfB: { value: new THREE.Vector4(c.grime || 0, c.bottom || 0, c.rough || 0, c.bump || 0) },
       uSurfMetalLoss: { value: c.metalLoss || 0 },
@@ -131,7 +147,7 @@ export function finish(mat, cfg) {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         varying vec3 vSurfP; varying vec3 vSurfN;
-        uniform sampler2D uSurf; uniform float uSurfScale; uniform vec4 uSurfA; uniform vec4 uSurfB; uniform float uSurfMetalLoss;
+        uniform sampler2D uSurf; uniform float uSurfScale; uniform vec4 uSurfA; uniform vec4 uSurfB; uniform float uSurfMetalLoss; uniform float uSurfQ; uniform float uSurfBumpQ;
         uniform vec3 uGrimeCol; uniform vec3 uTintVar; uniform float uTintAmt; uniform vec3 uHeat; uniform vec3 uSoot;
         vec4 surfTri(vec3 p, vec3 w, float s) {
           return texture2D(uSurf, p.yz * s) * w.x + texture2D(uSurf, p.zx * s) * w.y + texture2D(uSurf, p.xy * s) * w.z;
@@ -148,16 +164,17 @@ export function finish(mat, cfg) {
       .replace('#include <color_fragment>', `#include <color_fragment>
         vec3 sN = vSurfN; float sNl = length(sN); sN = sNl > 1e-6 ? sN / sNl : vec3(0.0, 1.0, 0.0);
         vec3 sW = abs(sN); sW = sW * sW; sW = sW * sW; sW /= max(sW.x + sW.y + sW.z, 1e-5);
-        vec4 sFine = surfTri(vSurfP, sW, uSurfScale);
-        vec4 sBig = surfTri(vSurfP, sW, uSurfScale * 0.13);
-        float surfH = (sFine.r - 0.5) * uSurfA.x * 4.0 + sFine.b * uSurfA.z * 0.6;
+        vec4 sA = uSurfA * uSurfQ, sB = uSurfB * uSurfQ;
+        vec4 sFine = vec4(0.5, 0.0, 0.0, 0.0), sBig = vec4(0.5, 0.5, 0.0, 0.0);
+        if (uSurfQ > 0.5) { sFine = surfTri(vSurfP, sW, uSurfScale); sBig = surfTri(vSurfP, sW, uSurfScale * 0.13); }
+        float surfH = (sFine.r - 0.5) * sA.x * 4.0 + sFine.b * sA.z * 0.6;
         // grain, paint/chromate mottling, scratches
-        diffuseColor.rgb *= 1.0 + (sFine.r - 0.5) * uSurfA.x * 2.0 + (sBig.g - 0.5) * uSurfA.y * 2.0;
+        diffuseColor.rgb *= 1.0 + (sFine.r - 0.5) * sA.x * 2.0 + (sBig.g - 0.5) * sA.y * 2.0;
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * uTintVar, clamp(sBig.g * uTintAmt, 0.0, 1.0));
-        diffuseColor.rgb += sFine.b * uSurfA.z * 0.12;
+        diffuseColor.rgb += sFine.b * sA.z * 0.12;
         // grime: blotches, more of it underneath (engine frame y down) and in drip streaks
         float down = clamp(-sN.y, 0.0, 1.0) * 0.6 + (1.0 - smoothstep(-0.9, 0.1, vSurfP.y)) * 0.4;
-        float sGrime = clamp(uSurfB.x * (sBig.g * 1.3 + sFine.g * 0.4) + uSurfB.y * down * (0.35 + sBig.g) + uSurfA.w * sFine.a * (0.4 + down), 0.0, 0.92);
+        float sGrime = clamp(sB.x * (sBig.g * 1.3 + sFine.g * 0.4) + sB.y * down * (0.35 + sBig.g) + sA.w * sFine.a * (0.4 + down), 0.0, 0.92);
         diffuseColor.rgb = mix(diffuseColor.rgb, uGrimeCol, sGrime);
         // heat discolouration along the axis
         float sHeat = 0.0;
@@ -177,11 +194,11 @@ export function finish(mat, cfg) {
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.045, 0.04), sSoot * 0.85);
         }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        roughnessFactor = clamp(roughnessFactor + (sFine.r - 0.5) * uSurfB.z + sGrime * 0.35 - sFine.b * uSurfA.z * 0.1 + sSoot * 0.4 + sHeat * uHeat.z * 0.08, 0.04, 1.0);`)
+        roughnessFactor = clamp(roughnessFactor + (sFine.r - 0.5) * sB.z + sGrime * 0.35 - sFine.b * sA.z * 0.1 + sSoot * 0.4 + sHeat * uHeat.z * 0.08, 0.04, 1.0);`)
       .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
-        metalnessFactor = clamp(metalnessFactor * (1.0 - sGrime * 0.7 - sSoot * 0.8 - uSurfMetalLoss * sBig.g), 0.0, 1.0);`)
+        metalnessFactor = clamp(metalnessFactor * (1.0 - sGrime * 0.7 - sSoot * 0.8 - uSurfMetalLoss * uSurfQ * sBig.g), 0.0, 1.0);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-        if (uSurfB.w > 0.0) { vec2 dHs = vec2(dFdx(surfH), dFdy(surfH)) * uSurfB.w * 0.02; normal = surfPerturb(-vViewPosition, normal, dHs, faceDirection); }`);
+        if (sB.w * uSurfBumpQ > 0.0) { vec2 dHs = vec2(dFdx(surfH), dFdy(surfH)) * sB.w * 0.02; normal = surfPerturb(-vViewPosition, normal, dHs, faceDirection); }`);
   };
   const key = JSON.stringify(c);
   mat.customProgramCacheKey = () => 'surf:' + key;
