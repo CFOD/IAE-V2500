@@ -448,7 +448,7 @@ def build():
     o = revolve('lip_ring', lip, lipm); c = duplicate(o, 'lip_ring__cut'); boolean(c, wedge); made.extend([finish(o, 0), finish(c, 0)])
 
     # strake high on the cowl side (kept side of the cutaway)
-    th = math.radians(338); rs = 1.02
+    th = math.radians(62); rs = 1.02   # the strake is on the left-hand door (TTM figure); that is inside the cutaway sector
     def at(x, dr): r = rs + dr; return (x, -r * math.sin(th), r * math.cos(th))
     bm = bmesh.new(); t = 0.007
     strake_pts = [(0.28, -0.02), (0.92, -0.02), (0.9, 0.085), (0.5, 0.03)]
@@ -458,8 +458,8 @@ def build():
     bm.verts.ensure_lookup_table()
     for i in range(4): bm.faces.new((bm.verts[i], bm.verts[(i + 1) % 4], bm.verts[4 + (i + 1) % 4], bm.verts[4 + i]))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    me = bpy.data.meshes.new('fancowl_strake'); bm.to_mesh(me); bm.free(); me.materials.append(paint)
-    made.append(finish(link(bpy.data.objects.new('fancowl_strake', me)), 0.002))
+    me = bpy.data.meshes.new('fancowl_strake__full'); bm.to_mesh(me); bm.free(); me.materials.append(paint)
+    made.append(finish(link(bpy.data.objects.new('fancowl_strake__full', me)), 0.002))
 
     # ---- pylon fairing
     # Narrow leading-edge fairing rising off the fan cowl, deep box under the wing, aft fairing tapering to a point.
@@ -512,11 +512,15 @@ def build():
     marks.append(patch('m', 0.66, 0.96, 228, 241, black, surf))        # air-cooled oil cooler outlet
     for k in range(7): marks.append(patch('m', 0.68 + 0.04 * k, 0.695 + 0.04 * k, 229, 240, line, surf, lift=0.003))   # louvre slats
     marks += outline('m', 0.6, 0.78, 250, 262, line, surf)             # EEC / relay access
+    for x0 in (0.35, 0.75): marks.append(patch('m', x0, x0 + 0.16, 186, 192, black, surf))                      # two ventilation grilles at the bottom of the right-hand door
+    marks.append(patch('m', 1.0, 1.06, 200, 204, black, surf))                                                  # gearbox breather outlet
+    marks += outline('m', 0.3, 0.44, 162, 170, line, surf); marks.append(patch('m', 0.31, 0.43, 164.5, 166.5, label('MASTER CHIP DETECTOR'), surf, lift=0.0026))
     made.append(join('fancowl_markings', marks))
     # nose cowl: anti-ice exhaust slot low on the right, interphone jack panel, hoist points near the top (booklet photo)
     im = [patch('m', -0.36, -0.2, 236, 246, black, surf), patch('m', -0.3, -0.24, 270, 273, placard, surf)] + outline('m', -0.33, -0.21, 268, 275, line, surf)
     for th in (332, 28): im += [patch('m', -0.42, -0.4, th - 0.6, th + 0.6, black, surf), patch('m', -0.39, -0.3, th - 1.2, th + 1.2, label('HOIST POINT'), surf)]
     im += outline('m', -0.5, -0.34, 150, 166, line, surf)                # anti-ice duct access
+    im += outline('m', -0.34, -0.2, 352, 364, line, surf) + [patch('m', -0.3, -0.24, 340, 346, black, surf)]   # P2/T2 probe access door, ventilation intake scoop
     made.append(join('inlet_markings', [m for m in im]))
     rmarks = outline('m', 1.3, 1.6, 150, 162, line, surf) + [patch('m', 1.32, 1.58, 152.5, 155.5, label('THRUST REVERSER|ACTUATOR ACCESS'), surf, lift=0.0026), patch('m', 2.0, 2.3, 128, 133, label('R:REVERSER HAZARD AREA'), surf)]
     made.append(join('cna_markings', rmarks))

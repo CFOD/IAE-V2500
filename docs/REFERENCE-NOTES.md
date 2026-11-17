@@ -107,4 +107,9 @@ Not in the repository. Read as text (all 434 pages) plus selected figures.
 - [x] Exhaust cone held by 13 bolts; common nozzle by 56. P4.9 ports in exhaust-case struts 4, 7 and 10.
 - [x] Fluid disconnect panel on the left of the upper fan case, electrical connector panel on the right.
 - [ ] Zone 1 ventilation scoop on top of the intake cowl and two vent grilles at the bottom of each fan cowl door; strakes on the inboard side only; forward mount with two thrust links, beam and cross beam; aft mount with two side links and a centre link on the exhaust-case lugs; ten BSBV support arms; No. 1 to 5 bearing types; fuel flow transmitter low on the left of the fan case.
-- [ ] Figures not yet gone through page by page (about 200 diagram pages).
+- [x] From the figures (24 of about 200 diagram pages read so far: cowls, nozzle, mounts, panels, bearings, compressor, combustor, turbines, gearbox, air system):
+  exhaust cone is a short truncated cone open at the rear, with slots round its flange; four struts inside the common nozzle; aft mount on the exhaust-case lugs;
+  No. 1 bearing well forward under the fan with a long support cone, Nos 2 and 3 together at the intermediate case; strake on the left-hand fan cowl door;
+  twenty triangular fuel-nozzle pads on the diffuser case; handling-bleed discharge holes in the C-duct inner barrel; ventilation intake and P2/T2 access door on top of the intake cowl;
+  vent grilles and breather outlet under the right-hand fan cowl door; master chip detector quick-access door on the left.
+- [ ] Figures still unread: fuel system, heat management, FADEC and EIU interfaces, starting, thrust reverser hydraulics, oil system schematics, cowl opening, borescope ports, line maintenance.

@@ -473,11 +473,12 @@ export class Scene3D {
     // ---------------- bearings
     const brg = A({ id: 'bearings', name: 'Main bearings and supports', ex: 0, mat: { color: 0x5d6770, metalness: 0.9, roughness: 0.4 }, desc: 'Five main bearings carry the two shafts. Nos 1, 2 and 3 share the front compartment at the centre of the intermediate case: No. 1 locates the LP shaft and takes its thrust, No. 2 supports it, No. 3 locates the HP shaft. No. 4 supports the HP shaft under the combustor and No. 5 the LP shaft in the turbine exhaust case. Each sits in a sealed, oil-fed compartment.', live: (o) => `N1 ${o.N1.toFixed(0)} rpm · N2 ${o.N2.toFixed(0)} rpm` });
     const race = new THREE.MeshStandardMaterial({ color: 0xc4c9cd, metalness: 1, roughness: 0.18 }); // polished bearing steel
-    for (const [x, r0, r1, wB] of [[0.93, 0.05, 0.1, 0.05], [1.01, 0.05, 0.095, 0.035], [1.1, 0.1, 0.15, 0.04], [2.07, 0.096, 0.128, 0.05], [3.06, 0.05, 0.1, 0.05]]) {
+    for (const [x, r0, r1, wB] of [[0.52, 0.05, 0.105, 0.055], [1.01, 0.05, 0.095, 0.035], [1.1, 0.1, 0.15, 0.04], [2.07, 0.096, 0.128, 0.05], [3.06, 0.05, 0.1, 0.05]]) {
       this._solid(brg, [[x - wB / 2, r0 + 0.016], [x - wB / 2, r1], [x + wB / 2, r1], [x + wB / 2, r0 + 0.016]], { deep: true, seg: 48 });
       this._solid(brg, [[x - wB / 3, r0], [x - wB / 3, r0 + 0.016], [x + wB / 3, r0 + 0.016], [x + wB / 3, r0]], { deep: true, seg: 48, mat: race });
     }
-    this._solid(brg, [[0.9, 0.094], [0.9, 0.102], [0.96, 0.162], [1.13, 0.168], [1.13, 0.16], [0.97, 0.154]], { deep: true, seg: 64 });
+    this._solid(brg, [[0.5, 0.098], [0.5, 0.106], [0.7, 0.2], [0.95, 0.215], [1.13, 0.168], [1.13, 0.16], [0.95, 0.205], [0.71, 0.19]], { deep: true, seg: 64 }); // No. 1 bearing support cone back to the intermediate case
+    this._solid(brg, [[0.985, 0.092], [0.985, 0.1], [1.03, 0.16], [1.04, 0.16]], { deep: true, seg: 64 });
     this._solid(brg, [[1.075, 0.146], [1.075, 0.154], [1.13, 0.162], [1.13, 0.154]], { deep: true, seg: 64 });
     this._solid(hpc, [[1.09, 0.086], [1.09, 0.1], [1.2, 0.1], [1.2, 0.086]], { deep: true, seg: 48 }); // HP stub shaft into No. 3 bearing   // front bearing support cone from the intermediate case
     this._solid(brg, [[3.085, 0.09], [3.085, 0.1], [3.12, 0.255], [3.13, 0.255]], { deep: true, seg: 64 });                              // rear bearing support in the exhaust case
@@ -488,6 +489,8 @@ export class Scene3D {
     this._solid(comb, [[1.9, co(1.9)], [1.9, co(1.9) + 0.03], [1.95, 0.372], [2.0, 0.388], [2.1, 0.388], [2.16, 0.372], [2.2, co(2.2) + 0.03], [2.2, co(2.2)], [2.18, 0.33], [1.92, 0.33]]);
     this._solid(comb, band(CONST(0.13), P.coreInner, 1.88, 2.24, 6));
     this._flange(comb, 2.05, 0.386, 48);
+    // twenty triangular fuel-nozzle pads round the diffuser case (TTM figure)
+    { const pad = new THREE.CylinderGeometry(0.024, 0.028, 0.012, 3); this._ring(comb, pad, 20, (m, th) => { m.makeRotationX(th); m.setPosition(1.955, 0.379 * Math.cos(th), 0.379 * Math.sin(th)); }, { phase: 0.157, mat: this.boltMat }); }
     const liner = A({ id: 'liner', name: 'Annular combustor liner', ex: 0.32, glow: (o) => (o.lit ? o.T4 - 520 : 300), mat: { color: 0xa39a90, metalness: 0.9, roughness: 0.5 }, desc: 'Flame tube. Only about a third of the air is burned; the rest cools the liner and dilutes the gas to a temperature the turbine can survive.', live: (o) => (o.lit ? `Flame on · fuel/air ${o.far.toFixed(4)} (φ ${o.phi.toFixed(2)}) · exit ${C(o.T4)}` : `No flame · lean limit ${o.leanLimit.toFixed(4)}`) });
     this._solid(liner, [[1.965, 0.292], [1.975, 0.303], [2.17, 0.307], [2.195, 0.292], [2.17, 0.297], [1.98, 0.293]]);
     this._solid(liner, [[1.965, 0.208], [1.975, 0.197], [2.17, 0.213], [2.195, 0.228], [2.17, 0.223], [1.98, 0.207]]);
@@ -507,7 +510,13 @@ export class Scene3D {
     const cowl = A({ id: 'corecowl', name: 'Core cowl (inner fixed structure)', ex: 0.15, mat: composite, desc: 'Inner wall of the bypass duct, wrapped around the core engine. Remove it to see the pipework underneath.', live: (o) => `Bypass duct ${B(o.P13)} · mixing plane ${B(o.Pm)}` });
     this._solid(cowl, band(offset(P.bypInner, -0.016), P.bypInner, 0.42, 3.12, 30));
     const tec = A({ id: 'tec', name: 'Turbine exhaust case and plug', ex: 1.35, mat: { ...hotM, color: 0x9c8263 }, glow: (o) => o.T5 - 170, desc: 'Carries the rear bearing. The EGT thermocouples and the P4.9 pressure probes used for EPR sit in its struts.', live: (o) => `EGT ${C(o.egt)} · EPR ${o.epr.toFixed(3)} · core jet Mach ${o.M8.toFixed(2)}` });
-    this._solid(tec, [...sample(P.coreInner, 3.0, 3.44, 18), [3.0, 0.0]]);
+    this._solid(tec, [[3.0, rAt(P.coreInner, 3.0)], [3.12, 0.262], [3.12, 0.1], [3.0, 0.1]]);                                 // inner hub of the exhaust case
+    this._solid(tec, [[3.12, 0.262], [3.16, 0.258], [3.56, 0.115], [3.57, 0.105], [3.56, 0.098], [3.16, 0.246], [3.12, 0.25]], { seg: 96 }); // exhaust cone: thin perforated shell, open at the rear
+    this._ring(tec, new THREE.BoxGeometry(0.05, 0.004, 0.02), 13, (m, th) => { m.makeRotationX(th); m.setPosition(3.21, 0.243 * Math.cos(th), 0.243 * Math.sin(th)); }, { mat: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 }) }); // slots round the mounting flange
+    // four struts inside the common nozzle (upper, lower and two side) carrying its inner duct
+    { const st = bladeGeo({ span: 0.2, chord: [0.26, 0.2], stagger: [0, 0], camber: [0, 0], thick: [0.12, 0.12], nSpan: 2 });
+      this._ring(cna, st, 4, (m, th) => { m.makeRotationX(th); m.setPosition(3.22, 0.46 * Math.cos(th), 0.46 * Math.sin(th)); }, { mat: this.shared.bare });
+      this._solid(cna, [[3.1, 0.45], [3.1, 0.462], [3.4, 0.43], [3.4, 0.42]], { tag: 'liner', mat: this.shared.bare, seg: 96 }); }
     this._solid(tec, band(CO, offset(CO, 0.02), 3.02, 3.12, 3));
     // bolt circles on the plug and the outer ring, borescope and probe bosses, rear mount lugs at the top
     { const bolt = new THREE.CylinderGeometry(0.006, 0.006, 0.014, 6); bolt.rotateZ(Math.PI / 2);
@@ -561,8 +570,8 @@ export class Scene3D {
     // EGT thermocouples in the exhaust case struts (about 2, 4.30, 7.30 and 9.30 o'clock) with their harness ring; rear mount at top dead centre of the LPT case
     for (const th of [60, 135, 225, 285]) { const pr = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 10), pipeSteel), r = co(3.07) + 0.05; pr.position.set(3.07, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); pr.rotation.x = th * DEG; const o2 = this._reg(tec, pr); if (inCut(th * DEG)) o2.userData.variant = 'full'; }
     this._pipe(tec, Array.from({ length: 22 }, (_, i) => [3.1, co(3.1) + 0.085, 118 + i * 11]), 0.007, harness);
-    { const rm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.09, 0.26), new THREE.MeshStandardMaterial({ color: 0x8a9096, metalness: 1, roughness: 0.4 })); rm.position.set(2.72, co(2.72) + 0.11, 0); const o2 = this._reg(this.byId.lptcase, rm); o2.userData.variant = 'full';
-      for (const z of [-0.1, 0.1]) { const lk = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.2, 10), pipeSteel); lk.position.set(2.72, co(2.72) + 0.25, z * 0.7); lk.rotation.x = z * 2; this._reg(this.byId.lptcase, lk).userData.variant = 'full'; } }
+    { const rm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.09, 0.26), new THREE.MeshStandardMaterial({ color: 0x8a9096, metalness: 1, roughness: 0.4 })); rm.position.set(3.05, co(3.05) + 0.12, 0); const o2 = this._reg(tec, rm); o2.userData.variant = 'full';
+      for (const z of [-0.1, 0.1]) { const lk = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.2, 10), pipeSteel); lk.position.set(3.05, co(3.05) + 0.06, z * 2.2); lk.rotation.x = z * 6; this._reg(tec, lk).userData.variant = 'full'; } }
     // thrust reverser drag links: one per blocker door, from the core cowl across the duct to the door. They pull the doors down as the sleeve slides aft.
     { const g = new THREE.CylinderGeometry(0.008, 0.008, 1, 8), mk = (ths) => { const im = new THREE.InstancedMesh(g, pipeSteel, ths.length); im.userData.ths = ths; return im; };
       const all = Array.from({ length: 10 }, (_, k) => (k * 36 + 18) * DEG);
@@ -579,6 +588,7 @@ export class Scene3D {
       bi(180, false); bi(0, true); }
     // fire detection: two sensing loops clipped side by side round the core, and the nacelle temperature sensor
     for (const dx of [0, 0.012]) this._pipe(ext, Array.from({ length: 40 }, (_, i) => { const f = i / 39; return [1.45 + dx + 1.3 * f, co(1.45 + 1.3 * f) + 0.125, 122 + 226 * (0.5 - 0.5 * Math.cos(f * Math.PI * 3))]; }), 0.003, pipeGold);
+    for (const [x, th] of [[1.6, 262], [1.6, 302], [1.8, 282], [1.6, 128]]) { const h = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.012, 24), new THREE.MeshStandardMaterial({ color: 0x0c0d0e, roughness: 0.9 })); const r = rAt(P.bypInner, x) + 0.004; h.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); h.rotation.x = th * DEG; this._reg(this.byId.corecowl, h); }
     // ---- core units placed from the component-location manual
     { const unit = (part, geo, mat, x, th, dr) => onCore(part, new THREE.Mesh(geo, mat), x, th, co(x) + dr);
       // VSV actuator and its crank shaft (left), high-pressure bleed valve
