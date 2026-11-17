@@ -691,7 +691,7 @@ export class Scene3D {
         [this.boltMat, FINISH.bareSteel], [linerM, FINISH.acoustic], [white, { ...FINISH.nacellePaint, bottom: 0 }], [fairing, { ...FINISH.titanium, bottom: 0 }],
         [vsvMat, FINISH.titanium], [orange, FINISH.rubber], [perf, FINISH.castBare], [race, { ...FINISH.bareSteel, bottom: 0, grime: 0.05 }], [duct, FINISH.stainlessTube],
         [this.shared.paint, FINISH.nacellePaint], [this.shared.lip, FINISH.polished], [this.shared.loom, FINISH.braid],
-        [this.shared.bare, { ...FINISH.nozzle, heat: [2.75, 3.6, 0.8], soot: [3.15, 3.6, 0.6] }],
+        [this.shared.bare, { ...FINISH.nozzle, heat: [2.9, 3.7, 0.45], soot: [3.3, 3.62, 0.4] }],  // common nozzle: bare metal, light heat tint, soot only near the exit
       ]);
       const done = new Set([this.capMat]);
       const guess = (m) => {
