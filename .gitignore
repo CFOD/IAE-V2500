@@ -9,3 +9,5 @@ app/assets/*
 # local-only sound recordings (see docs/SOUND.md) - never publish third-party audio
 app/sounds/*
 !app/sounds/.gitkeep
+__pycache__/
+*.pyc
