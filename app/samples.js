@@ -56,11 +56,11 @@ export class SamplePlayer {
    * Reads from `base` on the server, or, given `files` (a FileList / array of File, as picked with a
    * folder chooser in the browser), straight from the player's own disk: nothing is uploaded.
    */
-  async load(base = 'sounds/', files = null, onProgress = null) {
+  async load(base = 'sounds/', files = null, onProgress = null, query = '') {
     const local = files ? new Map([...files].map((f) => [f.name.toLowerCase(), f])) : null;
     const get = async (name) => {
       if (local) { const f = local.get(name.split(/[\\/]/).pop().toLowerCase()); if (!f) throw new Error('missing'); return f; }
-      const r = await fetch(base + name); if (!r.ok) throw new Error(String(r.status)); return r;
+      const r = await fetch(base + name + query, { cache: 'no-cache' }); if (!r.ok) throw new Error(String(r.status)); return r;
     };
     let manifest = null;
     try { manifest = JSON.parse(await (await get('sounds.json')).text()); } catch (e) { /* none */ }

@@ -48,7 +48,7 @@ fs.writeFileSync(path.join(out, '_headers'), `/*
   X-Content-Type-Options: nosniff
   X-Robots-Tag: noindex, nofollow
 /models/*
-  Cache-Control: public, max-age=86400
+  Cache-Control: no-cache
 /vendor/*
   Cache-Control: public, max-age=604800
 /fonts/*
@@ -57,8 +57,7 @@ fs.writeFileSync(path.join(out, '_headers'), `/*
   Content-Type: model/gltf-binary
 `);
 if (sounds) fs.appendFileSync(path.join(out, '_headers'), `/sounds/*
-  Cache-Control: private, max-age=86400
-  X-Robots-Tag: noindex
+  Cache-Control: no-cache
 `);
 fs.writeFileSync(path.join(out, 'LICENSES.txt'), [
   'V2500 Engine Simulator - third-party components',

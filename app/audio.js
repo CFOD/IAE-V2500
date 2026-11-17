@@ -68,7 +68,7 @@ export class EngineAudio {
     for (const b of [this.bus, this.sbus, this.evbus]) b.connect(comp);
     this._chain(this.bus, conv, wet, comp); this.evbus.connect(conv); this._chain(comp, this.out, ac.destination);
     this.samples = new SamplePlayer(ac, this.sbus);
-    if (!this.offline) this.samples.load('sounds/', null, (a, b) => this.onSampleProgress && this.onSampleProgress(a, b)).then((ok) => {
+    if (!this.offline) this.samples.load('sounds/', null, (a, b) => this.onSampleProgress && this.onSampleProgress(a, b), this.query || '').then((ok) => {
       if (ok) { this.bus.gain.setTargetAtTime(this.samples.synth === 'mix' ? 0.5 : 0, ac.currentTime, 0.3); this.onSamples && this.onSamples(this.samples); }
       else this.onSamples && this.onSamples(null);
     });

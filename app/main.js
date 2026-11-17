@@ -11,6 +11,10 @@ const $ = (id) => document.getElementById(id);
 const eng = new Engine();
 const fadec = new Fadec(eng);
 const view2d = new Cutaway($('cutaway'));
+// Website builds carry build.json: its commit versions the model and sound URLs, so a new deploy is
+// never hidden behind an older copy in the browser cache. The desktop app has none and loads files as is.
+const BUILD = await fetch('build.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+const assetQuery = BUILD ? `?v=${BUILD.commit}` : '';
 const audio = new EngineAudio();
 let view3d = null;
 try { view3d = new Scene3D($('stage3d')); } catch (e) { console.error('3D view unavailable, using section view', e); }
@@ -240,8 +244,8 @@ audio.onSampleProgress = (a, b) => { if (b === 0) return; $('btnSound').textCont
 audio.onSamples = (sp) => { if (!sp) { sndState(null); return; } sndState(sp); logMsg(`Sound: playing recordings (${sp.name}: ${sp.layers.length} loops${sp.tracks.length ? `, ${sp.tracks.length} start / spool-down tracks` : ''}, ${Object.keys(sp.shots).length} events)${sp.missing.length ? `; missing files: ${sp.missing.join(', ')}` : ''}`); };
 // sound is on unless it was switched off last time; browsers only allow it after the first click
 let wantSound = true; try { wantSound = localStorage.getItem('v2500.sound') !== '0'; } catch (e) { /* ignore */ }
-try { audio.prepare(); } catch (e) { /* no Web Audio */ }
-fetch('build.json').then((r) => (r.ok ? r.json() : null)).then((b) => { if (b) { buildId = b.commit; logMsg(`Build ${b.commit} (${b.branch}, ${b.time})`); } }).catch(() => {});
+try { audio.query = assetQuery; audio.prepare(); } catch (e) { /* no Web Audio */ }
+if (BUILD) { buildId = BUILD.commit; logMsg(`Build ${BUILD.commit} (${BUILD.branch}, ${BUILD.time})`); }
 if (wantSound) { const go = () => { if (!audio.on) { audio.start(); $('btnSound').classList.add('on'); } }; try { go(); } catch (e) { /* needs a gesture */ } window.addEventListener('pointerdown', go, { once: true }); window.addEventListener('keydown', go, { once: true }); }
 function setMode(v) {
   mode = v === '3d' && view3d ? '3d' : '2d';
@@ -476,7 +480,7 @@ async function loadModels() {
   const pill = $('loading'); let shown = false;
   view3d.onModelProgress = (f) => { if (!shown) { pill.hidden = false; shown = true; } pill.classList.toggle('indet', f == null); if (f != null) pill.style.setProperty('--p', `${Math.round(f * 100)}%`); };
   for (const dir of ['models/', 'assets/']) {
-    try { const r = await fetch(dir + 'model.json'); if (!r.ok) continue; taken.push(...(await view3d.loadExternalModel(dir, await r.json()))); } catch (e) { console.warn('model load failed', dir, e); }
+    try { const r = await fetch(dir + 'model.json' + assetQuery, { cache: 'no-cache' }); if (!r.ok) continue; const man = await r.json(); man.file += assetQuery; taken.push(...(await view3d.loadExternalModel(dir, man))); } catch (e) { console.warn('model load failed', dir, e); }
   }
   pill.hidden = true;
   window.sim.externalParts = taken;
