@@ -56,7 +56,7 @@ export class SamplePlayer {
    * Reads from `base` on the server, or, given `files` (a FileList / array of File, as picked with a
    * folder chooser in the browser), straight from the player's own disk: nothing is uploaded.
    */
-  async load(base = 'sounds/', files = null) {
+  async load(base = 'sounds/', files = null, onProgress = null) {
     const local = files ? new Map([...files].map((f) => [f.name.toLowerCase(), f])) : null;
     const get = async (name) => {
       if (local) { const f = local.get(name.split(/[\\/]/).pop().toLowerCase()); if (!f) throw new Error('missing'); return f; }
@@ -66,7 +66,15 @@ export class SamplePlayer {
     try { manifest = JSON.parse(await (await get('sounds.json')).text()); } catch (e) { /* none */ }
     if (!manifest) { try { manifest = manifestFromFsx(await (await get('sound.cfg')).text()); } catch (e) { /* none */ } }
     if (!manifest) return false;
-    const buf = async (file) => { try { return await this.ctx.decodeAudioData(await (await get(file)).arrayBuffer()); } catch (e) { this.missing.push(file); return null; } };
+    // fetch and decode every recording in parallel (tens of MB on a website), reporting progress
+    const wanted = [...new Set([...(manifest.layers || []).map((L) => L.file), ...Object.values(manifest.shots || {}).map((x) => x.file)])];
+    let done = 0; const report = () => onProgress && onProgress(done, wanted.length);
+    report();
+    const decoded = new Map(await Promise.all(wanted.map(async (file) => {
+      let b = null; try { b = await this.ctx.decodeAudioData(await (await get(file)).arrayBuffer()); } catch (e) { this.missing.push(file); }
+      done++; report(); return [file, b];
+    })));
+    const buf = async (file) => decoded.get(file) || null;
     for (const L of manifest.layers || []) {
       const b = await buf(L.file); if (!b) continue;
       if (L.track) { // a long recording kept in step with the engine (see update)

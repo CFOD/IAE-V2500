@@ -9,6 +9,7 @@
 // computer (Sound > Load recordings from a folder), so none are ever on the server.
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const out = path.join(root, 'dist-web');
 fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(out, { recursive: true });
@@ -39,6 +40,9 @@ if (!process.argv.includes('--no-sounds')) {
   bytes += sb; sounds = `, ${used.size - missing.length} recordings (${(sb / 1048576).toFixed(1)} MB)` + (missing.length ? `; MISSING ${missing.join(', ')}` : '');
 }
 // Cloudflare Pages / Netlify headers: long cache for the model and libraries, correct type for .glb
+// which build is live (shown in the Sound menu and the log): Cloudflare Pages provides the commit, else git
+const git = (c) => { try { return execSync(`git ${c}`, { cwd: root }).toString().trim(); } catch (e) { return ''; } };
+fs.writeFileSync(path.join(out, 'build.json'), JSON.stringify({ commit: (process.env.CF_PAGES_COMMIT_SHA || git('rev-parse HEAD') || 'local').slice(0, 7), branch: process.env.CF_PAGES_BRANCH || git('rev-parse --abbrev-ref HEAD'), time: new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC' }));
 fs.writeFileSync(path.join(out, 'robots.txt'), 'User-agent: *\nDisallow: /\n');
 fs.writeFileSync(path.join(out, '_headers'), `/*
   X-Content-Type-Options: nosniff

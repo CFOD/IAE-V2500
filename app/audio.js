@@ -22,6 +22,8 @@ export class EngineAudio {
   /** @param ctx optional AudioContext / OfflineAudioContext (tests pass an offline one) */
   constructor(ctx = null) { this.ctx = ctx; this.on = false; this.offline = !!ctx && typeof ctx.startRendering === 'function'; if (ctx) this._build(); }
 
+  /** Create the audio graph now (suspended until the first click) so recordings download straight away. */
+  prepare() { if (!this.ctx) { this.ctx = new AudioContext({ latencyHint: 'interactive' }); this._build(); } }
   start() {
     if (!this.ctx) { this.ctx = new AudioContext({ latencyHint: 'interactive' }); this._build(); }
     this.ctx.resume(); this.on = true;
@@ -32,7 +34,7 @@ export class EngineAudio {
   async loadRecordings(files) {
     if (!this.ctx) this.start();
     const old = this.samples; old.dispose();
-    const sp = new SamplePlayer(this.ctx, this.sbus); const ok = await sp.load('', files);
+    const sp = new SamplePlayer(this.ctx, this.sbus); const ok = await sp.load('', files, (a, b) => this.onSampleProgress && this.onSampleProgress(a, b));
     if (!ok) { this.samples = sp; this.bus.gain.setTargetAtTime(1, this.ctx.currentTime, 0.3); return null; }
     this.samples = sp; this.bus.gain.setTargetAtTime(sp.synth === 'mix' ? 0.5 : 0, this.ctx.currentTime, 0.3);
     return sp;
@@ -66,7 +68,10 @@ export class EngineAudio {
     for (const b of [this.bus, this.sbus, this.evbus]) b.connect(comp);
     this._chain(this.bus, conv, wet, comp); this.evbus.connect(conv); this._chain(comp, this.out, ac.destination);
     this.samples = new SamplePlayer(ac, this.sbus);
-    if (!this.offline) this.samples.load().then((ok) => { if (ok) { this.bus.gain.setTargetAtTime(this.samples.synth === 'mix' ? 0.5 : 0, ac.currentTime, 0.3); this.onSamples && this.onSamples(this.samples); } });
+    if (!this.offline) this.samples.load('sounds/', null, (a, b) => this.onSampleProgress && this.onSampleProgress(a, b)).then((ok) => {
+      if (ok) { this.bus.gain.setTargetAtTime(this.samples.synth === 'mix' ? 0.5 : 0, ac.currentTime, 0.3); this.onSamples && this.onSamples(this.samples); }
+      else this.onSamples && this.onSamples(null);
+    });
 
     const nA = this._noiseBuffer(4.1, 1234567), nB = this._noiseBuffer(3.7, 7654321), nC = this._noiseBuffer(4.7, 24680);
     const v = (this.v = {});
