@@ -140,7 +140,9 @@ def box(name, centre, size, th_deg, mat):
     from mathutils import Matrix
     bm = bmesh.new(); bmesh.ops.create_cube(bm, size=1)
     bmesh.ops.scale(bm, vec=size, verts=bm.verts)  # (axial, tangential, radial)
-    bmesh.ops.transform(bm, matrix=Matrix.Translation(centre) @ Matrix.Rotation(-math.radians(th_deg), 4, 'X'), verts=bm.verts)
+    # th_pos puts angle th at (x, -r sin th, r cos th); a rotation of +th about X turns local up (+Z) onto that
+    # radial direction (a rotation of -th mirrored every box away from the top and bottom centreline)
+    bmesh.ops.transform(bm, matrix=Matrix.Translation(centre) @ Matrix.Rotation(math.radians(th_deg), 4, 'X'), verts=bm.verts)
     me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
     obj = link(bpy.data.objects.new(name, me)); me.materials.append(mat)
     return obj
@@ -471,7 +473,7 @@ def build():
         nm = f'cna_blocker_{"L" if th < 180 else "R"}_{k:02d}' + ('__full' if in_cut(th) else '')
         me = bpy.data.meshes.new(nm); bm.to_mesh(me); bm.free(); me.materials.append(cast)
         door = link(bpy.data.objects.new(nm, me))
-        door.matrix_world = Matrix.Translation(th_pos(xh, th, rh)) @ Matrix.Rotation(-math.radians(th), 4, 'X')
+        door.matrix_world = Matrix.Translation(th_pos(xh, th, rh)) @ Matrix.Rotation(math.radians(th), 4, 'X')   # local +Z = radial at th (see box())
         made.append(door)
     cowl('cna_nozzle', 2.86 + G, 3.55, bare, 12, inset=0.008)
     lip = [[-0.655, 0.781], [-0.7, 0.774], [-0.745, 0.783], [-0.778, 0.806], [-0.79, 0.84], [-0.778, 0.878], [-0.745, 0.905], [-0.7, 0.922], [-0.663, 0.932],

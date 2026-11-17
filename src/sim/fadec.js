@@ -48,6 +48,7 @@ export class Fadec {
     this.tla = 0; // thrust lever 0..1 (idle..TOGA), or reverse idle..max reverse while the reverser is out
     this.tra = 0; // thrust lever angle, degrees (see TRA)
     this.revCmd = null; // reverse selected on the thrust lever (null: the reverser is driven directly through eng.u.reverser)
+    this.revLockout = false; // reverser deactivated (C-ducts open for maintenance): it will not deploy
     this.rating = 'V2527-A5';
     this.manStart = false; // ENG MAN START pushbutton (latched; opens the start valve with MODE at CRANK or IGN START)
     this.mode = 'norm'; // ENG MODE selector: 'crank' | 'norm' | 'ign' (IGN/START)
@@ -336,7 +337,8 @@ export class Fadec {
     this.valveOpen = this.ovr.starter != null ? this.ovr.starter : valve;
 
     // reverser: deploys only with hydraulic pressure (engine turning, N2 above about 45 %); it can always stow
-    if (this.revCmd != null) u.reverser = this.revCmd && (n2 > 45 || (o.rev || 0) > 0.01);
+    if (this.revCmd != null) u.reverser = this.revCmd && (n2 > 45 || (o.rev || 0) > 0.01) && !this.revLockout;
+    else if (this.revLockout) u.reverser = false;
     this.revInhibit = !!this.revCmd && !u.reverser;
 
     // ---------------- apply, honouring manual overrides

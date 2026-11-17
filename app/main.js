@@ -444,6 +444,9 @@ function tick(now) {
   if (!paused) {
     acc += real * speed;
     let n = 0;
+    // the reverser is pinned (deactivated) while the C-ducts are open, as for maintenance on the aircraft
+    const lock = !!(view3d && view3d.cowl && view3d.cowl.cd > 0.01);
+    if (lock !== fadec.revLockout) { fadec.revLockout = lock; if (lock && (fadec.revCmd || eng.u.reverser)) logMsg('Reverser deactivated while the C-ducts are open'); }
     while (acc >= DT && n < 160) { slewAmbient(DT); fadec.update(DT); eng.step(DT); handleEvents(DT); acc -= DT; n++; if (n % 12 === 0) pushTrend(eng.out); }
     if (n >= 160) acc = 0;
   }
