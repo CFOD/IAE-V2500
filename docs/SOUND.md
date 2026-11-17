@@ -12,8 +12,8 @@ could not find.
 
 ## In the browser version
 
-`npm run build:web` copies the recordings `sounds.json` uses into the site (the owner's test site,
-behind Cloudflare Access). A build made with `npm run build:web:nosound` has none: choose **Sound >
+`npm run build:web` copies the recordings `sounds.json` uses into the site (the owner's test site at
+iae.cfod.co.uk). A build made with `npm run build:web:nosound` has none: choose **Sound >
 Load recordings from a folder** and pick a `sounds` folder (with `sounds.json` or `sound.cfg` and the
 audio files). The browser reads them from your disk; nothing is uploaded. The desktop app reads
 `app/sounds/` automatically.

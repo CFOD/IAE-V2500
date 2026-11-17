@@ -9,12 +9,11 @@ The browser version runs from Cloudflare Pages, built from this repository.
 | Build command | `node tools/build-web.mjs` |
 | Build output | `dist-web` |
 | Environment variable | `ELECTRON_SKIP_BINARY_DOWNLOAD` = `1` (Cloudflare installs the packages first; the website does not need Electron) |
-| Custom domain | `iae.cfod.co.uk`, behind Cloudflare Access (Zero Trust, one-time PIN to the owner's email) |
+| Custom domain | `iae.cfod.co.uk` (only the owner uses it) |
 
 Every push to the production branch builds and deploys automatically. The build includes the
-recordings `app/sounds/sounds.json` uses; `functions/_middleware.js` serves them only to requests that
-came through Access, and sends the `*.pages.dev` addresses to `iae.cfod.co.uk`. The site is marked
-noindex.
+recordings `app/sounds/sounds.json` uses. `functions/_middleware.js` sends the `*.pages.dev` addresses
+to `iae.cfod.co.uk`. The site is marked noindex (robots.txt and an X-Robots-Tag header).
 
 **Which version is live:** the Sound menu ends in "build" and the commit (from `build.json`), and the log
 (Panel > Monitor) has the same line.

@@ -52,7 +52,7 @@ The game is plain web code, so it also runs in a browser (Chrome or Edge recomme
 `npm run serve` and open <http://localhost:5173>, or put it on a website: `npm run build:web` writes
 `dist-web/`, a static site you can upload to any web host (Cloudflare Pages, Netlify, your own server).
 This repository is private and carries the owner's sound recordings, so the build includes them; the
-site is for the owner's testing at iae.cfod.co.uk, behind Cloudflare Access, and is marked noindex.
+site is the owner's test site at iae.cfod.co.uk (see docs/WEB.md) and is marked noindex.
 `npm run build:web:nosound` leaves the recordings out (players can then load their own with **Sound >
 Load recordings from a folder**, read on their computer and not uploaded).
 

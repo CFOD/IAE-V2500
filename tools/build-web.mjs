@@ -1,8 +1,8 @@
 // Builds the browser version into dist-web/: a static site that runs from any web host.
 //   node tools/build-web.mjs              includes the recordings app/sounds/sounds.json uses (only those)
 //   node tools/build-web.mjs --no-sounds  leaves them out: players load their own (Sound menu)
-// The site is meant for the owner's own testing behind Cloudflare Access: it is marked noindex and the
-// Pages Function in functions/ sends the *.pages.dev address to the Access-protected domain.
+// The site is the owner's own test site: it is marked noindex and the Pages Function in functions/
+// sends the *.pages.dev address to iae.cfod.co.uk.
 // The app is already plain web code; this copies it with the page at the site root, leaves out
 // everything that must not be published (sound packs in app/sounds, third-party models in app/assets),
 // and adds caching headers and the licence notices. Recordings are loaded by each player from their own
