@@ -15,6 +15,7 @@ import { SMAAPass } from './vendor/jsm/postprocessing/SMAAPass.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { P, ROWS, rAt, tempRGB } from './cutaway.js';
 import { Puffs, Sparks } from './fx.js';
+import { makeSurfaceTexture, setSurfaceTexture, finish, FINISH } from './surfaces.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -129,22 +130,7 @@ const concreteTex = () => { let s = 5; const r = () => { s = (s * 16807) % 21474
  * x0..x1 is the axial range over which the colour develops (cold end to hot end).
  */
 function heatTint(mat, x0, x1, strength = 1) {
-  mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uHeatX = { value: new THREE.Vector2(x0, x1) }; sh.uniforms.uHeatK = { value: strength };
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vEngP;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n#ifdef USE_INSTANCING\n vEngP = (instanceMatrix * vec4(transformed, 1.0)).xyz;\n#else\n vEngP = transformed;\n#endif');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>\nvarying vec3 vEngP; uniform vec2 uHeatX; uniform float uHeatK;\n${NOISE}`)
-      .replace('#include <color_fragment>', `#include <color_fragment>
-        { float span = max(abs(uHeatX.y - uHeatX.x), 1e-3);
-          float h = clamp((vEngP.x - uHeatX.x) / (uHeatX.y - uHeatX.x + 1e-5 * sign(uHeatX.y - uHeatX.x + 1e-6)), 0.0, 1.0);
-          float ang = atan(vEngP.y, vEngP.z);
-          h = clamp(h + (fbm(vec2(ang * 3.0, vEngP.x * 9.0)) - 0.5) * 0.35, 0.0, 1.0);
-          vec3 straw = vec3(0.86, 0.72, 0.44), bronze = vec3(0.62, 0.42, 0.28), purple = vec3(0.46, 0.34, 0.56), blue = vec3(0.36, 0.48, 0.68);
-          vec3 tint = mix(vec3(1.0), straw, smoothstep(0.05, 0.3, h)); tint = mix(tint, bronze, smoothstep(0.3, 0.55, h)); tint = mix(tint, purple, smoothstep(0.55, 0.78, h)); tint = mix(tint, blue, smoothstep(0.78, 1.0, h));
-          diffuseColor.rgb *= mix(vec3(1.0), tint, clamp(uHeatK, 0.0, 1.0)) * (0.92 + 0.16 * vnoise(vec2(ang * 40.0, vEngP.x * 60.0))); }`);
-  };
-  mat.customProgramCacheKey = () => `heat:${x0}:${x1}:${strength}`;
-  return mat;
+  return finish(mat, { ...(mat.userData.finish ? {} : FINISH.hotCase), heat: [x0, x1, strength] });
 }
 
 const sample = (prof, x0, x1, n = 14) => Array.from({ length: n + 1 }, (_, i) => { const x = lerp(x0, x1, i / n); return [x, rAt(prof, x)]; });
@@ -242,6 +228,7 @@ export class Scene3D {
 
     this.cutaway = true; this.explode = 0; this.showFlow = true; this.quality = 'medium';
     this.parts = []; this.byId = {}; this.vsvRows = []; this.cutInst = []; this.rotorRows = []; this.hingePivots = []; this.cowl = { open: false, fan: 0, cd: 0 }; this.hover = null; this.selected = null;
+    setSurfaceTexture(makeSurfaceTexture());
     this.sprite = softSprite(); this.tex = { liner: linerTex(), brushed: brushedTex(), braid: braidTex(), blade: bladeTex(false), fanBlade: bladeTex(true), cast: castTex(), paint: paintTextures(), concrete: concreteTex() };
     this.capMat = new THREE.MeshStandardMaterial({ color: 0xb8402a, metalness: 0.1, roughness: 0.7, side: THREE.DoubleSide });
     this.t = 0; this.flash = 0;
@@ -685,6 +672,45 @@ export class Scene3D {
     heatTint(this.byId.hptcase.mat, 2.0, 2.5, 0.9); heatTint(this.byId.lptcase.mat, 2.3, 3.1, 0.9); heatTint(this.byId.tec.mat, 2.7, 3.5, 1.0);
     heatTint(this.byId.hpt.mat, 2.0, 2.45, 0.8); heatTint(this.byId.lpt.mat, 2.3, 3.05, 0.7); heatTint(this.byId.combcase.mat, 1.75, 2.6, 0.5); heatTint(this.byId.liner.mat, 1.9, 2.25, 0.9);
     this.byId.hpc.mat.roughness = 0.46;
+    // ---- surface finishes (app/surfaces.js): every material gets wear, grime, heat and relief to match the photos
+    {
+      const H = (preset, heat, soot) => ({ ...preset, ...(heat ? { heat } : {}), ...(soot ? { soot } : {}) });
+      const byPart = {
+        inlet: FINISH.nacellePaint, fancowl: FINISH.nacellePaint, cna: FINISH.nacellePaint, pylon: FINISH.nacellePaint, lip: FINISH.polished,
+        fancase: FINISH.castPaint, lpccase: FINISH.castPaint, hpccase: FINISH.castPaint, agb: FINISH.castBare, eec: FINISH.darkBox,
+        spinner: { ...FINISH.darkBox, bottom: 0, grime: 0.08 }, fan: FINISH.titanium, lpc: FINISH.compressorBlade, hpc: FINISH.compressorBlade,
+        hpt: H(FINISH.turbineBlade, [2.0, 2.45, 0.8]), lpt: H(FINISH.turbineBlade, [2.3, 3.05, 0.7]),
+        hptcase: H(FINISH.hotCase, [2.0, 2.5, 0.9]), lptcase: H(FINISH.hotCase, [2.3, 3.1, 0.9]), combcase: H(FINISH.hotCase, [1.75, 2.6, 0.5]),
+        liner: H(FINISH.hotCase, [1.9, 2.25, 0.9]), tec: H(FINISH.hotCase, [2.7, 3.5, 1.0], [3.15, 3.6, 0.7]),
+        lpshaft: { ...FINISH.bareSteel, bottom: 0 }, hpshaft: { ...FINISH.bareSteel, bottom: 0 }, bearings: FINISH.bareSteel,
+        corecowl: FINISH.acoustic, fuel: FINISH.stainlessTube, ign: FINISH.darkBox, ext: FINISH.stainlessTube,
+      };
+      const coreHeat = [2.0, 2.9, 0.45];
+      const byMat = new Map([
+        [pipeSteel, H(FINISH.stainlessTube, coreHeat)], [pipeGold, FINISH.cadmium], [harness, FINISH.braid], [conduit, FINISH.darkBox],
+        [this.boltMat, FINISH.bareSteel], [linerM, FINISH.acoustic], [white, { ...FINISH.nacellePaint, bottom: 0 }], [fairing, { ...FINISH.titanium, bottom: 0 }],
+        [vsvMat, FINISH.titanium], [orange, FINISH.rubber], [perf, FINISH.castBare], [race, { ...FINISH.bareSteel, bottom: 0, grime: 0.05 }], [duct, FINISH.stainlessTube],
+        [this.shared.paint, FINISH.nacellePaint], [this.shared.lip, FINISH.polished], [this.shared.loom, FINISH.braid],
+        [this.shared.bare, { ...FINISH.nozzle, heat: [2.75, 3.6, 0.8], soot: [3.15, 3.6, 0.6] }],
+      ]);
+      const done = new Set([this.capMat]);
+      const guess = (m) => {
+        const c = m.color || new THREE.Color(1, 1, 1), lum = 0.3 * c.r + 0.59 * c.g + 0.11 * c.b;
+        if (m.metalness > 0.7) return c.r > c.b * 1.35 ? FINISH.cadmium : FINISH.bareSteel;
+        return lum < 0.05 ? FINISH.darkBox : FINISH.castPaint;
+      };
+      for (const [m, f] of byMat) { finish(m, f); done.add(m); }
+      this.engine.traverse((o) => {
+        if (!o.isMesh) return;
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+          if (!m || done.has(m) || !m.isMeshStandardMaterial) continue;
+          done.add(m); const pid = o.userData.part && o.userData.part.id;
+          finish(m, m.userData.finish ? {} : (byPart[pid] || guess(m)));
+        }
+      });
+      // blade copies made before the heat tint was set on their part
+      for (const id of ['hpt', 'lpt']) { const p = this.byId[id]; if (p.bladeMat) finish(p.bladeMat, byPart[id]); }
+    }
     for (const p of this.parts) for (const ob of p.objs) ob.userData.home = ob.position.x;
   }
 
@@ -940,6 +966,17 @@ export class Scene3D {
    * Matching nodes take over that component (picking, removal, glow, rotation with the spool).
    */
   async loadExternalModel(base, manifest) {
+    const coreHeat = [2.0, 2.9, 0.45];
+    const authoredFinish = (name, partId, casting) => {
+      const tube = { tube_ss: FINISH.stainlessTube, tube_ti: { ...FINISH.titanium, scale: 10, bottom: 0.25 }, tube_cad: FINISH.cadmium, fitting: { ...FINISH.bareSteel, scale: 12 },
+        clamp_block: { ...FINISH.castBare, scale: 10, bump: 0.3 }, bracket: { ...FINISH.bareSteel, scale: 10 }, vband: { ...FINISH.bareSteel, scale: 8 }, duct: { ...FINISH.stainlessTube, scale: 4 } }[name];
+      if (tube) return partId === 'ext' ? { ...tube, heat: coreHeat } : tube;
+      return {
+        cast: casting ? FINISH.castBare : FINISH.castPaint, steel: FINISH.bareSteel, gold: FINISH.chromate, dark: FINISH.darkBox, composite: FINISH.composite,
+        primer: FINISH.primer, acoustic: FINISH.acoustic, clamp_red: FINISH.rubber, loom_band: FINISH.rubber, connector: FINISH.connector, firesleeve: FINISH.fireSleeve,
+        panelline: FINISH.nacellePaint, panelline2: FINISH.nacellePaint, panel2: FINISH.nacellePaint, placard: FINISH.nacellePaint, hazard: FINISH.nacellePaint, marking: FINISH.nacellePaint,
+      }[name] || null;
+    };
     const gltf = await new GLTFLoader().loadAsync(base + manifest.file);
     const root = gltf.scene; root.scale.setScalar(manifest.scale || 1);
     if (manifest.position) root.position.fromArray(manifest.position);
@@ -962,7 +999,21 @@ export class Scene3D {
         n.userData.variant = /__cut$/i.test(n.name) ? 'cut' : /__full$/i.test(n.name) || nodes.some((m) => m.name === `${n.name}__cut`) ? 'full' : null;
         n.traverse((m) => {
           if (!m.isMesh) return;
-          const swap = (mt) => { if (/^txt:/.test(mt.name)) return (this._labels ||= {})[mt.name] ||= labelMaterial(mt.name.slice(4)); const sh = this.shared[mt.name]; if (!sh) { mt.side = THREE.DoubleSide; return mt; } if (mt.name === 'section') return sh; return (own[mt.name] ||= (() => { const c = sh.clone(); c.onBeforeCompile = sh.onBeforeCompile; c.customProgramCacheKey = sh.customProgramCacheKey; part.extMats.push(c); return c; })()); };
+          const swap = (mt) => {
+            if (/^txt:/.test(mt.name)) return (this._labels ||= {})[mt.name] ||= labelMaterial(mt.name.slice(4));
+            const sh = this.shared[mt.name];
+            if (mt.name === 'section') return sh || mt;
+            const casting = mt.name === 'cast' && /oiltank|gearbox|agb_|dressing|eec/i.test(m.name);
+            const key = mt.name + (casting ? ':bare' : '');
+            return (own[key] ||= (() => {
+              let c;
+              if (sh) { c = sh.clone(); c.onBeforeCompile = sh.onBeforeCompile; c.customProgramCacheKey = sh.customProgramCacheKey; }
+              else { c = mt.clone(); c.side = THREE.DoubleSide; }
+              const f = authoredFinish(mt.name, id, casting);
+              if (f) finish(c, f);
+              part.extMats.push(c); return c;
+            })());
+          };
           m.material = Array.isArray(m.material) ? m.material.map(swap) : swap(m.material);
         });
       }
