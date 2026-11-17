@@ -43,7 +43,7 @@ one) and run `Start V2500.bat` again.
 | The engine view is black, flickers, flashes or is very slow | Click **Quality** in the top bar until it says **Low**, which turns every visual effect off. Then please report it with the graphics card name shown under **Panel > Monitor > Log**. Updating your graphics driver may also help. |
 | Anything else | Press **F12** in the game window, click the **Console** tab, and copy the red text into a GitHub issue or back to whoever is helping you. |
 
-Useful keys: **F11** full screen, **Space** pause, **M** master switch, **C** cutaway, **O** open cowls, up/down arrows
+Useful keys: **F11** full screen, **Space** pause, **M** master switch, **C** cutaway, **O** open cowls, **H** hide or show the HUD, up/down arrows
 move the thrust lever.
 
 ### Sound

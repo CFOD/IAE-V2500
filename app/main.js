@@ -219,7 +219,11 @@ $('btnCut').onclick = () => { const on = !$('btnCut').classList.contains('on'); 
 $('btnFlow').onclick = () => { const on = !$('btnFlow').classList.contains('on'); $('btnFlow').classList.toggle('on', on); if (view3d) view3d.showFlow = on; };
 $('explode').oninput = () => view3d && view3d.setExplode(+$('explode').value);
 for (const b of $('cams').children) b.onclick = () => view3d && view3d.view(b.dataset.v);
-const frame3d = () => { if (!view3d) return; const shut = $('drawer').classList.contains('shut'); document.body.classList.toggle('nodrawer', shut); view3d.offsetX = shut ? 0 : 210; view3d.offsetY = 56; view3d.resize(); };
+const frame3d = () => { if (!view3d) return; const hud = !document.body.classList.contains('hud-off'), shut = $('drawer').classList.contains('shut'); document.body.classList.toggle('nodrawer', shut); view3d.offsetX = hud && !shut ? 210 : 0; view3d.offsetY = hud ? 56 : 0; view3d.resize(); };
+// HUD toggle: hide all overlays for a clear view (button, H key); the engine re-centres in the window
+const setHud = (on) => { document.body.classList.toggle('hud-off', !on); requestAnimationFrame(() => { view2d.resize(); frame3d(); }); };
+$('btnHud').onclick = () => setHud(false);
+$('hudShow').onclick = () => setHud(true);
 $('btnDrawer').onclick = () => { const shut = $('drawer').classList.toggle('shut'); $('btnDrawer').classList.toggle('on', !shut); frame3d(); };
 function reset(running) {
   fadec.reset(); $('manStart').setAttribute('aria-pressed', false); eng.damage.reset(); sparkK = 0; lostPrev = 0;
@@ -244,6 +248,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'm' || e.key === 'M') setMaster(!fadec.master);
   else if (e.key === 'c' || e.key === 'C') $('btnCut').click();
   else if (e.key === 'o' || e.key === 'O') $('btnCowl').click();
+  else if (e.key === 'h' || e.key === 'H') setHud(document.body.classList.contains('hud-off'));
   else if (e.key === ' ') { $('btnPause').click(); e.preventDefault(); }
 });
 window.addEventListener('resize', () => { view2d.resize(); frame3d(); });
