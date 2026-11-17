@@ -1,0 +1,609 @@
+{
+ "name": "FTSiM+ A320 IAE sound pack",
+ "synth": "events",
+ "mute": [
+  "lightoff"
+ ],
+ "comment": "Outside-view recordings only. Mapping built by analysing the files: see docs/SOUND.md.",
+ "layers": [
+  {
+   "file": "06DBCE06.wav",
+   "driver": "n1",
+   "pos": "front",
+   "note": "fan / intake, blade-passing tone at 19.2 % N1",
+   "gain": 1.084,
+   "pitch": [
+    [
+     5.76,
+     0.3
+    ],
+    [
+     36.48,
+     1.9
+    ]
+   ],
+   "volume": [
+    [
+     8.64,
+     0.0
+    ],
+    [
+     19.2,
+     0.22
+    ],
+    [
+     27.9,
+     0.0
+    ]
+   ]
+  },
+  {
+   "file": "05F145FA.wav",
+   "driver": "n1",
+   "pos": "front",
+   "note": "fan / intake, blade-passing tone at 27.9 % N1",
+   "gain": 5.754,
+   "pitch": [
+    [
+     8.37,
+     0.3
+    ],
+    [
+     53.01,
+     1.9
+    ]
+   ],
+   "volume": [
+    [
+     19.2,
+     0.0
+    ],
+    [
+     27.9,
+     0.263
+    ],
+    [
+     38.7,
+     0.0
+    ]
+   ]
+  },
+  {
+   "file": "2D4C8702.wav",
+   "driver": "n1",
+   "pos": "front",
+   "note": "fan / intake, blade-passing tone at 38.7 % N1",
+   "gain": 8.0,
+   "pitch": [
+    [
+     11.61,
+     0.3
+    ],
+    [
+     73.53,
+     1.9
+    ]
+   ],
+   "volume": [
+    [
+     27.9,
+     0.0
+    ],
+    [
+     38.7,
+     0.347
+    ],
+    [
+     48.6,
+     0.0
+    ]
+   ]
+  },
+  {
+   "file": "35F197A5.wav",
+   "driver": "n1",
+   "pos": "front",
+   "note": "fan / intake, blade-passing tone at 48.6 % N1",
+   "gain": 1.122,
+   "pitch": [
+    [
+     14.58,
+     0.3
+    ],
+    [
+     92.34,
+     1.9
+    ]
+   ],
+   "volume": [
+    [
+     38.7,
+     0.0
+    ],
+    [
+     48.6,
+     0.436
+    ],
+    [
+     61.5,
+     0.0
+    ]
+   ]
+  },
+  {
+   "file": "075484A4.wav",
+   "driver": "n1",
+   "pos": "front",
+   "note": "fan / intake, blade-passing tone at 61.5 % N1",
+   "gain": 0.794,
+   "pitch": [
+    [
+     18.45,
+     0.3
+    ],
+    [
+     116.85,
+     1.9
+    ]
+   ],
+   "volume": [
+    [
+     48.6,
+     0.0
+    ],
+    [
+     61.5,
+     0.563
+    ],
+    [
+     83.0,
+     0.0
+    ]
+   ]
+  },
+  {
+   "file": "2DBE8ED8.wav",
+   "driver": "n1",
+   "pos": "front",
+   "note": "fan / intake, blade-passing tone at 83.0 % N1",
+   "gain": 0.776,
+   "pitch": [
+    [
+     24.9,
+     0.3
+    ],
+    [
+     157.7,
+     1.9
+    ]
+   ],
+   "volume": [
+    [
+     61.5,
+     0.0
+    ],
+    [
+     83.0,
+     0.799
+    ],
+    [
+     91.3,
+     0.0
+    ]
+   ]
+  },
+  {
+   "file": "3728855A.wav",
+   "driver": "n1",
+   "pos": "front",
+   "note": "fan / intake, blade-passing tone at 91.3 % N1",
+   "gain": 0.966,
+   "pitch": [
+    [
+     27.39,
+     0.3
+    ],
+    [
+     173.47,
+     1.9
+    ]
+   ],
+   "volume": [
+    [
+     83.0,
+     0.0
+    ],
+    [
+     91.3,
+     0.895
+    ],
+    [
+     100.4,
+     0.0
+    ]
+   ]
+  },
+  {
+   "file": "134809F0.wav",
+   "driver": "n1",
+   "pos": "front",
+   "note": "fan / intake, blade-passing tone at 100.4 % N1",
+   "gain": 1.349,
+   "pitch": [
+    [
+     30.12,
+     0.3
+    ],
+    [
+     190.76,
+     1.9
+    ]
+   ],
+   "volume": [
+    [
+     91.3,
+     0.0
+    ],
+    [
+     100.4,
+     1.005
+    ],
+    [
+     112,
+     1.149
+    ]
+   ]
+  },
+  {
+   "file": "0C8D3E12.wav",
+   "driver": "n1",
+   "pos": "front",
+   "note": "buzz-saw: shaft-order comb at 83.5 % N1 (supersonic fan tips)",
+   "gain": 0.569,
+   "pitch": [
+    [
+     25,
+     0.3
+    ],
+    [
+     160,
+     1.92
+    ]
+   ],
+   "volume": [
+    [
+     72,
+     0
+    ],
+    [
+     86,
+     0.85
+    ],
+    [
+     100,
+     1.0
+    ],
+    [
+     112,
+     1.0
+    ]
+   ]
+  },
+  {
+   "file": "2435D10F_loop.wav",
+   "driver": "n1",
+   "pos": "rear",
+   "when": "lit",
+   "note": "jet / exhaust roar, broadband, set at 22 % N1",
+   "gain": 3.758,
+   "pitch": [
+    [
+     11.0,
+     0.75
+    ],
+    [
+     33.0,
+     1.25
+    ]
+   ],
+   "volume": [
+    [
+     9.9,
+     0.0
+    ],
+    [
+     22,
+     0.121
+    ],
+    [
+     50,
+     0.0
+    ]
+   ]
+  },
+  {
+   "file": "1A517884.wav",
+   "driver": "n1",
+   "pos": "rear",
+   "when": "lit",
+   "note": "jet / exhaust roar, broadband, set at 50 % N1",
+   "gain": 0.708,
+   "pitch": [
+    [
+     25.0,
+     0.75
+    ],
+    [
+     75.0,
+     1.25
+    ]
+   ],
+   "volume": [
+    [
+     22,
+     0.0
+    ],
+    [
+     50,
+     0.257
+    ],
+    [
+     70,
+     0.0
+    ]
+   ]
+  },
+  {
+   "file": "3C0D3384.wav",
+   "driver": "n1",
+   "pos": "rear",
+   "when": "lit",
+   "note": "jet / exhaust roar, broadband, set at 70 % N1",
+   "gain": 1.189,
+   "pitch": [
+    [
+     35.0,
+     0.75
+    ],
+    [
+     105.0,
+     1.25
+    ]
+   ],
+   "volume": [
+    [
+     50,
+     0.0
+    ],
+    [
+     70,
+     0.48
+    ],
+    [
+     85,
+     0.0
+    ]
+   ]
+  },
+  {
+   "file": "33BCAAAF.wav",
+   "driver": "n1",
+   "pos": "rear",
+   "when": "lit",
+   "note": "jet / exhaust roar, broadband, set at 85 % N1",
+   "gain": 0.668,
+   "pitch": [
+    [
+     42.5,
+     0.75
+    ],
+    [
+     127.5,
+     1.25
+    ]
+   ],
+   "volume": [
+    [
+     70,
+     0.0
+    ],
+    [
+     85,
+     0.713
+    ],
+    [
+     100,
+     0.0
+    ]
+   ]
+  },
+  {
+   "file": "1B943656.wav",
+   "driver": "n1",
+   "pos": "rear",
+   "when": "lit",
+   "note": "jet / exhaust roar, broadband, set at 100 % N1",
+   "gain": 0.7,
+   "pitch": [
+    [
+     50.0,
+     0.75
+    ],
+    [
+     150.0,
+     1.25
+    ]
+   ],
+   "volume": [
+    [
+     85,
+     0.0
+    ],
+    [
+     100,
+     1.0
+    ],
+    [
+     112,
+     1.268
+    ]
+   ]
+  },
+  {
+   "file": "390F2A05.wav",
+   "driver": "fuel",
+   "when": "lit",
+   "note": "combustion rumble, follows fuel flow",
+   "gain": 0.376,
+   "pitch": [
+    [
+     300,
+     0.92
+    ],
+    [
+     5000,
+     1.12
+    ]
+   ],
+   "volume": [
+    [
+     0,
+     0
+    ],
+    [
+     250,
+     0.45
+    ],
+    [
+     1500,
+     0.75
+    ],
+    [
+     5000,
+     1.0
+    ]
+   ]
+  },
+  {
+   "file": "0229841B.wav",
+   "driver": "n2",
+   "when": "start",
+   "until": 60,
+   "note": "complete outside start: motoring, light-off, spool-up",
+   "gain": 0.75,
+   "track": [
+    [
+     0,
+     0.5
+    ],
+    [
+     5,
+     6
+    ],
+    [
+     15,
+     14
+    ],
+    [
+     25,
+     22
+    ],
+    [
+     28.5,
+     26
+    ],
+    [
+     29.8,
+     29.5
+    ],
+    [
+     33,
+     32
+    ],
+    [
+     46,
+     52
+    ],
+    [
+     56,
+     61
+    ],
+    [
+     60,
+     64
+    ]
+   ],
+   "volume": [
+    [
+     0,
+     1
+    ],
+    [
+     53,
+     1
+    ],
+    [
+     60,
+     0
+    ]
+   ]
+  },
+  {
+   "file": "11998CFB.wav",
+   "driver": "n2",
+   "when": "shutdown",
+   "note": "outside spool-down after the fuel is shut off",
+   "gain": 0.6,
+   "track": [
+    [
+     0,
+     34
+    ],
+    [
+     5,
+     32
+    ],
+    [
+     12,
+     29
+    ],
+    [
+     24,
+     24
+    ],
+    [
+     38,
+     16
+    ],
+    [
+     50,
+     8
+    ],
+    [
+     58,
+     0.6
+    ],
+    [
+     70,
+     0
+    ]
+   ],
+   "volume": [
+    [
+     0,
+     1
+    ],
+    [
+     70,
+     1
+    ]
+   ]
+  }
+ ],
+ "shots": {
+  "surge": {
+   "file": "2D43C434.wav",
+   "gain": 1.1
+  }
+ }
+}

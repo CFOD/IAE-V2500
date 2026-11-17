@@ -85,6 +85,43 @@ If you have individual recordings, describe them in `app/sounds/sounds.json`. It
 A good minimum set: a start sequence, an idle loop, a mid-power loop, a take-off loop and a
 spool-down. That is what flight-simulator packs contain.
 
+### Track layers: a whole start or spool-down
+
+A layer with `"track"` plays one long recording (a complete start, a complete spool-down) and keeps
+it in step with the engine instead of looping it:
+
+```json
+{ "file": "start.wav", "driver": "n2", "when": "start", "until": 60,
+  "track": [[0, 0.5], [15, 14], [30, 27], [46, 52], [60, 64]],
+  "volume": [[0, 1], [53, 1], [60, 0]] }
+```
+
+`track` pairs an engine speed with a time in the file. The play head follows the engine: it runs up to
+25 % faster or 40 % slower to keep up and, when it drifts more than two or three seconds (the engine
+holding speed while motoring, or spooling down faster than the recording), crossfades to the right
+place. `when` is `start` (from the starter engaging until `until` % N2) or `shutdown` (from the
+flame going out at speed until the engine stops). While a track plays, the other loops step back
+under it, so a start hands over to the running loops at idle without doubling up. `"duck": false`
+on a loop keeps it at full level. `"mute": ["lightoff"]` silences synthesised events the recordings
+already contain.
+
+### Microsoft Flight Simulator packs extracted to .wav (FTSiM+ A320 IAE)
+
+`tools/sound-packs/ftsim-a320-iae.sounds.json` maps the FTSiM+ A320 IAE pack once its Wwise media are
+extracted as .wav files (they are named by hex id, such as `0229841B.wav`). Copy all the .wav files
+into `app/sounds/`, then copy that file there as `sounds.json`, with `2435D10F_loop.wav` (the idle roar
+re-cut so it loops without a click; `tools/sound-packs/ftsim-a320-iae.py` makes it and the json).
+How the files were identified, since the pack's sound.xml names events but not files:
+
+- **Fan loops**: the V2500 fan has 22 blades, so each loop's blade-passing tone gives the N1 it was
+  recorded at (22 x N1 rpm / 60, 2072 Hz at 100 %); buzz-saw loops show the whole comb of shaft orders.
+  Loops at 19.2, 27.9, 38.7, 48.6, 61.5, 83, 91.3 and 100.4 % N1 crossfade, each pitched by N1 / its own N1.
+- **Jet roar**: bright broadband loops without tones, ordered by spectral centroid (jet noise moves up
+  in frequency as jet velocity rises), behind the engine.
+- **Start and spool-down**: the tonal lines in the 76 s start and 35 s spool-down recordings give N2
+  against time for the track maps.
+- Cockpit versions (heavily low-passed), cockpit chimes and switch clicks are not used.
+
 ## The synthesiser
 
 With no recordings present the game synthesises every sound from the simulation: fan blade-pass
