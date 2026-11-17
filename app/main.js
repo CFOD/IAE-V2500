@@ -1,6 +1,6 @@
 // Game shell: owns the simulation loop and wires UI <-> sim <-> views.
 import { Engine, defaultMods } from '../src/sim/engine.js';
-import { Fadec, DETENT_CL, DETENT_MCT } from '../src/sim/fadec.js';
+import { Fadec, TRA } from '../src/sim/fadec.js';
 import { RATINGS } from '../src/sim/v2500.js';
 import { Cutaway } from './cutaway.js';
 import { Scene3D } from './scene3d.js';
@@ -148,7 +148,11 @@ const FAULTS = [
   { id: 'fuelq', name: 'Contaminated fuel', desc: 'Fuel heating value down 20 %. More fuel flow for the same thrust.', mods: { lhv: 0.8 } },
   { id: 'vsv', name: 'Stator vanes jammed', desc: 'Variable stators freeze where they are now.', on: () => { ov.vsv = eng.out.vsv; }, off: () => { ov.vsv = null; } },
   { id: 'b25', name: '2.5 bleed stuck closed', desc: 'The booster bleed ring cannot open. Risk of LP compressor surge at low power and on decelerations.', on: () => { ov.bleed25 = 0; }, off: () => { ov.bleed25 = null; } },
-  { id: 'startv', name: 'Start valve stuck open', desc: 'The starter stays engaged above its cut-out speed.', on: () => { ov.starter = true; }, off: () => { ov.starter = null; } },
+  { id: 'svopen', name: 'Start valve fails to open', desc: 'No air reaches the starter. An automatic start is aborted after a few seconds: ENG 1 START FAULT, START VALVE NOT OPEN.', on: () => { fadec.faults.svNoOpen = true; }, off: () => { fadec.faults.svNoOpen = false; } },
+  { id: 'startv', name: 'Start valve stuck open', desc: 'At 43 % N2 the valve will not close: ENG 1 START VALVE FAULT. Shut the APU bleed, then MASTER OFF. Left alone, the unloaded starter overspeeds and fails.', on: () => { fadec.faults.svNoClose = true; }, off: () => { fadec.faults.svNoClose = false; } },
+  { id: 'ignA', name: 'Igniter A failed', desc: 'Automatic starts alternate between igniters, so every other start finds no light: IGNITION FAULT, fuel off, dry crank. Restart and the EEC uses B.', on: () => { fadec.faults.ignA = true; }, off: () => { fadec.faults.ignA = false; } },
+  { id: 'ignB', name: 'Igniter B failed', desc: 'As above, for igniter B. With both failed only a manual start would keep trying, and the crew has to stop it.', on: () => { fadec.faults.ignB = true; }, off: () => { fadec.faults.ignB = false; } },
+  { id: 'lowair', name: 'Weak starter air', desc: 'APU duct pressure down to 14 psi. Motoring speed only just reaches the light-up window and the start takes much longer.', on: () => { u.starterPsi = 14; }, off: () => { u.starterPsi = 40; } },
   { id: 'epr', name: 'EPR sensing lost', desc: 'P4.9 / P2 signal fails. The FADEC reverts to rated-N1 mode.', on: () => { fadec.n1Mode = true; }, off: () => { fadec.n1Mode = false; } },
   { id: 'oilleak', name: 'Oil leak', desc: 'A pipe union lets go: about 3 quarts a minute overboard. Watch the quantity fall, then the pressure.', on: () => { eng.oil.faults.leak = 3; }, off: () => { eng.oil.faults.leak = 0; } },
   { id: 'oilpump', name: 'Oil pump drive failure', desc: 'Pressure drops to zero at once. The bearings last about a minute at take-off power, a few minutes at idle.', on: () => { eng.oil.faults.pumpFail = true; }, off: () => { eng.oil.faults.pumpFail = false; } },
@@ -178,15 +182,30 @@ flt.insertAdjacentHTML('beforeend', '<p class="note">Faults stack with whatever 
 const sel = $('rating');
 for (const k of Object.keys(RATINGS)) sel.add(new Option(`${k} · ${(RATINGS[k].toLbf / 1000).toFixed(1)}k lbf`, k));
 sel.value = fadec.rating; sel.onchange = () => { fadec.rating = sel.value; logMsg(`Rating ${sel.value}`); };
-const setMaster = (v) => { fadec.master = v; if (v && fadec.phase === 'abort') fadec.phase = 'off'; if (!v && fadec.ovr.fuel != null) { fadec.ovr.fuel = null; logMsg('Fuel flow: manual released (master off)'); } $('master').setAttribute('aria-pressed', v); logMsg(`ENG MASTER ${v ? 'ON' : 'OFF'}`); };
+const setMaster = (v) => { fadec.master = v; if (!v && fadec.ovr.fuel != null) { fadec.ovr.fuel = null; logMsg('Fuel flow: manual released (master off)'); } $('master').setAttribute('aria-pressed', v); logMsg(`ENG MASTER ${v ? 'ON' : 'OFF'}`); };
 $('master').onclick = () => setMaster(!fadec.master);
-$('manStart').onclick = () => { fadec.manStart = !fadec.manStart; $('manStart').setAttribute('aria-pressed', fadec.manStart); };
+const MODE_NAME = { crank: 'CRANK', norm: 'NORM', ign: 'IGN/START' };
+const setEngMode = (v, quiet) => { fadec.mode = v; for (const c of $('engMode').children) c.classList.toggle('on', c.dataset.v === v); if (!quiet) logMsg(`ENG MODE ${MODE_NAME[v]}`); };
+for (const b of $('engMode').children) b.onclick = () => setEngMode(b.dataset.v);
+const setManStart = (v, quiet) => { fadec.manStart = v; $('manStart').setAttribute('aria-pressed', v); if (!quiet) logMsg(`ENG MAN START ${v ? 'ON' : 'OFF'}`); };
+$('manStart').onclick = () => setManStart(!fadec.manStart);
+const setApuBleed = (v, quiet) => { fadec.apuBleed = v; $('apuBleed').setAttribute('aria-pressed', v); if (!quiet) logMsg(`APU BLEED ${v ? 'ON' : 'OFF'}`); };
+$('apuBleed').onclick = () => setApuBleed(!fadec.apuBleed);
 $('agent').onclick = () => { const out = eng.damage.extinguish(); logMsg(out ? 'Fire agent discharged - fire out' : 'Fire agent discharged - STILL BURNING: shut the fuel off first'); };
-$('reverser').onclick = () => { eng.u.reverser = !eng.u.reverser; $('reverser').setAttribute('aria-pressed', eng.u.reverser); logMsg(`Thrust reverser ${eng.u.reverser ? 'deploy' : 'stow'}`); };
+// Thrust lever in degrees, as on the A320: TOGA 45, FLX/MCT 35, CL 25, IDLE 0, then lifted through
+// the latch into reverse: reverse idle -6, max reverse -20. The arrow keys stop at idle; press again to lift into reverse.
 const tla = $('tla');
-const detent = (t) => (t >= 0.995 ? 'TOGA' : Math.abs(t - DETENT_MCT) < 0.012 ? 'FLX / MCT' : Math.abs(t - DETENT_CL) < 0.012 ? 'Climb' : t < 0.005 ? 'Idle' : `${(t * 100).toFixed(0)} %`);
-const setTla = (v) => { fadec.tla = Math.min(1, Math.max(0, v)); tla.value = fadec.tla; $('tlaOut').textContent = detent(fadec.tla); };
-tla.oninput = () => { let v = +tla.value; for (const d of [DETENT_CL, DETENT_MCT]) if (Math.abs(v - d) < 0.02) v = d; setTla(v); };
+const near = (a, b) => Math.abs(a - b) < 0.3;
+const detent = (d) => (d >= TRA.TOGA - 0.1 ? 'TOGA' : near(d, TRA.MCT) ? 'FLX / MCT' : near(d, TRA.CL) ? 'Climb' : d > 0.2 ? `${((d / TRA.TOGA) * 100).toFixed(0)} %`
+  : d >= TRA.REV_DEPLOY ? 'Idle' : d > TRA.REV_IDLE - 0.3 ? 'Reverse idle' : d <= TRA.MREV + 0.1 ? 'Max reverse' : `Reverse ${(((TRA.REV_IDLE - d) / (TRA.REV_IDLE - TRA.MREV)) * 100).toFixed(0)} %`);
+let revWas = false;
+const setLever = (deg) => {
+  const d = fadec.setLever(deg); tla.value = d;
+  const out = $('tlaOut'); out.textContent = detent(d); out.classList.toggle('rev', fadec.revCmd);
+  if (fadec.revCmd !== revWas) { revWas = fadec.revCmd; logMsg(revWas ? (eng.out.N2pct > 45 ? 'Thrust levers to reverse: reverser deploying' : 'Thrust levers to reverse: no hydraulic pressure, reverser stays stowed') : 'Thrust levers out of reverse: reverser stowing'); }
+};
+tla.oninput = () => { let v = +tla.value; for (const d of [TRA.IDLE, TRA.CL, TRA.MCT, TRA.REV_IDLE]) if (Math.abs(v - d) < 1.2) v = d; setLever(v); };
+const leverStep = (up) => { const d = fadec.tra; setLever(up ? (d < TRA.REV_IDLE ? Math.min(TRA.REV_IDLE, d + 2.8) : d < 0 ? 0 : d + 2.25) : d > 0 ? Math.max(0, d - 2.25) : d > TRA.REV_IDLE ? TRA.REV_IDLE : d - 2.8); };
 
 // ------------------------------------------------------------ top bar
 $('btnPause').onclick = () => { paused = !paused; $('btnPause').classList.toggle('on', paused); $('btnPause').textContent = paused ? 'Resume' : 'Pause'; };
@@ -205,7 +224,7 @@ function setMode(v) {
   mode = v === '3d' && view3d ? '3d' : '2d';
   $('stage3d').hidden = mode !== '3d'; $('cutaway').hidden = mode !== '2d';
   for (const c of $('viewMode').children) c.classList.toggle('on', c.dataset.v === mode);
-  $('partcard').style.display = mode === '3d' ? '' : 'none';
+  $('partcard').style.display = mode === '3d' ? '' : 'none'; document.body.classList.toggle('mode2d', mode !== '3d');
   requestAnimationFrame(() => { view2d.resize(); frame3d(); });
 }
 for (const b of $('viewMode').children) b.onclick = () => setMode(b.dataset.v);
@@ -219,23 +238,28 @@ $('btnCut').onclick = () => { const on = !$('btnCut').classList.contains('on'); 
 $('btnFlow').onclick = () => { const on = !$('btnFlow').classList.contains('on'); $('btnFlow').classList.toggle('on', on); if (view3d) view3d.showFlow = on; };
 $('explode').oninput = () => view3d && view3d.setExplode(+$('explode').value);
 for (const b of $('cams').children) b.onclick = () => view3d && view3d.view(b.dataset.v);
-const frame3d = () => { if (!view3d) return; const hud = !document.body.classList.contains('hud-off'), shut = $('drawer').classList.contains('shut'); document.body.classList.toggle('nodrawer', shut); view3d.offsetX = hud && !shut ? 210 : 0; view3d.offsetY = hud ? 56 : 0; view3d.resize(); };
+const frame3d = () => { if (!view3d) return; const hud = !document.body.classList.contains('hud-off'), shut = $('drawer').classList.contains('shut'); document.body.classList.toggle('nodrawer', shut); view3d.offsetX = hud && !shut ? 210 : 0; view3d.offsetY = hud ? $('top').offsetHeight + 16 : 0; view3d.resize(); };
+// the top bar wraps to two rows on narrow windows; the panels below it follow its height
+new ResizeObserver(() => { document.documentElement.style.setProperty('--top-h', `${$('top').offsetHeight}px`); frame3d(); }).observe($('top'));
 // HUD toggle: hide all overlays for a clear view (button, H key); the engine re-centres in the window
 const setHud = (on) => { document.body.classList.toggle('hud-off', !on); requestAnimationFrame(() => { view2d.resize(); frame3d(); }); };
 $('btnHud').onclick = () => setHud(false);
 $('hudShow').onclick = () => setHud(true);
 $('btnDrawer').onclick = () => { const shut = $('drawer').classList.toggle('shut'); $('btnDrawer').classList.toggle('on', !shut); frame3d(); };
 function reset(running) {
-  fadec.reset(); $('manStart').setAttribute('aria-pressed', false); eng.damage.reset(); sparkK = 0; lostPrev = 0;
+  fadec.reset(); setEngMode('norm', true); setManStart(false, true); setApuBleed(true, true); eng.damage.reset(); sparkK = 0; lostPrev = 0;
   eng.initCold(); eng.events.length = 0; evIdx = 0; eng.s.fuelUsed = 0;
   Object.assign(fadec.prot, { egt: true, n1: true, n2: true, accel: true, decel: true, surge: true, startAbort: true }); fadec.n1Mode = false;
-  for (const f of FAULTS) if (f.active) { if (f.mods) applyMods(f.mods, true); f.active = false; } refreshFaults();
-  peaks.egt = peaks.n1 = peaks.n2 = 0; setTla(0); setMaster(running); eng.u.reverser = false; $('reverser').setAttribute('aria-pressed', false);
-  if (running) { for (let i = 0; i < 100 * 60; i++) { fadec.update(1 / 60); eng.step(1 / 60); } eng.s.t = 0; eng.s.fuelUsed = 0; eng.events.length = 0; fadec._evIdx = 0; }
+  for (const f of FAULTS) if (f.active) { if (f.mods) applyMods(f.mods, true); else if (f.off) f.off(); f.active = false; } refreshFaults();
+  peaks.egt = peaks.n1 = peaks.n2 = 0; setLever(0); setMaster(running);
+  if (running) { fadec.mode = 'ign'; for (let i = 0; i < 100 * 60; i++) { fadec.update(1 / 60); eng.step(1 / 60); } fadec.mode = fadec._modePrev = 'norm'; eng.s.t = 0; eng.s.fuelUsed = 0; eng.events.length = 0; fadec._evIdx = 0; }
   log.length = 0; logMsg(running ? 'Reset: engine running at ground idle' : 'Reset: cold and dark');
 }
-$('btnCold').onclick = (e) => { reset(false); e.currentTarget.blur(); };
-$('btnIdle').onclick = (e) => { reset(true); e.currentTarget.blur(); };
+const resetMenu = $('resetMenu'), openReset = (on) => { resetMenu.classList.toggle('open', on); $('btnReset').setAttribute('aria-expanded', on); };
+$('btnReset').onclick = (e) => { e.stopPropagation(); openReset(!resetMenu.classList.contains('open')); };
+window.addEventListener('pointerdown', (e) => { if (!resetMenu.contains(e.target)) openReset(false); });
+$('btnCold').onclick = (e) => { reset(false); openReset(false); e.currentTarget.blur(); };
+$('btnIdle').onclick = (e) => { reset(true); openReset(false); e.currentTarget.blur(); };
 for (const nav of document.querySelectorAll('nav.tabs')) for (const b of nav.children) b.onclick = () => {
   active[nav.dataset.group] = b.dataset.t;
   for (const c of nav.children) { c.classList.toggle('on', c === b); $('t-' + c.dataset.t).classList.toggle('on', c === b); }
@@ -243,13 +267,14 @@ for (const nav of document.querySelectorAll('nav.tabs')) for (const b of nav.chi
 };
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'SELECT') return;
-  if (e.key === 'ArrowUp') { setTla(fadec.tla + 0.05); e.preventDefault(); }
-  else if (e.key === 'ArrowDown') { setTla(fadec.tla - 0.05); e.preventDefault(); }
+  if (e.key === 'ArrowUp') { leverStep(true); e.preventDefault(); }
+  else if (e.key === 'ArrowDown') { leverStep(false); e.preventDefault(); }
   else if (e.key === 'm' || e.key === 'M') setMaster(!fadec.master);
   else if (e.key === 'c' || e.key === 'C') $('btnCut').click();
   else if (e.key === 'o' || e.key === 'O') $('btnCowl').click();
   else if (e.key === 'h' || e.key === 'H') setHud(document.body.classList.contains('hud-off'));
   else if (e.key === ' ') { $('btnPause').click(); e.preventDefault(); }
+  else if (e.key === 'Escape') openReset(false);
 });
 window.addEventListener('resize', () => { view2d.resize(); frame3d(); });
 
@@ -371,9 +396,10 @@ function statusHtml(o) {
   if (o.torch > 0.004) add('Torching - fuel burning in the turbine', 'bad');
   if (o.vib1 > 4 || o.vib2 > 4) add(`High vibration N1 ${o.vib1.toFixed(1)} / N2 ${o.vib2.toFixed(1)}`, o.vib1 > 6 || o.vib2 > 6 ? 'bad' : 'warn');
   if (dm.bow > 0.25 && o.N2pct < 20) add(`Rotor bow ${(dm.bow * 100).toFixed(0)} % - motor before starting`, 'warn');
-  if (fadec.msg) add(fadec.msg[0] + fadec.msg.slice(1).toLowerCase(), /ABORT|STALL|FLAME|HUNG/.test(fadec.msg) ? 'warn' : 'ok');
+  for (const m of fadec.ecam) add(`${m.title} · ${m.line}`, 'warn');
+  if (fadec.msg && !fadec.ecam.length) add(fadec.msg[0] + fadec.msg.slice(1).toLowerCase(), /ABORT|STALL|FLAME|HUNG|CHECK|PURGE|SET MODE/.test(fadec.msg) ? 'warn' : 'ok');
+  if (o.ignOn && fadec.ignSel) add(`Igniter ${fadec.ignSel}`, 'ok');
   add(o.lit ? 'Flame on' : 'No flame', o.lit ? 'ok' : '');
-  if (o.ignOn) add('Igniters sparking', 'ok');
   if (o.rev > 0.01) add(o.rev > 0.99 ? 'Reverser deployed' : 'Reverser in transit', 'warn');
   if (o.tStart > 0) add('Starter engaged', 'ok');
   if (fadec.master && fadec.limiter) add(`Governing on ${fadec.limiter}`);
@@ -381,7 +407,10 @@ function statusHtml(o) {
   if (peaks.egt > 1) add(`Peak EGT ${peaks.egt.toFixed(0)} °C`);
   return chips.join('');
 }
-const stateText = (o) => (!fadec.master ? (o.lit ? 'Running · manual fuel' : fadec.manStart && o.N2pct > 1 ? 'Cranking' : o.N2pct > 1 ? 'Spooling down' : 'Cold') : fadec.phase === 'run' ? (fadec.tla < 0.01 ? 'Running · idle' : 'Running') : fadec.phase === 'abort' ? 'Start aborted' : 'Starting');
+const PHASE_TEXT = { crank: 'Starting · motoring', lightup: 'Starting · ignition', accel: 'Starting', manual: 'Manual start', wetcrank: 'Wet crank', abort: 'Start aborted · dry crank', aborted: 'Start aborted · master off' };
+const stateText = (o) => (!fadec.master ? (o.lit ? 'Running · manual fuel' : fadec.phase === 'crank' ? (fadec._purgeT != null ? 'Dry crank · purging fuel' : 'Dry crank') : o.N2pct > 1 ? 'Spooling down' : 'Cold')
+  : fadec.phase === 'run' ? (fadec.revCmd ? 'Running · reverse' : fadec.tla < 0.01 ? 'Running · idle' : 'Running')
+  : PHASE_TEXT[fadec.phase] || (fadec.mode === 'norm' ? 'Master on · select IGN/START' : 'Starting'));
 
 // ------------------------------------------------------------ main loop
 const DT = 1 / 120;

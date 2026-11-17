@@ -290,3 +290,12 @@ test('continuous ignition on IGN/START reselection; the starter duty limit warns
   const c = rig(); c.f.mode = 'crank'; c.f.manStart = true; c.f.starterHeat = 235; run(c.e, c.f, 10);
   assert.ok(c.f.starterLimit && c.e.u.starterValve && c.f.ecam.some((m) => m.title === 'ENG 1 STARTER'));
 });
+
+test('thrust lever into reverse: needs the engine running, holds idle until the reverser is fully out', () => {
+  const c = rig(); c.f.setLever(-20); run(c.e, c.f, 2); assert.ok(!c.e.u.reverser && c.e.out.rev === 0, 'no hydraulic pressure with the engine stopped');
+  const { e, f } = idling(); f.setLever(-20); run(e, f, 1);
+  assert.ok(e.u.reverser && e.out.rev < 0.9 && e.out.N1pct < 30, 'idle while in transit');
+  run(e, f, 20); assert.ok(e.out.rev > 0.99 && e.out.thrust < -14e3 && e.out.N1pct > 70, `max reverse: N1 ${e.out.N1pct}`);
+  f.setLever(-6); run(e, f, 15); f.setLever(0); run(e, f, 6);
+  assert.ok(!e.u.reverser && e.out.rev === 0 && e.out.thrust > 0 && e.out.lit);
+});

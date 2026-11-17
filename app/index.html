@@ -10,6 +10,7 @@
 <div id="stage"><canvas id="stage3d"></canvas><canvas id="cutaway" hidden></canvas><div id="tip" hidden></div></div>
 <button id="hudShow" title="Show the interface (H)">Show HUD</button>
 
+<div class="pill" id="camsPill"><div class="seg ghost" id="cams"><button data-v="hero">Overview</button><button data-v="front">Intake</button><button data-v="core">Core</button><button data-v="rear">Exhaust</button></div></div>
 <header id="top">
   <div class="brand"><b>V2500</b><span id="state">Cold</span><i id="clock">0:00</i></div>
   <div class="pill" id="viewbar">
@@ -19,8 +20,6 @@
     <button id="btnFlow" class="chip on">Flow</button>
     <button id="btnCowl" class="chip" title="Open the fan cowl doors and the thrust reverser C-ducts (key O)">Cowls</button>
     <label class="inline">Explode<input type="range" id="explode" min="0" max="1" step="0.01" value="0"></label>
-    <span class="sep"></span>
-    <div class="seg ghost" id="cams"><button data-v="hero">Overview</button><button data-v="front">Intake</button><button data-v="core">Core</button><button data-v="rear">Exhaust</button></div>
   </div>
   <div class="pill">
     <button id="btnPause" class="chip">Pause</button>
@@ -29,8 +28,7 @@
     <button id="btnSound" class="chip">Sound</button>
     <button id="btnQ" class="chip" title="Medium: shadows, bloom, haze. High: adds ambient occlusion. Ultra: adds supersampling. Low: no effects.">Quality: Medium</button>
     <span class="sep"></span>
-    <button id="btnCold" class="chip">Reset cold</button>
-    <button id="btnIdle" class="chip">Reset at idle</button>
+    <div class="menu" id="resetMenu"><button id="btnReset" class="chip" aria-haspopup="true" aria-expanded="false">Reset</button><div class="pop glass" role="menu"><button id="btnCold" role="menuitem">Cold and dark<small>Engine stopped, switches off</small></button><button id="btnIdle" role="menuitem">Running at idle<small>Started, MODE back to NORM</small></button></div></div>
     <button id="btnDrawer" class="chip on">Panel</button>
     <button id="btnHud" class="chip" title="Hide the interface for a clear view of the engine (H)">Hide HUD</button>
   </div>
@@ -65,16 +63,17 @@
   <div id="status"></div>
   <div class="glass dockrow">
     <section class="ctrl">
-      <div class="field"><span class="cap">Master</span><button id="master" class="switch" aria-pressed="false"><i></i></button></div>
-      <div class="field"><span class="cap">Crank</span><button id="manStart" class="switch small" aria-pressed="false"><i></i></button></div>
-      <div class="field"><span class="cap">Reverse</span><button id="reverser" class="switch" aria-pressed="false"><i></i></button></div>
-      <div class="field"><span class="cap">Fire</span><button id="agent" class="chip" title="Discharge the fire bottle. Only works once the fuel is off.">Agent</button></div>
+      <div class="field"><span class="cap">Eng mode</span><div class="seg" id="engMode" title="ENG MODE selector. IGN/START then MASTER ON starts the engine automatically. CRANK motors it with the ignition inhibited."><button data-v="crank">Crank</button><button data-v="norm" class="on">Norm</button><button data-v="ign">Ign / Start</button></div></div>
+      <div class="field"><span class="cap">Man start</span><button id="manStart" class="switch" aria-pressed="false" title="ENG MAN START. Opens the start valve when MODE is at CRANK or IGN/START. With IGN/START, MASTER ON then gives a manual start: both igniters and no automatic abort."><i></i></button></div>
+      <div class="field"><span class="cap">Master</span><button id="master" class="switch" aria-pressed="false" title="ENG MASTER (M). Opens the LP and HP fuel valves. Set it OFF to stop the engine or to reset a start fault."><i></i></button></div>
       <div class="field grow"><span class="cap">Rating</span><select id="rating"></select></div>
+      <div class="field"><span class="cap">APU bleed</span><button id="apuBleed" class="switch" aria-pressed="true" title="Air for the starter. Shut it if the start valve will not close."><i></i></button></div>
+      <div class="field"><span class="cap">Fire</span><button id="agent" class="chip" title="Discharge the fire bottle. Only works once the fuel is off.">Agent</button></div>
     </section>
     <section class="lever">
       <div class="cap">Thrust lever <output id="tlaOut">Idle</output></div>
-      <input type="range" id="tla" min="0" max="1" step="0.005" value="0">
-      <div class="ticks"><span style="left:0;transform:none">Idle</span><span style="left:55.6%">CL</span><span style="left:77.8%">MCT</span><span style="left:100%">TO</span></div>
+      <input type="range" id="tla" min="-20" max="45" step="0.25" value="0" title="Thrust lever (arrow keys). Below idle it lifts into reverse: the reverser deploys, then reverse thrust builds once it is fully out.">
+      <div class="ticks"><span style="left:0;transform:none">Rev</span><span style="left:30.77%">Idle</span><span style="left:69.23%">CL</span><span class="mct" style="left:84.62%">MCT</span><span style="left:100%;transform:translateX(-100%)">TO</span></div>
     </section>
     <canvas id="ecam"></canvas>
   </div>

@@ -86,6 +86,20 @@ cooler, modulated) and then by fuel (fuel-cooled oil cooler), and scavenged back
 Tank size, pressure, temperature, quantity and filter limits are from the Airbus training manual
 (table under "Data and where it comes from"). Oil flows, heat loads and bearing failure times are estimates.
 
+## Start system (`src/sim/fadec.js`)
+
+The pedestal follows the A320: ENG MODE selector (CRANK / NORM / IGN START), ENG MAN START, MASTER,
+and APU BLEED as the starter's air supply. The sequences, abort conditions and ECAM wording follow the
+training manual (table below). Choices the manual does not settle:
+
+- **Hung start**: N2 rising slower than 0.12 %/s for 10 s while below idle, after at least 15 s of
+  acceleration.
+- **Starter heating**: builds at 1 per second while the starter turns and falls 7.5 times slower, which
+  reproduces "4 minutes on, 30 minutes off". The ECAM warns past 240 and the starter fails past 480.
+- **Start valve stuck open**: above about 50 % N2 the engine has outrun the starter, so its clutch
+  overruns and the air turbine spins unloaded. It fails by overspeed after 90 s unless the air is shut off.
+- **Reverser hydraulics**: deploys only with N2 above 45 % (engine-driven pump pressure); it can always stow.
+
 ## Component maps
 
 The compressor and turbine characteristics are the reference maps published with NASA's T-MATS
@@ -152,6 +166,10 @@ Read from the primary documents in November 2026 (`src/sim/v2500.js` tags each v
 | Thrust lever | 0-45 deg forward: climb detent 25, FLX/MCT 35, TOGA 45; reverse idle -6, maximum reverse -20 | A |
 | Automatic start | start valve opens with the master switch; fuel and ignition after 30 s of motoring; abort possible up to 50 % N2; starter cut-out 43 % N2 | A |
 | Manual start | 30 s dry crank, then master ON gives fuel and both igniters; no automatic shut-down | A |
+| Start faults | aborted below 50 % N2 for start valve, ignition, pressure-raising valve, hot start, hung start, stall; ignition, stall and EGT faults stop fuel and ignition and dry crank before the abort | A |
+| Crank | CRANK + MAN START opens the start valve with ignition inhibited; wet crank: MASTER ON above 20 % N2; after a wet crank the EEC reopens the valve below 10 % N2 for at least 60 s of dry crank | A |
+| Starter duty | 3 cycles of 2 min on / 15 s off / 2 min on / 15 s off / 1 min on, or 4 min continuous, then 30 min off; exceeding it gives an ECAM warning, not an abort | A |
+| Start valve not closed | at 43 % N2 the valve fails to close: APU BLEED off, X BLEED shut, MASTER OFF, MODE NORM; restart not permitted | A |
 | Oil | no pressure regulator (pressure follows N2); cold-start relief 450 psi; low-pressure warning < 60 psi, amber < 80, advisory > 390; temperature advisory > 157 °C, warning 165 °C; quantity advisory < 5 qt; filter switch 12 psi, by-pass 20 psi; 25 qt tank; six scavenge pumps | A, SR Technics booklet |
 | Handling bleeds | 2.5 bleed fully modulating: open for start, deceleration and reverse, closed at take-off and cruise; stage 7 and 10 valves two-position, spring-loaded open | A |
 | Vibration | displayed 0-10 units, 1 unit = 0.3 in/s | A |

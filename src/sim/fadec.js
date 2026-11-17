@@ -36,13 +36,18 @@ const DECEL_FRAC = 0.5;
 export const DETENT_CL = 25 / 45, DETENT_MCT = 35 / 45;
 export const START_CRANK_S = 30; // automatic start: the EEC motors the engine for 30 s before it opens the fuel (Airbus TTM)
 export const MAX_REVERSE_N1 = 80; // % - reverse thrust is limited well below take-off fan speed (assumed value)
+// A320 thrust lever angles, degrees: TOGA 45, FLX/MCT 35, CL 25, IDLE 0; reverse idle -6 and max reverse -20.
+// Below -3.8 the reverser is commanded to deploy (on the ground only); reverse thrust stays at idle until it is fully out.
+export const TRA = { MREV: -20, REV_IDLE: -6, REV_DEPLOY: -3.8, IDLE: 0, CL: 25, MCT: 35, TOGA: 45 };
 
 export class Fadec {
   constructor(engine) {
     this.eng = engine;
     // pilot / player inputs
     this.master = false; // ENG MASTER switch (HP fuel shut-off valve)
-    this.tla = 0; // thrust lever 0..1 (idle..TOGA)
+    this.tla = 0; // thrust lever 0..1 (idle..TOGA), or reverse idle..max reverse while the reverser is out
+    this.tra = 0; // thrust lever angle, degrees (see TRA)
+    this.revCmd = null; // reverse selected on the thrust lever (null: the reverser is driven directly through eng.u.reverser)
     this.rating = 'V2527-A5';
     this.manStart = false; // ENG MAN START pushbutton (latched; opens the start valve with MODE at CRANK or IGN START)
     this.mode = 'norm'; // ENG MODE selector: 'crank' | 'norm' | 'ign' (IGN/START)
@@ -100,16 +105,26 @@ export class Fadec {
     return 1 + ((L.clb - 1) * t) / DETENT_CL;
   }
 
+  /** Thrust lever angle in degrees (TRA). Sets the forward lever, or the reverse lever and the reverser command. */
+  setLever(deg) {
+    const onGround = (this.eng.u.alt || 0) < 10;
+    this.tra = Math.min(TRA.TOGA, Math.max(onGround ? TRA.MREV : TRA.IDLE, deg));
+    const rev = this.tra < TRA.REV_DEPLOY;
+    this.revCmd = rev; // applied in update(): the reverser needs hydraulic pressure from the engine-driven pump
+    this.tla = rev ? clamp((TRA.REV_IDLE - this.tra) / (TRA.REV_IDLE - TRA.MREV), 0, 1) : Math.max(0, this.tra) / TRA.TOGA;
+    return this.tra;
+  }
+
   idleN2(out) {
     return clamp(58.5 * Math.sqrt(out.T2 / 288.15), 54, 68);
   }
 
   /** Back to cold and dark: switches off, manual overrides released, start sequence forgotten. */
   reset() {
-    this.master = false; this.manStart = false; this.tla = 0; this.mode = 'norm'; this.apuBleed = true; this._modePrev = 'norm';
+    this.master = false; this.manStart = false; this.tla = 0; this.tra = 0; this.revCmd = null; this.mode = 'norm'; this.apuBleed = true; this._modePrev = 'norm';
     for (const k of Object.keys(this.ovr)) this.ovr[k] = null;
     for (const k of Object.keys(this.faults)) this.faults[k] = false;
-    this.clearStart(); this.starterHeat = 0; this.starterFailed = ''; this.starterLimit = false; this._overspeedT = 0;
+    this.clearStart(); this.starterHeat = 0; this.starterFailed = ''; this.starterLimit = false; this._overspeedT = 0; this.startCount = 0;
     this.phase = 'off'; this.wf = 0; this.msg = ''; this.timer = 0; this.surgeHold = 0; this.limiter = ''; this.cutout = false;
     this._prevN2 = 0; this._evIdx = 0;
   }
@@ -262,7 +277,7 @@ export class Fadec {
         // With the reverser out the core no longer exhausts against the bypass stream, so EPR stops
         // tracking thrust. Reverse is governed on fan speed instead, between idle and MAX_REVERSE_N1.
         const reverse = o.rev > 0.05;
-        const n1Cmd = 22 + (MAX_REVERSE_N1 - 22) * this.tla;
+        const n1Cmd = 22 + (MAX_REVERSE_N1 - 22) * (o.rev > 0.95 ? this.tla : 0); // idle until the reverser is fully deployed
         const n1Rated = this.ratedN1(), lever = this.tla >= DETENT_MCT ? 0.93 + 0.07 * (this.tla - DETENT_MCT) / (1 - DETENT_MCT) : this.tla * (0.93 / DETENT_MCT);
         const primary = reverse ? [(n1Cmd - o.N1pct) * 0.06, 'EPR']
           : this.n1Mode ? [(22 + (n1Rated - 22) * lever - o.N1pct) * 0.06, 'N1 mode']
@@ -307,6 +322,10 @@ export class Fadec {
     this.ecam = ecam;
     if (ecam.length) this.msg = `${ecam[0].title} - ${ecam[0].line}`;
     this.valveOpen = this.ovr.starter != null ? this.ovr.starter : valve;
+
+    // reverser: deploys only with hydraulic pressure (engine turning, N2 above about 45 %); it can always stow
+    if (this.revCmd != null) u.reverser = this.revCmd && (n2 > 45 || (o.rev || 0) > 0.01);
+    this.revInhibit = !!this.revCmd && !u.reverser;
 
     // ---------------- apply, honouring manual overrides
     const ov = this.ovr;

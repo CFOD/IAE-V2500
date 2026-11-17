@@ -44,7 +44,7 @@ one) and run `Start V2500.bat` again.
 | Anything else | Press **F12** in the game window, click the **Console** tab, and copy the red text into a GitHub issue or back to whoever is helping you. |
 
 Useful keys: **F11** full screen, **Space** pause, **M** master switch, **C** cutaway, **O** open cowls, **H** hide or show the HUD, up/down arrows
-move the thrust lever.
+move the thrust lever (down at idle lifts it into reverse).
 
 ### Sound
 
@@ -53,11 +53,12 @@ sound pack (or your own recordings) into `app/sounds/`: see [docs/SOUND.md](docs
 
 ### First five minutes
 
-1. Flip **Master** on (bottom left). Watch the engine start itself: starter, ignition, light-off, idle.
+1. Set **Eng mode** to **Ign / Start**, then flip **Master** on (bottom left). Watch the engine start itself:
+   30 seconds of motoring, then fuel and one igniter, light-off, starter cut-out, idle. Set the mode back to Norm.
 2. Drag the **Thrust lever** to TOGA and watch the gauges, the flame and the exhaust.
 3. Drag on the engine to orbit it. Click a part to read about it. Try **Remove part** on the fan cowl doors.
 4. Open **Panel > Control**, switch **Fuel flow** to Manual and push it up quickly. That is a compressor surge.
-5. **Reset at idle** (top right) puts everything back.
+5. **Reset > Running at idle** (top right) puts everything back.
 
 ### For developers
 
@@ -96,11 +97,24 @@ npm run dist       # build an unpacked distributable in dist/ (electron-builder)
 - **Section** switches to the flat 2D cutaway with station temperatures and pressures.
 
 **The controls**
-- **Master** on: the FADEC runs an automatic start (starter air valve, ignition at 16 % N2, fuel at
-  22 %, starter cut-out at 43 %), reaching ground idle in roughly half a minute.
-- **Thrust lever** (drag, or up/down arrows) with climb, max-continuous and TOGA detents.
-- **Reverse** deploys the thrust reverser: the sleeve slides back, the cascades are uncovered and the
-  blocker doors close the bypass duct. In reverse the thrust lever commands fan speed, up to 80 % N1.
+- **The start panel works like the A320's**, following the Airbus training manual:
+  - **Eng mode Ign / Start, then Master on**: automatic start. The EEC opens the start valve, motors
+    the engine for 30 s, then opens the fuel with one igniter (it alternates A and B between starts)
+    and closes the start valve at 43 % N2. Below 50 % N2 it aborts the start for a start valve that
+    will not open, no light-up within 15 s, EGT over 635 °C, a stall or a hung start: fuel and ignition
+    off, 30 s of dry motoring, then the ECAM asks for **Master off**, which also clears the fault.
+  - **Man start, then Master on** (mode Ign / Start): manual start. Both igniters, fuel at once, and no
+    automatic abort. If it goes wrong the ECAM tells you, but stopping it is up to you.
+  - **Eng mode Crank + Man start**: dry crank, ignition inhibited. Switch **Master** on above 20 % N2
+    for a wet crank (fuel, no ignition). Afterwards, with Master off, the EEC closes the start valve and
+    reopens it below 10 % N2 for a 60 s dry crank to blow the fuel out.
+  - Selecting **Ign / Start** with the engine running gives continuous ignition on both igniters.
+  - The starter is limited to about 4 minutes of running before it needs 30 minutes to cool; past that
+    the ECAM warns, and much further it fails. **APU bleed** is its air supply.
+- **Thrust lever** (drag, or up/down arrows) with CL, FLX/MCT and TOGA detents. Below idle it lifts
+  into reverse: the reverser deploys (it needs the engine turning for hydraulic pressure), the sleeve
+  slides back, the cascades are uncovered and the blocker doors close the bypass duct. Thrust stays at
+  idle until it is fully out, then the lever commands fan speed, up to 80 % N1 at max reverse.
 - **Panel → Control**: every FADEC output has an Auto/Manual switch: fuel flow, igniters,
   starter valve, variable stator vanes, LPC 2.5 bleed, HPC stage 7 and 10 bleeds. Plus starter air
   pressure, customer bleed and power off-take.
@@ -111,7 +125,8 @@ npm run dist       # build an unpacked distributable in dist/ (electron-builder)
   acceleration and deceleration schedules, surge recovery, hot-start abort. There is also an EPR /
   rated-N1 thrust mode switch.
 - **Faults** tab: bird strike, debris through the core, turbine burn-through, contaminated fuel,
-  jammed stators, stuck bleed and start valves, loss of EPR sensing, flame-out.
+  jammed stators, stuck bleed valve, start valve that will not open or will not close, failed igniter
+  A or B, weak starter air, loss of EPR sensing, oil system failures, flame-out.
 - **Ambient**: altitude, ISA deviation, Mach number, humidity. **Hardware**: component efficiencies,
   flow capacities, nozzle areas, cooling air, fuel heating value.
 - **Monitor**: compressor maps with live operating point and surge line, trends, station table,
@@ -119,15 +134,17 @@ npm run dist       # build an unpacked distributable in dist/ (electron-builder)
 
 ### Starting by hand (Master stays off)
 
-1. Switch **Crank** on and let the starter spin the core for 30 seconds (the real procedure: it clears fuel vapour and straightens a hot rotor).
+This goes further than the aircraft allows: you play the engine computer yourself.
+
+1. Set **Eng mode** to Crank (or Ign / Start), switch **Man start** on and let the starter spin the core for 30 seconds (the real procedure: it clears fuel vapour and straightens a hot rotor).
 2. **Panel → Control**: set **Igniters** to Manual and ON, set **Fuel flow** to Manual at about 200 kg/h.
    The engine lights within a few seconds.
 3. Ease the fuel up towards 390 kg/h over about 30 seconds, watching EGT. Too fast and it runs hot.
    The starter drops out by itself at 43 % N2.
-4. At about 58 % N2 it is idling on your fuel. Switch Crank off and Igniters back to Auto.
+4. At about 58 % N2 it is idling on your fuel. Switch Man start off and Igniters back to Auto.
 5. To hand over to the computer, switch **Master** on, then set Fuel flow back to Auto.
 
-Switching Master off always shuts the fuel, manual or not. **Reset cold** switches everything off.
+Switching Master off always shuts the fuel, manual or not. **Reset > Cold and dark** switches everything off.
 
 Things to try: introducing fuel too early for a
 hot start, slamming manual fuel at idle (HPC surge), opening the stators at low speed, closing the 2.5
