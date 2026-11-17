@@ -299,3 +299,17 @@ test('thrust lever into reverse: needs the engine running, holds idle until the 
   f.setLever(-6); run(e, f, 15); f.setLever(0); run(e, f, 6);
   assert.ok(!e.u.reverser && e.out.rev === 0 && e.out.thrust > 0 && e.out.lit);
 });
+
+test('active clearance control: about 1 % off cruise fuel burn; held open through a sea-level slam it rubs the tips', () => {
+  const { e, f } = idling(); e.u.alt = 10668; e.u.mach = 0.78; f.tla = 0.62; run(e, f, 120);
+  assert.ok(f.acc[0] > 0.99 && e.out.accH > 0.95, 'scheduled on in cruise');
+  const on = { sfc: e.out.wf / e.out.thrust, egt: e.out.egt };
+  f.ovr.accHpt = f.ovr.accLpt = 0; run(e, f, 120);
+  const dS = on.sfc / (e.out.wf / e.out.thrust) - 1;
+  assert.ok(dS < -0.006 && dS > -0.015, `cruise TSFC change ${(dS * 100).toFixed(2)} %`);
+  assert.ok(e.out.egt - on.egt > 8, `EGT lower with ACC by ${(e.out.egt - on.egt).toFixed(1)} K`);
+  const g = idling(); assert.ok(g.f.acc[0] === 0 && g.f.acc[1] === 0, 'off on the ground');
+  g.f.tla = 1; run(g.e, g.f, 15); assert.ok(!has(g.e, 'acc-tip-rub'), 'normal take-off: no rub');
+  g.f.tla = 0.6; run(g.e, g.f, 20); g.f.ovr.accHpt = g.f.ovr.accLpt = 1; run(g.e, g.f, 60); g.f.tla = 0; run(g.e, g.f, 15); g.f.tla = 1; run(g.e, g.f, 10);
+  assert.ok(has(g.e, 'acc-tip-rub') && g.e.damage.d.rub > 0.05, 'forced open through a slam: tips rub');
+});

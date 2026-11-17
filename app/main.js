@@ -90,6 +90,8 @@ const D = {
   b25: { name: 'LPC 2.5 bleed ring', tip: 'Booster bleed ring, dumps into bypass duct', key: 'bleed25', min: 0, max: 1, step: 0.01, get: () => fadec.auto.bleed25, mv: () => ov.bleed25, set: (v) => (ov.bleed25 = v), fmt: (v) => `${(v * 100).toFixed(0)} % open` },
   b7: { name: 'HPC stage 7 bleeds', tip: 'Three handling bleed valves', key: 'bleed7', min: 0, max: 3, step: 1, get: () => fadec.auto.bleed7, mv: () => ov.bleed7, set: (v) => (ov.bleed7 = v), fmt: (v) => `${v} / 3 open` },
   b10: { name: 'HPC stage 10 bleed', tip: 'Start / handling bleed valve', key: 'bleed10', min: 0, max: 1, step: 1, get: () => fadec.auto.bleed10, mv: () => ov.bleed10, set: (v) => (ov.bleed10 = v), fmt: (v) => (v >= 0.5 ? 'OPEN' : 'CLOSED') },
+  accH: { name: 'HPT clearance control', tip: 'Fan air sprayed on the HP turbine case to shrink it onto the blade tips. The FADEC opens it in climb and cruise only; held open through a hard acceleration at sea level, the tips rub.', key: 'accHpt', min: 0, max: 1, step: 0.05, get: () => fadec.auto.accHpt || 0, mv: () => ov.accHpt, set: (v) => (ov.accHpt = v), fmt: (v) => `${(v * 100).toFixed(0)} % open` },
+  accL: { name: 'LPT clearance control', tip: 'Fan air on the LP turbine case through the rings of spray tubes. Modulated with altitude in climb and cruise.', key: 'accLpt', min: 0, max: 1, step: 0.05, get: () => fadec.auto.accLpt || 0, mv: () => ov.accLpt, set: (v) => (ov.accLpt = v), fmt: (v) => `${(v * 100).toFixed(0)} % open` },
   cust: { name: 'Customer bleed', tip: 'Air taken for cabin / anti-ice, % of core flow', min: 0, max: 10, step: 0.1, def: 0, get: () => u.custBleed * 100, set: (v) => (u.custBleed = v / 100), fmt: (v) => `${v.toFixed(1)} % core` },
   offtake: { name: 'Power off-take', tip: 'Generator + hydraulic pump load on the HP spool. Certified limit 131 kW continuous, 168 kW for 5 minutes.', min: 0, max: 170, step: 5, def: 60, get: () => u.offtakeW / 1000, set: (v) => (u.offtakeW = v * 1000), fmt: (v) => `${v.toFixed(0)} kW` },
   n1mode: { name: 'Thrust setting mode', tip: 'EPR (normal) or rated-N1 reversion', min: 0, max: 1, step: 1, def: 0, get: () => +fadec.n1Mode, set: (v) => { fadec.n1Mode = v >= 0.5; }, fmt: (v) => (v >= 0.5 ? 'N1 mode' : 'EPR mode') },
@@ -100,7 +102,7 @@ const D = {
   pSurge: prot('Surge recovery', 'surge', 'On a surge: bleeds open, ignition on, acceleration fuel reduced'),
   pAbort: prot('Hot-start abort', 'startAbort', 'Automatic start abort above the starting EGT limit'),
 };
-['fuel', 'ign', 'starter', 'starterPsi', 'vsv', 'b25', 'b7', 'b10', 'cust', 'offtake'].forEach((k) => addRow(ctl, D[k]));
+['fuel', 'ign', 'starter', 'starterPsi', 'vsv', 'b25', 'b7', 'b10', 'accH', 'accL', 'cust', 'offtake'].forEach((k) => addRow(ctl, D[k]));
 ctl.insertAdjacentHTML('beforeend', '<h4>FADEC protections</h4>');
 ['n1mode', 'pEgt', 'pN1', 'pN2', 'pAccel', 'pDecel', 'pSurge', 'pAbort'].forEach((k) => addRow(ctl, D[k]));
 ctl.insertAdjacentHTML('beforeend', '<p class="note">On Auto the engine computer (FADEC) has authority and each slider follows what it commands. Switch a channel to Manual to take it away from the computer and find out why the schedules exist.</p>');
@@ -153,6 +155,7 @@ const FAULTS = [
   { id: 'ignA', name: 'Igniter A failed', desc: 'Automatic starts alternate between igniters, so every other start finds no light: IGNITION FAULT, fuel off, dry crank. Restart and the EEC uses B.', on: () => { fadec.faults.ignA = true; }, off: () => { fadec.faults.ignA = false; } },
   { id: 'ignB', name: 'Igniter B failed', desc: 'As above, for igniter B. With both failed only a manual start would keep trying, and the crew has to stop it.', on: () => { fadec.faults.ignB = true; }, off: () => { fadec.faults.ignB = false; } },
   { id: 'lowair', name: 'Weak starter air', desc: 'APU duct pressure down to 14 psi. Motoring speed only just reaches the light-up window and the start takes much longer.', on: () => { u.starterPsi = 14; }, off: () => { u.starterPsi = 40; } },
+  { id: 'accstuck', name: 'Clearance control valves stuck open', desc: 'Both ACC valves jam open on the ground. At idle nothing happens; slam to take-off power and the rotor grows onto the cooled, shrunken turbine cases and rubs the tips.', on: () => { ov.accHpt = 1; ov.accLpt = 1; }, off: () => { ov.accHpt = null; ov.accLpt = null; } },
   { id: 'epr', name: 'EPR sensing lost', desc: 'P4.9 / P2 signal fails. The FADEC reverts to rated-N1 mode.', on: () => { fadec.n1Mode = true; }, off: () => { fadec.n1Mode = false; } },
   { id: 'oilleak', name: 'Oil leak', desc: 'A pipe union lets go: about 3 quarts a minute overboard. Watch the quantity fall, then the pressure.', on: () => { eng.oil.faults.leak = 3; }, off: () => { eng.oil.faults.leak = 0; } },
   { id: 'oilpump', name: 'Oil pump drive failure', desc: 'Pressure drops to zero at once. The bearings last about a minute at take-off power, a few minutes at idle.', on: () => { eng.oil.faults.pumpFail = true; }, off: () => { eng.oil.faults.pumpFail = false; } },
@@ -285,7 +288,7 @@ const HINT = 'Drag to orbit, scroll to zoom, right-drag to pan. Click any part o
 const PART_CTL = {
   fuel: ['fuel'], ign: ['ign'], liner: ['fuel', 'Fuel heating value'], hpccase: ['vsv', 'b7', 'b10'], lpccase: ['b25'], agb: ['starter', 'starterPsi', 'offtake'],
   eec: ['n1mode', 'pEgt', 'pAccel', 'pDecel'], combcase: ['cust'], fan: ['Fan efficiency'], lpc: ['LPC efficiency'], hpc: ['HPC efficiency', 'HPC flow capacity'],
-  hpt: ['HPT efficiency', 'Turbine cooling air'], hptcase: ['HPT nozzle area'], lpt: ['LPT efficiency'], lptcase: ['LPT nozzle area'], cna: ['Final nozzle area', 'Bypass mixer area'], tec: ['Core mixer area'],
+  hpt: ['HPT efficiency', 'Turbine cooling air'], hptcase: ['HPT nozzle area', 'accH'], lpt: ['LPT efficiency'], lptcase: ['LPT nozzle area', 'accL'], ext: ['accH', 'accL'], cna: ['Final nozzle area', 'Bypass mixer area'], tec: ['Core mixer area'],
 };
 function showPart(p) {
   selPart = p;
@@ -393,6 +396,7 @@ function statusHtml(o) {
   if (dm.burst) add('Rotor burst - engine destroyed', 'bad'); else if (dm.hptLost > 0.01 || dm.lptLost > 0.01) add(`Turbine damage ${(100 * Math.max(dm.hptLost, dm.lptLost)).toFixed(0)} %`, 'bad');
   else if (dm.hptCreep > 0.2 || dm.lptCreep > 0.2) add(`Turbine creep life ${(100 * Math.max(dm.hptCreep, dm.lptCreep)).toFixed(0)} % used`, 'warn');
   if (dm.hpc > 0.3) add('Compressor blade damage', 'bad');
+  if (o.accH > 0.05 || o.accL > 0.05) add(`Clearance control ${(100 * Math.max(o.accH, o.accL)).toFixed(0)} %`, 'ok');
   if (o.torch > 0.004) add('Torching - fuel burning in the turbine', 'bad');
   if (o.vib1 > 4 || o.vib2 > 4) add(`High vibration N1 ${o.vib1.toFixed(1)} / N2 ${o.vib2.toFixed(1)}`, o.vib1 > 6 || o.vib2 > 6 ? 'bad' : 'warn');
   if (dm.bow > 0.25 && o.N2pct < 20) add(`Rotor bow ${(dm.bow * 100).toFixed(0)} % - motor before starting`, 'warn');

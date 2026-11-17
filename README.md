@@ -116,8 +116,11 @@ npm run dist       # build an unpacked distributable in dist/ (electron-builder)
   slides back, the cascades are uncovered and the blocker doors close the bypass duct. Thrust stays at
   idle until it is fully out, then the lever commands fan speed, up to 80 % N1 at max reverse.
 - **Panel → Control**: every FADEC output has an Auto/Manual switch: fuel flow, igniters,
-  starter valve, variable stator vanes, LPC 2.5 bleed, HPC stage 7 and 10 bleeds. Plus starter air
-  pressure, customer bleed and power off-take.
+  starter valve, variable stator vanes, LPC 2.5 bleed, HPC stage 7 and 10 bleeds, HP and LP turbine
+  clearance control. Plus starter air pressure, customer bleed and power off-take.
+- **Clearance control** sprays fan air on the turbine cases in climb and cruise (set an altitude under
+  Ambient to see it come on): about 1 % less fuel and 15 °C less EGT. Hold it open by hand through a
+  slam to take-off power on the ground and the turbine blade tips rub.
 - **Component cards carry their own controls.** Click the fuel nozzles to set fuel flow, the HPC case
   for the stator vanes and bleed valves, the gearbox for the starter, a turbine for its efficiency,
   and so on.
@@ -126,7 +129,8 @@ npm run dist       # build an unpacked distributable in dist/ (electron-builder)
   rated-N1 thrust mode switch.
 - **Faults** tab: bird strike, debris through the core, turbine burn-through, contaminated fuel,
   jammed stators, stuck bleed valve, start valve that will not open or will not close, failed igniter
-  A or B, weak starter air, loss of EPR sensing, oil system failures, flame-out.
+  A or B, weak starter air, clearance control valves stuck open, loss of EPR sensing, oil system
+  failures, flame-out.
 - **Ambient**: altitude, ISA deviation, Mach number, humidity. **Hardware**: component efficiencies,
   flow capacities, nozzle areas, cooling air, fuel heating value.
 - **Monitor**: compressor maps with live operating point and surge line, trends, station table,

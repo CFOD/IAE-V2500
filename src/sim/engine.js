@@ -137,6 +137,7 @@ export function sizeEngine(d = DESIGN) {
   cfg.Acas = 0.8 * dp.A18; // effective flow area of the reverser cascades
   cfg.revTurn = 0.55; // fraction of cascade gross thrust that acts forwards (efflux angled ~45 deg, with losses)
   cfg.A25 = 0.07; // LPC (2.5) bleed ring max effective area, m^2
+  cfg.Aacc = 0.003; // clearance-control air, both valves open: about 0.3 % of the bypass flow
   // handling bleed flow capacities W*sqrt(T)/P for one 7th-stage valve and the 10th-stage valve
   cfg.K7 = (0.035 * dp.Wc * Math.sqrt(dp.T3)) / dp.P3;
   cfg.K10 = (0.06 * dp.Wc * Math.sqrt(dp.T3)) / dp.P3;
@@ -166,6 +167,8 @@ export function defaultInputs() {
     dTisa: 0, // K
     mach: 0,
     reverser: false, // thrust reverser deployed
+    accHpt: 0, // active clearance control valves, 0..1 (fan air on the HP / LP turbine cases)
+    accLpt: 0,
   };
 }
 
@@ -266,6 +269,13 @@ export class Engine {
       s.wf += (Math.max(0, u.wfCmd) - s.wf) * Math.min(1, dt / 0.08);
       s.b25 += clamp(u.bleed25 - s.b25, -dt / 0.4, dt / 0.4);
       s.rev = clamp((s.rev || 0) + (u.reverser ? dt : -dt) / 2.0, 0, 1); // about two seconds to travel
+      // Active clearance control: fan air sprayed on the turbine cases shrinks them onto the blade tips.
+      // The cases respond in tens of seconds (thin HPT case faster than the LPT's); with no fan pressure
+      // there is no cooling air.
+      const fanAir = clamp((s.P13 / P0 - 1) / 0.12, 0, 1);
+      s.accH = (s.accH || 0) + ((u.accHpt || 0) * fanAir - (s.accH || 0)) * Math.min(1, dt / 15);
+      s.accL = (s.accL || 0) + ((u.accLpt || 0) * fanAir - (s.accL || 0)) * Math.min(1, dt / 25);
+      this._n2dot = (100 * (s.N2 - (this._n2prev ?? s.N2))) / LIMITS.N2_100 / dt; this._n2prev = s.N2; // % N2 per second
     }
 
     // ---- low pressure compression system
@@ -275,6 +285,12 @@ export class Engine {
     if (o.fan.W > 0) s.T13 += (o.fan.Tout - s.T13) * kT;
     if (o.lpc.W > 0) s.T25 += (o.lpc.Tout - s.T25) * kT;
     const Wb25 = orifice(c.A25 * s.b25, s.P25, s.T25, s.P13);
+    // clearance-control air leaves the bypass duct and is dumped in the core compartment
+    const Wacc = orifice(c.Aacc * (0.4 * (u.accHpt || 0) + 0.6 * (u.accLpt || 0)), s.P13, s.T13, P0);
+    // closer tips: up to about 1.2 points on the HP turbine and 0.8 on the LP turbine, once the cases are hot
+    // enough to have grown away from the blades in the first place (worth about 1 % of cruise fuel burn)
+    const hotCase = clamp(((s.Tm || T2) - 600) / 250, 0, 1);
+    const accEffH = 0.012 * (s.accH || 0) * hotCase, accEffL = 0.008 * (s.accL || 0) * hotCase;
 
     // ---- HP compressor with variable stators
     const n2c = clamp((s.N2 / c.hpc.Nd) * Math.sqrt(c.hpc.Td / s.T25), 0, 1.25);
@@ -342,7 +358,7 @@ export class Engine {
       far41 = wfBurn / Math.max(Wa + Wc1, 1e-3);
       T41 = tFromH((W4 * h(s.T4, farB) + Wc1 * h(s.T3)) / W41, far41, s.T4);
     }
-    turbineExpand(c.hpt, W41, T41, far41, P4 / s.P45, s.N2, m.effHpt, o.hpt);
+    turbineExpand(c.hpt, W41, T41, far41, P4 / s.P45, s.N2, m.effHpt + accEffH, o.hpt);
     const W45in = W41 + Wc2;
     let far45 = 0, T45 = o.hpt.Tout;
     if (W45in > 1e-3 && W41 > 0) {
@@ -361,7 +377,7 @@ export class Engine {
     // ---- LP turbine
     turbineFlow(c.lpt.K * m.flowLpt, s.T45, s.P45, s.P5, o.lptF);
     const W45 = o.lptF.W;
-    turbineExpand(c.lpt, W45, s.T45, far45, s.P45 / s.P5, s.N1, m.effLpt, o.lpt);
+    turbineExpand(c.lpt, W45, s.T45, far45, s.P45 / s.P5, s.N1, m.effLpt + accEffL, o.lpt);
     if (W45 > 0) s.T5 += (o.lpt.Tout - s.T5) * kT;
 
     // ---- nozzles
@@ -406,7 +422,7 @@ export class Engine {
         const k = (gR * T) / V;
         return Math.max(P + (dt * k * net) / (1 + dt * k * S), 0.2 * P0);
       };
-      const P13 = upd(s.P13, s.T13, c.vol.v13, o.fan.W + Wb25 + Wb7 + Wb10 - o.n18.W - o.ncas.W, o.fan.dWdPout + o.n18.dWdP + (o.ncas.dWdP || 0));
+      const P13 = upd(s.P13, s.T13, c.vol.v13, o.fan.W + Wb25 + Wb7 + Wb10 - o.n18.W - o.ncas.W - Wacc, o.fan.dWdPout + o.n18.dWdP + (o.ncas.dWdP || 0));
       const P25 = upd(s.P25, s.T25, c.vol.v25, o.lpc.W - Wb25 - o.hpc.W, o.lpc.dWdPout + o.hpc.dWdPin);
       const P3 = upd(s.P3, s.T3, c.vol.v3, o.hpc.W - Wb7 - Wb10 - Wcust - Wc1 - Wc2 - Wa,
         o.hpc.dWdPout + o.hptF.dUp + (Wb7 + Wb10) / s.P3);
@@ -446,6 +462,12 @@ export class Engine {
     out.V8 = o.n8.V; out.V18 = o.n18.V; out.M8 = o.n8.M; out.M18 = o.n18.M;
     out.Pm = s.Pm; out.Pt7 = Pt7; out.T7 = s.T7; out.W9 = o.n9.W; out.V9 = o.n9.V; out.M9 = o.n9.M;
     out.Wb25 = Wb25; out.Wb7 = Wb7; out.Wb10 = Wb10; out.Wcust = Wcust; out.Wcool = Wc1 + Wc2;
+    out.accH = s.accH || 0; out.accL = s.accL || 0; out.Wacc = Wacc; out.accEff = [accEffH, accEffL];
+    // Tip pinch: a case shrunk by clearance control while the rotor grows fast (hard acceleration to high
+    // speed). The schedule leaves margin for flight; the rotor grows most at sea-level take-off power on a
+    // warm day, so that is where a case held shrunk by hand gets rubbed.
+    out.accPinch = Math.max(s.accH || 0, 0.7 * (s.accL || 0)) * clamp((100 * s.N2 / LIMITS.N2_100 - 90) / 5, 0, 1)
+      * clamp((this._n2dot || 0) / 3, 0, 1) * clamp((T2 - 262) / 26, 0, 1);
     out.Tm = s.Tm; out.vsv = s.vsv; out.vsvSched = vsvSched; out.b25 = s.b25; out.n2c = n2c;
     out.fan = o.fan; out.lpc = o.lpc; out.hpc = o.hpc; out.hpt = o.hpt; out.lpt = o.lpt;
     out.hptPR = P4 / s.P45; out.lptPR = s.P45 / s.P5;

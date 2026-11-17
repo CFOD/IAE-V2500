@@ -82,6 +82,11 @@ export class Damage {
       const k = clamp((o.Tm - 950) / 300, 0.2, 1); d.rub = Math.min(1, d.rub + 0.35 * k); this._event('tip-rub-shutdown');
     }
     this._lit = o.lit;
+    // ---- clearance control left on through a hard acceleration: the rotor grows onto a cooled, shrunken case
+    if ((o.accPinch || 0) > 0.2 && !d.burst) {
+      const was = d.rub; d.rub = Math.min(1, d.rub + dt * 0.25 * o.accPinch);
+      if (was < 0.05 && d.rub >= 0.05) this._event('acc-tip-rub');
+    }
 
     // ---- bowed rotor: a hot core left standing cools unevenly (hot air rises inside it) and the HP rotor bends
     const hot = clamp(((o.Tm || T0) - T0 - 150) / 350, 0, 1);

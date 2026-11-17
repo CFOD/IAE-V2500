@@ -55,7 +55,8 @@ export class Fadec {
     // component faults the player can inject (Panel > Faults)
     this.faults = { svNoOpen: false, svNoClose: false, ignA: false, ignB: false };
     // manual overrides: null = FADEC authority
-    this.ovr = { fuel: null, ignition: null, starter: null, vsv: null, bleed25: null, bleed7: null, bleed10: null };
+    this.ovr = { fuel: null, ignition: null, starter: null, vsv: null, bleed25: null, bleed7: null, bleed10: null, accHpt: null, accLpt: null };
+    this.acc = [0, 0]; // clearance-control valve positions the EEC is commanding
     // internal
     this.phase = 'off'; // off | crank | lightup | accel | run | abort
     this.wf = 0;
@@ -126,7 +127,7 @@ export class Fadec {
     for (const k of Object.keys(this.faults)) this.faults[k] = false;
     this.clearStart(); this.starterHeat = 0; this.starterFailed = ''; this.starterLimit = false; this._overspeedT = 0; this.startCount = 0;
     this.phase = 'off'; this.wf = 0; this.msg = ''; this.timer = 0; this.surgeHold = 0; this.limiter = ''; this.cutout = false;
-    this._prevN2 = 0; this._evIdx = 0;
+    this._prevN2 = 0; this._evIdx = 0; this.acc = [0, 0];
   }
 
   update(dt) {
@@ -310,7 +311,18 @@ export class Fadec {
     if (this.surgeHold > 0) b7 = 3;
     const b10 = n2c < 50 && this.phase !== 'run' ? 1 : 0;
 
-    this.auto = { fuel: wf, ignition: ign, starter: valve, vsv: o.vsvSched, bleed25: b25, bleed7: b7, bleed10: b10 };
+    // ---------------- active clearance control
+    // Fan air on the turbine cases closes the tip clearances in climb and cruise. It stays off on the
+    // ground and at take-off, and is shut while the engine accelerates or decelerates hard, because a
+    // cooled case cannot follow a rotor that grows (or shrinks) quickly: the tips would rub.
+    const flying = (u.alt || 0) > 1500 || (u.mach || 0) > 0.3;
+    const steadyN2 = Math.abs(n2dot) < 1.5;
+    const accWanted = this.phase === 'run' && flying && n2c > 75 && n2c < 99 && steadyN2;
+    const lptSched = clamp(((u.alt || 0) - 1500) / 4500, 0.35, 1); // LPT valve modulates with altitude
+    const accT = [accWanted ? 1 : 0, accWanted ? lptSched : 0];
+    for (let k = 0; k < 2; k++) this.acc[k] += clamp(accT[k] - this.acc[k], -dt / (steadyN2 ? 4 : 0.5), dt / 4);
+
+    this.auto = { fuel: wf, ignition: ign, starter: valve, vsv: o.vsvSched, bleed25: b25, bleed7: b7, bleed10: b10, accHpt: this.acc[0], accLpt: this.acc[1] };
 
     // ---------------- ECAM messages (wording as in the training manual)
     const ecam = [];
@@ -339,6 +351,8 @@ export class Fadec {
     u.bleed25 = ov.bleed25 != null ? ov.bleed25 : b25;
     u.bleed7 = ov.bleed7 != null ? ov.bleed7 : b7;
     u.bleed10 = ov.bleed10 != null ? ov.bleed10 : b10;
+    u.accHpt = ov.accHpt != null ? ov.accHpt : this.acc[0];
+    u.accLpt = ov.accLpt != null ? ov.accLpt : this.acc[1];
   }
 }
 

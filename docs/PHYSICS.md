@@ -100,6 +100,22 @@ training manual (table below). Choices the manual does not settle:
   overruns and the air turbine spins unloaded. It fails by overspeed after 90 s unless the air is shut off.
 - **Reverser hydraulics**: deploys only with N2 above 45 % (engine-driven pump pressure); it can always stow.
 
+## Active clearance control
+
+Fan air from the bypass duct is sprayed on the HP and LP turbine cases through the rings of tubes
+(`ACC` in `src/sim/engine.js`). A cooled case shrinks onto the blade tips: the HP case responds with
+a 15 s time constant and the LP case with 25 s. Once the cases are hot, fully closed tips are worth
+1.2 points of HP turbine efficiency and 0.8 of LP turbine efficiency. The air costs about 0.3 % of
+the bypass flow, which is dumped in the core compartment. In cruise at FL350, M0.78, that gives about
+1 % lower fuel burn and 15 K lower EGT, in line with what clearance control is quoted as saving.
+
+The FADEC opens the HP valve in climb and cruise (altitude above 1500 m or above M0.3, corrected N2
+75-99 %) and modulates the LP valve with altitude. Both stay shut on the ground and at take-off, and
+close within half a second when N2 changes faster than 1.5 % per second. Held open by hand (or the
+"valves stuck open" fault) through a slam to take-off power at sea level, the rotor grows onto the
+shrunken case and the tips rub. The rub is permanent and costs turbine efficiency, like the tip rub
+after a fuel cut at high power. These values are chosen, not published.
+
 ## Component maps
 
 The compressor and turbine characteristics are the reference maps published with NASA's T-MATS
@@ -220,5 +236,5 @@ which suggests the real figure may be somewhat higher.
   max-continuous / climb use the published thrusts, but the real altitude-Mach-temperature EPR tables
   and the bleed / stator schedule break-points are proprietary; the ones here are tuned to this model.
 - Start time (about 43 s to idle, 30 s of it motoring before fuel) and peak start EGT are not checked against a published figure.
-- No Reynolds-number effects, active clearance control, fuel system components, humidity or icing; one lumped heat-soak mass.
+- No Reynolds-number effects, fuel system components, humidity or icing; one lumped heat-soak mass. Clearance control is a first-order case response with an efficiency gain, not a computed tip clearance.
 - Ambient changes are a test-cell step, not a flight model.
