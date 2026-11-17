@@ -18,6 +18,16 @@ the simulator, and writes `app/models/v2500.glb` plus `app/models/model.json`. B
 what generated geometry does badly: boolean cuts with capped faces, panel gaps, bevelled edges and
 (later) baked textures. Work through `docs/REFERENCE-NOTES.md` to see what is done and what is next.
 
+The external dressing (tubes, harnesses, ducts, hoses) is routed by `tools/blender/pipes.py` and laid
+out in `tools/blender/dressing.py`. A route is a list of corners in engine cylindrical terms
+`(x, angle, height above a surface)`; it is filleted with concentric bends in an unrolled space and
+wrapped back onto the casing, so groups of tubes run parallel and joggle over the fan case ribs.
+Block clamps on brackets, B-nuts, braided looms with red identification sleeves, cushioned
+P-clamps and connectors are added along the way. Lines inside the cutaway sector are split at its
+edge and go to `...B__full` objects; the cut ends get the section material. Dense service lines are
+packed into the bays between ribs by a small occupancy map so they do not overlap. Everything that
+reaches the core crosses the bypass duct inside the lower bifurcation.
+
 Conventions the loader understands:
 
 - **Node names** are `<component>_<piece>`. A node whose name ends in `__cut` is shown when the

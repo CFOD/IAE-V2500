@@ -20,6 +20,8 @@ P = {
     'inletInner': [[-0.78, 0.8], [-0.62, 0.765], [-0.3, 0.79], [0, 0.81]],
     'nacelle': [[-0.78, 0.8], [-0.74, 0.9], [-0.45, 1.0], [0.5, 1.04], [2.0, 0.98], [3.55, 0.635]],
     'bypOuter': [[0, 0.81], [0.35, 0.81], [1.2, 0.8], [2.4, 0.74], [3.2, 0.66], [3.55, 0.61]],
+    'bypInner': [[0.4, 0.47], [0.7, 0.54], [1.3, 0.56], [2.4, 0.54], [3.0, 0.52], [3.12, 0.46]],
+    'coreOuter': [[0.4, 0.47], [0.85, 0.44], [1.15, 0.3], [1.85, 0.25], [1.92, 0.33], [2.18, 0.33], [2.22, 0.3], [2.42, 0.33], [3.0, 0.48], [3.12, 0.44]],
 }
 
 def r_at(prof, x):
@@ -328,9 +330,6 @@ def build():
     # large duct wrapped round the case, top to bottom
     made.append(tube('fancase_duct', [(0.86, a, 0.945 + 0.012 * math.sin(a / 9)) for a in range(114, 181, 6)] + [(0.8, 184, 0.95), (0.7, 186, 0.965)], 0.05, steel))
     # harness bundles and small pipes along the case
-    lines = [tube('l', [(0.05 + 0.1 * math.sin(a / 23 + k), a, R_CASE + 0.025 + 0.004 * k) for a in range(116, 250, 8)], 0.009 + 0.002 * (k % 2), loom if k % 2 else steel) for k in range(4)]
-    lines += [tube('l', [(x, 150 + 14 * k + 3 * math.sin(x * 9), R_CASE + 0.02) for x in (0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.15)], 0.008, loom if k % 2 == 0 else steel) for k in range(5)]
-    made.append(join('fancase_harness', lines))
 
     # ---- accessory gearbox: a flat casting wrapped under the fan case, accessories fore and aft
     gb = arc_solid('gb', [[0.36, 0.875], [0.36, 0.985], [0.5, 1.0], [0.72, 0.995], [0.78, 0.97], [0.78, 0.875]], 152, 208, cast)
@@ -384,7 +383,6 @@ def build():
     eec += [box('fin', th_pos(0.31 + 0.038 * k, 305, 0.947), (0.012, 0.28, 0.012), 305, dark) for k in range(11)]
     eec += [box('foot', th_pos(x, 305 + dth, 0.87), (0.05, 0.04, 0.03), 305 + dth, steel) for x in (0.33, 0.67) for dth in (-7.5, 7.5)]
     eec += [cylinder('conn', th_pos(0.72, 298 + 3.4 * k, 0.905), th_pos(0.76, 298 + 3.4 * k, 0.905), 0.016, 0.016, steel, seg=12) for k in range(5)]
-    eec += [tube('loom', [(0.76, 298 + 3.4 * k, 0.905), (0.82, 297 + 3.6 * k, 0.9), (0.9, 290 + 5 * k, 0.9), (1.05, 286 + 6 * k, 0.895), (1.17, 284 + 6 * k, 0.9)], 0.008, loom) for k in range(5)]
     made.append(finish(join('eec_box', eec), 0.003))
 
     # ---- fan case dressing all the way round. Items inside the cutaway sector are only shown with the cutaway closed.
@@ -397,24 +395,13 @@ def build():
         for k in range(n):
             th = 360.0 * k / n + 1.3
             put(th, cylinder('b', th_pos(xr - 0.011, th, rb), th_pos(xr + 0.011, th, rb), 0.0055, 0.0055, steel, seg=6))
-    # looms and small-bore pipes round the far side and over the top
-    for k in range(5):
-        for a0 in range(250, 472, 37):
-            mid = (a0 + 18) % 360
-            put(mid, tube('l', [(0.1 + 0.16 * k + 0.03 * math.sin(a / 17 + k), a % 360, R_CASE + 0.022 + 0.003 * (k % 3)) for a in range(a0, a0 + 38, 6)], 0.007 + 0.002 * (k % 2), loom if k % 2 else steel))
-    for k, th in enumerate(range(262, 462, 20)):
-        t = th % 360
-        put(t, tube('l', [(x, t + 2.5 * math.sin(x * 8 + k), R_CASE + 0.02) for x in (0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.15)], 0.007, steel if k % 2 else loom))
-        for x in (0.1, 0.5, 0.9): put(t, box('clip', th_pos(x, t + 2.5 * math.sin(x * 8 + k), R_CASE + 0.012), (0.02, 0.03, 0.02), t, steel))
     # anti-ice duct: bleed air forward to the inlet lip, with its valve
-    put(332, tube('ai', [(1.19, 330, 0.955), (0.9, 331, 0.95), (0.5, 333, 0.948), (0.1, 334, 0.95), (-0.02, 334, 0.95)], 0.032, steel))
     put(332, stack('aiv', 0.62, 332.5, 0.949, [(0.012, 0.045, 0.045), (0.09, 0.04, 0.04), (0.012, 0.045, 0.045)], cast))
     put(332, box('aiact', th_pos(0.665, 332.5, 1.0), (0.07, 0.06, 0.05), 332.5, dark))
     # ignition exciters, relay box, air-cooled oil cooler and the engine data plate
     # right side, below the EEC: relay box, then the bank of bleed-valve solenoids (four in a row and two below)
     for k in range(4): put(268, stack('sol', 0.55 + 0.085 * k, 270, 0.9, [(0.02, 0.022, 0.022), (0.035, 0.03, 0.03), (0.012, 0.018, 0.018)], gold))
     for k in range(2): put(258, stack('sol', 0.7 + 0.085 * k, 259, 0.9, [(0.02, 0.022, 0.022), (0.035, 0.03, 0.03), (0.012, 0.018, 0.018)], gold))
-    for k in range(6): put(264, tube('solp', [(0.56 + 0.07 * k, 266, 0.895), (0.6 + 0.07 * k, 262, 0.89), (0.9 + 0.03 * k, 256, 0.89), (1.17, 250 + 2 * k, 0.895)], 0.005, steel))
     # left side: fuel-cooled oil cooler (tall gold cylinder) with the low-pressure fuel filter at its foot and the diverter valve on its flank; IDG oil cooler beside it
     put(122, cylinder('fcoc', th_pos(1.02, 114, 0.965), th_pos(1.02, 132, 0.965), 0.06, 0.06, gold, seg=24, dome=0.03))
     put(135, cylinder('lpfilter', th_pos(0.95, 136, 0.97), th_pos(1.09, 136, 0.97), 0.07, 0.07, gold, seg=24))
@@ -425,13 +412,10 @@ def build():
     put(2, cylinder('vib', th_pos(0.3, 2, 0.89), th_pos(0.3, 2, 0.92), 0.025, 0.02, steel, seg=12))
     put(238, box('acoc', th_pos(0.9, 238, 0.93), (0.3, 0.24, 0.09), 238, cast)); put(238, box('acocmesh', th_pos(0.9, 238, 0.977), (0.2, 0.16, 0.004), 238, dark))
     for k in range(9): put(238, box('acocfin', th_pos(0.815 + 0.021 * k, 238, 0.982), (0.004, 0.15, 0.008), 238, gold))
-    put(238, tube('acocl', [(0.9, 232, 0.93), (0.75, 215, 0.95), (0.62, 200, 0.99)], 0.012, steel))
     put(287, box('relay', th_pos(0.62, 287, 0.905), (0.18, 0.12, 0.05), 287, dark))
     for k in range(3): put(287, cylinder('rc', th_pos(0.56 + 0.06 * k, 283.5, 0.905), th_pos(0.56 + 0.06 * k, 281, 0.905), 0.014, 0.014, steel, seg=10))
     put(250, box('plate', th_pos(0.26, 250, 0.892), (0.12, 0.08, 0.004), 250, steel))
     # inside the cutaway sector: hydraulic and fuel lines up to the pylon, T2/P2 probe wiring, a second relay box
-    for k, th in enumerate((8, 22, 36, 50, 66, 84, 100)):
-        put(th, tube('l', [(x, th + 2 * math.sin(x * 7 + k), R_CASE + 0.02) for x in (0.0, 0.25, 0.5, 0.75, 1.0, 1.15)], 0.008 + 0.003 * (k % 2), steel if k % 2 else loom))
     put(40, box('box', th_pos(0.4, 40, 0.905), (0.16, 0.12, 0.05), 40, dark))
     put(74, box('box', th_pos(0.3, 74, 0.905), (0.14, 0.12, 0.06), 74, cast))
     put(60, stack('valve', 0.8, 60, 0.92, [(0.012, 0.04, 0.04), (0.1, 0.034, 0.034), (0.012, 0.04, 0.04)], steel))
@@ -572,12 +556,20 @@ def build():
     im += outline('m', -0.34, -0.2, 352, 364, line, surf) + [patch('m', -0.3, -0.24, 340, 346, black, surf)]   # P2/T2 probe access door, ventilation intake scoop
     made.append(join('inlet_markings', [m for m in im]))
     rmarks = outline('m', 1.3, 1.6, 150, 162, line, surf) + [patch('m', 1.32, 1.58, 152.5, 155.5, label('THRUST REVERSER|ACTUATOR ACCESS'), surf, lift=0.0026), patch('m', 2.0, 2.3, 128, 133, label('R:REVERSER HAZARD AREA'), surf)]
+    # thrust reverser pressure-relief doors on the bottom of each C-duct, either side of the latch line (Airbus TTM cowl-opening procedure)
+    for a0, a1 in ((166, 176), (184, 194)):
+        rmarks += outline('m', 2.25, 2.55, a0, a1, line, surf) + [patch('m', 2.28, 2.52, (a0 + a1) / 2 - 1.2, (a0 + a1) / 2 + 1.2, label('PRESSURE RELIEF DOOR'), surf, lift=0.0026)]
     join_sides('cna_markings', rmarks, made)
     # latches along the bottom centreline, and the drain mast
     lat = [box('latch', th_pos(x, 180, OML(x) + 0.001), (0.09, 0.032, 0.007), 180, bare) for x in (0.2, 0.6, 1.0)]
     join_sides('fancowl_latches', lat, made)
     join_sides('cna_latches', [box('latch', th_pos(x, 180, OML(x) + 0.001), (0.09, 0.032, 0.007), 180, bare) for x in (1.28, 1.6, 1.85, 2.1, 2.5, 2.62)], made)
     made.append(finish(loft('fancowl_drainmast', [(0.84, 0.004, -1.06, -1.03), (0.9, 0.012, -1.16, -1.0), (0.98, 0.012, -1.17, -1.0), (1.06, 0.004, -1.12, -1.0)], bare, n=12), 0))
+
+    # ---- routed dressing: tubes, harnesses, ducts and hoses (tools/blender/dressing.py)
+    import sys; sys.path.insert(0, os.path.dirname(__file__))
+    from dressing import build_dressing
+    build_dressing(P, r_at, in_cut, material, link, made, section)
 
     for helper in (wedge, latch): bpy.data.objects.remove(helper, do_unlink=True)
     os.makedirs(OUT, exist_ok=True)
@@ -588,7 +580,7 @@ def build():
             'inlet': {'match': '^inlet_', 'drop': ['skin']}, 'lip': {'match': '^lip_', 'drop': ['skin']},
             'fancowl': {'match': '^fancowl_', 'drop': ['skin']}, 'fancase': {'match': '^fancase_', 'drop': []},
             'cna': {'match': '^cna_', 'drop': ['skin', 'liner']}, 'agb': {'match': '^agb_'}, 'eec': {'match': '^eec_'},
-            'pylon': {'match': '^pylon_'},
+            'pylon': {'match': '^pylon_'}, 'ext': {'match': '^ext_', 'drop': ['dress']},
         },
     }
     json.dump(manifest, open(os.path.join(OUT, 'model.json'), 'w'), indent=2)

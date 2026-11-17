@@ -45,6 +45,10 @@ const softSprite = () => { const t = canvasTex(64, 64, (g) => { const gr = g.cre
 // perforated acoustic liner
 const linerTex = () => canvasTex(64, 64, (g) => { g.fillStyle = '#8a8a8a'; g.fillRect(0, 0, 64, 64); g.fillStyle = '#1c1c1c'; for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { g.beginPath(); g.arc(8 + x * 16 + (y % 2) * 8, 8 + y * 16, 3.2, 0, 7); g.fill(); } }, [150, 18]);
 // fine circumferential machining marks
+// braided harness sleeve: diagonal over-under weave (u round the loom, v along it)
+const braidTex = () => { const t = canvasTex(64, 64, (g, W, H) => { g.fillStyle = '#cfccc4'; g.fillRect(0, 0, W, H);
+  for (let i = -8; i < 16; i++) for (const sgn of [1, -1]) { g.strokeStyle = sgn > 0 ? 'rgba(255,255,250,0.9)' : 'rgba(150,146,138,0.85)'; g.lineWidth = 3; g.beginPath(); g.moveTo(i * 8, 0); g.lineTo(i * 8 + sgn * 64, 64); g.stroke(); }
+  g.fillStyle = 'rgba(0,0,0,0.05)'; for (let y = 0; y < H; y += 8) for (let x = (y / 8) % 2 ? 4 : 0; x < W; x += 8) g.fillRect(x, y, 4, 4); }, [3, 1]); t.colorSpace = THREE.SRGBColorSpace; return t; };
 const brushedTex = () => canvasTex(8, 256, (g, w, h) => { for (let y = 0; y < h; y++) { const v = 110 + Math.random() * 80; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(0, y, w, 1); } }, [1, 6]);
 
 // Shared GLSL: value noise and fractal noise. All inputs are finite and all pow / smoothstep
@@ -238,7 +242,7 @@ export class Scene3D {
 
     this.cutaway = true; this.explode = 0; this.showFlow = true; this.quality = 'medium';
     this.parts = []; this.byId = {}; this.vsvRows = []; this.cutInst = []; this.rotorRows = []; this.hingePivots = []; this.cowl = { open: false, fan: 0, cd: 0 }; this.hover = null; this.selected = null;
-    this.sprite = softSprite(); this.tex = { liner: linerTex(), brushed: brushedTex(), blade: bladeTex(false), fanBlade: bladeTex(true), cast: castTex(), paint: paintTextures(), concrete: concreteTex() };
+    this.sprite = softSprite(); this.tex = { liner: linerTex(), brushed: brushedTex(), braid: braidTex(), blade: bladeTex(false), fanBlade: bladeTex(true), cast: castTex(), paint: paintTextures(), concrete: concreteTex() };
     this.capMat = new THREE.MeshStandardMaterial({ color: 0xb8402a, metalness: 0.1, roughness: 0.7, side: THREE.DoubleSide });
     this.t = 0; this.flash = 0;
     this.engine = new THREE.Group(); scene.add(this.engine);
@@ -376,7 +380,7 @@ export class Scene3D {
     const pipeGold = new THREE.MeshStandardMaterial({ color: 0xb0914e, metalness: 0.95, roughness: 0.38 }); // cadmium-plated / bronze fittings and small-bore lines
     const harness = new THREE.MeshStandardMaterial({ color: 0xd9d6cc, metalness: 0, roughness: 0.92 }); // looms are sleeved in white braid (SR Technics component photos)
     const conduit = new THREE.MeshStandardMaterial({ color: 0x1b1d20, metalness: 0.1, roughness: 0.7 });
-    this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughnessMap: T.brushed }), section: this.capMat };
+    this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughnessMap: T.brushed }), section: this.capMat, loom: new THREE.MeshStandardMaterial({ color: 0xffffff, map: T.braid, roughness: 0.85, metalness: 0, bumpMap: T.braid, bumpScale: 0.4 }) };
     const C = (K) => `${(K - 273.15).toFixed(0)} °C`, B = (p) => `${(p / 1e5).toFixed(2)} bar`;
     const A = (d) => this._part(d);
 
@@ -581,7 +585,8 @@ export class Scene3D {
     const eec = A({ id: 'eec', name: 'Electronic engine control (FADEC)', ex: -0.55, mat: { color: 0x15181b, metalness: 0.3, roughness: 0.5 }, desc: 'Dual-channel computer on the fan case. Sets fuel flow, stator angle and bleed valves, and protects the engine limits.', live: () => '' });
     const eb = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.09, 0.3), eec.mat); eb.position.set(0.55, -0.62, -0.84); eb.rotation.x = 0.94; this._reg(eec, eb);
     const ext = A({ id: 'ext', name: 'External pipework and harnesses', ex: 0.1, mat: pipeSteel, desc: 'Fuel, oil, bleed-air and cooling pipes and the electrical harnesses that dress the core. Visible with the core cowl removed.', live: (o) => `Turbine cooling ${o.Wcool.toFixed(1)} kg/s · handling bleed ${(o.Wb7 + o.Wb10).toFixed(1)} kg/s` });
-    const run = (th, r0, mat, rad, x0 = 1.15, x1 = 2.9, wob = 6) => this._pipe(ext, Array.from({ length: 9 }, (_, i) => { const f = i / 8, x = lerp(x0, x1, f); return [x, co(x) + r0 + 0.012 * Math.sin(f * 9 + th), th + wob * Math.sin(f * 5 + th * 0.1)]; }), rad, mat);
+    const dress = (ob) => { ob.userData.tag = 'dress'; return ob; }; // fallback pipework, replaced by the routed dressing in the authored model
+    const run = (th, r0, mat, rad, x0 = 1.15, x1 = 2.9, wob = 6) => dress(this._pipe(ext, Array.from({ length: 9 }, (_, i) => { const f = i / 8, x = lerp(x0, x1, f); return [x, co(x) + r0 + 0.012 * Math.sin(f * 9 + th), th + wob * Math.sin(f * 5 + th * 0.1)]; }), rad, mat));
     [[130, 0.075, pipeSteel, 0.011], [150, 0.07, pipeGold, 0.008], [172, 0.085, harness, 0.013, 0.5], [200, 0.07, pipeSteel, 0.016, 1.5, 2.7], [225, 0.075, harness, 0.009], [246, 0.08, pipeSteel, 0.01], [268, 0.07, pipeGold, 0.007, 1.3, 2.2], [292, 0.085, pipeSteel, 0.014, 1.6, 3.0], [316, 0.07, harness, 0.011, 0.5], [338, 0.075, pipeSteel, 0.009]].forEach((a) => run(...a));
     // turbine case cooling manifolds (active clearance control): a cage of tube rings round the LPT
     for (let k = 0; k < 20; k++) { const x = 2.25 + k * 0.038, rr = co(x) + 0.05; this._solid(ext, [[x - 0.0045, rr], [x - 0.0045, rr + 0.009], [x + 0.0045, rr + 0.009], [x + 0.0045, rr]], { seg: 72, mat: pipeSteel }); }
@@ -596,12 +601,12 @@ export class Scene3D {
     { const pts = []; for (let th = 118; th < 350; th += 13) for (const x of [1.3, 1.62, 1.95, 2.3, 2.66, 2.92]) if (((th * 7 + x * 31) | 0) % 3 !== 0) pts.push([x, th]);
       const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.022, 0.07, 0.012), pipeSteel, pts.length), mm = new THREE.Matrix4();
       pts.forEach(([x, th], i) => { mm.makeRotationX(th * DEG - Math.PI / 2); const r = co(x) + 0.055; mm.setPosition(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); im.setMatrixAt(i, mm); });
-      this._reg(ext, im); }
+      dress(this._reg(ext, im)); }
     // ignition exciters, fuel distribution valve and cooling-air control valve on the core
     for (const [x, th, sx, sy, sz, mt] of [[1.45, 205, 0.16, 0.05, 0.11, harness], [1.45, 228, 0.16, 0.05, 0.11, harness], [1.72, 190, 0.11, 0.07, 0.09, pipeSteel], [2.38, 250, 0.1, 0.07, 0.08, pipeSteel], [2.38, 145, 0.1, 0.07, 0.08, pipeSteel]]) {
       const bx = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mt); const r = co(x) + 0.09; bx.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); bx.rotation.x = th * DEG - Math.PI / 2; this._reg(ext, bx);
     }
-    for (const x of [1.45, 2.0, 2.55]) this._solid(ext, [[x - 0.005, co(x) + 0.095], [x - 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.095]], { seg: 96, mat: harness }); // clamps
+    for (const x of [1.45, 2.0, 2.55]) dress(this._solid(ext, [[x - 0.005, co(x) + 0.095], [x - 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.095]], { seg: 96, mat: harness })); // clamps
     // oil feed, scavenge and vent pipes to the bearing compartments, run through struts at the bottom of the engine
     for (const [pts, rad, mt] of [
       [[[1.02, 0.17, 176], [1.02, 0.3, 177], [1.0, 0.44, 178], [0.95, 0.56, 180], [0.85, 0.66, 182]], 0.009, pipeSteel], [[[1.06, 0.17, 186], [1.06, 0.3, 185], [1.05, 0.46, 184], [1.0, 0.58, 183]], 0.012, pipeGold],
@@ -659,7 +664,7 @@ export class Scene3D {
     top(this._pipe(ext, [[1.62, co(1.62) + 0.03, 38], [1.6, 0.46, 34], [1.5, 0.6, 24], [1.35, 0.72, 14], [1.2, 0.86, 8], [1.12, 0.98, 6]], 0.045, duct));
     top(this._pipe(ext, [[1.8, co(1.8) + 0.03, -32], [1.78, 0.44, -28], [1.68, 0.56, -18], [1.5, 0.66, -4], [1.4, 0.7, 8]], 0.034, duct));
     top(this._pipe(ext, [[2.1, co(2.1) + 0.06, 20], [2.05, 0.52, 16], [1.8, 0.66, 10], [1.5, 0.78, 4], [1.3, 0.92, 2]], 0.022, pipeSteel)); // fuel feed from the pylon
-    top(this._pipe(ext, [[0.9, 0.97, -4], [1.3, 0.8, -6], [1.9, 0.6, -10], [2.5, 0.52, -8]], 0.016, harness));                              // main harness trunk
+    dress(top(this._pipe(ext, [[0.9, 0.97, -4], [1.3, 0.8, -6], [1.9, 0.6, -10], [2.5, 0.52, -8]], 0.016, harness)));                              // main harness trunk
     for (const [x, th, rr, l] of [[1.5, 24, 0.062, 0.16], [1.66, -17, 0.05, 0.13], [1.3, 12, 0.07, 0.12]]) {                                // bleed valves and the precooler inlet flange
       const v = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, l, 20).rotateZ(Math.PI / 2), duct), r = x < 1.4 ? 0.76 : x < 1.6 ? 0.6 : 0.57;
       v.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); top(this._reg(ext, v));

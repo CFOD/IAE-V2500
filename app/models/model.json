@@ -39,6 +39,12 @@
     },
     "pylon": {
       "match": "^pylon_"
+    },
+    "ext": {
+      "match": "^ext_",
+      "drop": [
+        "dress"
+      ]
     }
   }
 }
