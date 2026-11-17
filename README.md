@@ -51,9 +51,10 @@ move the thrust lever (down at idle lifts it into reverse).
 The game is plain web code, so it also runs in a browser (Chrome or Edge recommended; Firefox works).
 `npm run serve` and open <http://localhost:5173>, or put it on a website: `npm run build:web` writes
 `dist-web/`, a static site you can upload to any web host (Cloudflare Pages, Netlify, your own server).
-The website never contains a sound pack: each player loads their own recordings with **Sound > Load
-recordings from a folder** (the files are read on their computer and not uploaded), and everyone else
-hears the built-in synthesised sound.
+This repository is private and carries the owner's sound recordings, so the build includes them; the
+site is for the owner's testing at iae.cfod.co.uk, behind Cloudflare Access, and is marked noindex.
+`npm run build:web:nosound` leaves the recordings out (players can then load their own with **Sound >
+Load recordings from a folder**, read on their computer and not uploaded).
 
 ### Sound
 

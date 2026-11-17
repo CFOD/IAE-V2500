@@ -1,10 +1,10 @@
 # Sound
 
 The game plays **real recordings** when it finds them in `app/sounds/`, and falls back to a built-in
-synthesiser when it does not. No recordings ship with the project: there is no openly licensed set
-of V2500 recordings, so you supply your own. Everything in `app/sounds/` is ignored by git and stays
-on your machine. Do not publish or release a build containing audio you do not have the right to
-distribute.
+synthesiser when it does not. There is no openly licensed set of V2500 recordings. This private
+repository carries the owner's own copy of the FTSiM+ A320 IAE pack (only the files `sounds.json`
+uses, listed in `.gitignore`; anything else in `app/sounds/` stays local). Do not make the repository
+public, or release a build containing these recordings, without the right to distribute them.
 
 When recordings load, **Panel > Monitor > Log** shows a line such as
 `Sound: playing recordings (Flight simulator sound pack: 6 loops, 3 events)` and lists any files it
@@ -12,9 +12,10 @@ could not find.
 
 ## In the browser version
 
-The website has no recordings on it. Choose **Sound > Load recordings from a folder** and pick your
-`sounds` folder (the one with `sounds.json` or `sound.cfg` and the audio files). The browser reads them
-from your disk; nothing is uploaded. You pick the folder again on each visit. The desktop app reads
+`npm run build:web` copies the recordings `sounds.json` uses into the site (the owner's test site,
+behind Cloudflare Access). A build made with `npm run build:web:nosound` has none: choose **Sound >
+Load recordings from a folder** and pick a `sounds` folder (with `sounds.json` or `sound.cfg` and the
+audio files). The browser reads them from your disk; nothing is uploaded. The desktop app reads
 `app/sounds/` automatically.
 
 ## Easiest route: drop in a flight-simulator sound pack

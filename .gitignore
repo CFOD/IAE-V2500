@@ -6,9 +6,29 @@ dist/
 app/assets/*
 !app/assets/.gitkeep
 
-# local-only sound recordings (see docs/SOUND.md) - never publish third-party audio
+# sound recordings: only the files sounds.json uses are kept in this private repository (the owner's
+# FTSiM+ A320 IAE pack, for their own testing); any other recordings in app/sounds stay local
 app/sounds/*
 !app/sounds/.gitkeep
+!app/sounds/sounds.json
+!app/sounds/0229841B.wav
+!app/sounds/05F145FA.wav
+!app/sounds/06DBCE06.wav
+!app/sounds/075484A4.wav
+!app/sounds/0C8D3E12.wav
+!app/sounds/11998CFB.wav
+!app/sounds/134809F0.wav
+!app/sounds/1A517884.wav
+!app/sounds/1B943656.wav
+!app/sounds/2435D10F_loop.wav
+!app/sounds/2D43C434.wav
+!app/sounds/2D4C8702.wav
+!app/sounds/2DBE8ED8.wav
+!app/sounds/33BCAAAF.wav
+!app/sounds/35F197A5.wav
+!app/sounds/3728855A.wav
+!app/sounds/390F2A05.wav
+!app/sounds/3C0D3384.wav
 __pycache__/
 *.pyc
 dist-web/

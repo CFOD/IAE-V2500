@@ -12,7 +12,7 @@
     "model": "python3 tools/blender/build_engine.py",
     "dist": "electron-builder",
     "build:web": "node tools/build-web.mjs",
-    "build:web:private": "node tools/build-web.mjs --with-sounds"
+    "build:web:nosound": "node tools/build-web.mjs --no-sounds"
   },
   "devDependencies": {
     "electron": "^33.0.0",

@@ -1,7 +1,8 @@
 // Builds the browser version into dist-web/: a static site that runs from any web host.
-//   node tools/build-web.mjs                 public build: no recordings
-//   node tools/build-web.mjs --with-sounds   private build: also copies the recordings in app/sounds
-//                                            that sounds.json uses (only those), for a site only you open
+//   node tools/build-web.mjs              includes the recordings app/sounds/sounds.json uses (only those)
+//   node tools/build-web.mjs --no-sounds  leaves them out: players load their own (Sound menu)
+// The site is meant for the owner's own testing behind Cloudflare Access: it is marked noindex and the
+// Pages Function in functions/ sends the *.pages.dev address to the Access-protected domain.
 // The app is already plain web code; this copies it with the page at the site root, leaves out
 // everything that must not be published (sound packs in app/sounds, third-party models in app/assets),
 // and adds caching headers and the licence notices. Recordings are loaded by each player from their own
@@ -27,9 +28,9 @@ fs.mkdirSync(path.join(out, 'src'), { recursive: true });
 copy(path.join(root, 'src'), path.join(out, 'src'));  // the simulation ('../src/...' from the root resolves here)
 fs.mkdirSync(path.join(out, 'sounds')); fs.mkdirSync(path.join(out, 'assets'));
 let sounds = '';
-if (process.argv.includes('--with-sounds')) {
+if (!process.argv.includes('--no-sounds')) {
   const dir = path.join(root, 'app', 'sounds'), mf = path.join(dir, 'sounds.json');
-  if (!fs.existsSync(mf)) { console.error('--with-sounds: app/sounds/sounds.json not found'); process.exit(1); }
+  if (!fs.existsSync(mf)) { console.error('app/sounds/sounds.json not found (use --no-sounds for a build without recordings)'); process.exit(1); }
   const m = JSON.parse(fs.readFileSync(mf, 'utf8'));
   const used = new Set([...(m.layers || []).map((l) => l.file), ...Object.values(m.shots || {}).map((s) => s.file)]);
   let sb = 0; const missing = [];
@@ -38,8 +39,10 @@ if (process.argv.includes('--with-sounds')) {
   bytes += sb; sounds = `, ${used.size - missing.length} recordings (${(sb / 1048576).toFixed(1)} MB)` + (missing.length ? `; MISSING ${missing.join(', ')}` : '');
 }
 // Cloudflare Pages / Netlify headers: long cache for the model and libraries, correct type for .glb
+fs.writeFileSync(path.join(out, 'robots.txt'), 'User-agent: *\nDisallow: /\n');
 fs.writeFileSync(path.join(out, '_headers'), `/*
   X-Content-Type-Options: nosniff
+  X-Robots-Tag: noindex, nofollow
 /models/*
   Cache-Control: public, max-age=86400
 /vendor/*
