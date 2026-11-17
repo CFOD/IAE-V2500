@@ -422,7 +422,7 @@ def build():
     # forward engine mount: yoke on the fan frame at the top, two links up to the pylon
     put(0, box('mount', th_pos(1.12, 0, 0.93), (0.12, 0.3, 0.07), 0, cast))
     for dth in (-9, 9): put(dth % 360, cylinder('link', th_pos(1.12, dth, 0.93), th_pos(1.12, dth * 0.45, 1.03), 0.022, 0.022, steel, seg=12))
-    put(4, box('p2t2', th_pos(-0.2, 4, r_at(P['inletInner'], -0.2) - 0.035), (0.06, 0.012, 0.07), 4, steel))
+    made.append(box('inlet_p2t2__full', th_pos(-0.2, 4, r_at(P['inletInner'], -0.2) - 0.035), (0.06, 0.012, 0.07), 4, steel))   # belongs to the intake cowl, inside the cutaway sector
     # fire detection loops round the gearbox (two elements side by side), per the booklet diagram
     for d in (0.0, 0.012):
         put(180, tube('fire', [(0.33 + d, 152, 1.0), (0.33 + d, 180, 1.012), (0.33 + d, 208, 1.0), (0.57, 211, 0.99), (0.81 - d, 208, 1.0), (0.81 - d, 180, 1.012), (0.81 - d, 152, 1.0), (0.57, 150, 0.995), (0.33 + d, 152, 1.0)], 0.0035, gold))
