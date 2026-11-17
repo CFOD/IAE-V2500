@@ -367,6 +367,7 @@ export class Scene3D {
     const pipeGold = new THREE.MeshStandardMaterial({ color: 0xb0914e, metalness: 0.95, roughness: 0.38 }); // cadmium-plated / bronze fittings and small-bore lines
     const harness = new THREE.MeshStandardMaterial({ color: 0xd9d6cc, metalness: 0, roughness: 0.92 }); // looms are sleeved in white braid (SR Technics component photos)
     const conduit = new THREE.MeshStandardMaterial({ color: 0x1b1d20, metalness: 0.1, roughness: 0.7 });
+    const unitGrey = new THREE.MeshStandardMaterial({ color: 0x8e9398, metalness: 0.7, roughness: 0.45 }); // cast accessory housings (exciters, valve bodies)
     this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughnessMap: T.brushed }), section: this.capMat, loom: new THREE.MeshStandardMaterial({ color: 0xffffff, map: T.braid, roughness: 0.85, metalness: 0, bumpMap: T.braid, bumpScale: 0.4 }) };
     const C = (K) => `${(K - 273.15).toFixed(0)} °C`, B = (p) => `${(p / 1e5).toFixed(2)} bar`;
     const A = (d) => this._part(d);
@@ -386,7 +387,7 @@ export class Scene3D {
     const cna = A({ id: 'cna', name: 'Thrust reverser cowls and common nozzle', ex: 0.2, mat: paint, desc: 'The long duct carries bypass air aft, where it mixes with the core exhaust and leaves through one common nozzle.', live: (o) => `Mixed jet ${o.V9.toFixed(0)} m/s (Mach ${o.M9.toFixed(2)}) · ${C(o.T7)} · ${o.W9.toFixed(0)} kg/s` });
     this._solid(cna, band(offset(P.bypOuter, 0.012), P.nacelle, 1.2, 2.86, 20), { tag: 'skin' });
     // unpainted common nozzle at the rear, with a visible step from the painted cowl
-    this._solid(cna, band(offset(P.bypOuter, 0.012), offset(P.nacelle, -0.008), 2.86, 3.55, 10), { tag: 'skin', mat: (this.shared.bare = heatTint(new THREE.MeshPhysicalMaterial({ color: 0xa2a7ab, metalness: 1, roughness: 0.36, roughnessMap: T.brushed, side: THREE.DoubleSide }), 2.75, 3.6, 0.8)) });
+    this._solid(cna, band(offset(P.bypOuter, 0.012), offset(P.nacelle, -0.008), 2.86, 3.55, 10), { tag: 'skin', mat: (this.shared.bare = heatTint(new THREE.MeshPhysicalMaterial({ color: 0xa2a7ab, metalness: 1, roughness: 0.34, side: THREE.DoubleSide }), 2.75, 3.6, 0.8)) });
     // nacelle strake, high on the side
     const stS = new THREE.Shape(); stS.moveTo(0, 0); stS.lineTo(0.62, 0); stS.lineTo(0.56, 0.1); stS.lineTo(0.2, 0.035); stS.lineTo(0, 0);
     const strake = new THREE.Mesh(new THREE.ExtrudeGeometry(stS, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 2 }).translate(0.25, 1.03, -0.006), fanCowl.mat);
@@ -590,7 +591,7 @@ export class Scene3D {
       pts.forEach(([x, th], i) => { mm.makeRotationX(th * DEG - Math.PI / 2); const r = co(x) + 0.055; mm.setPosition(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); im.setMatrixAt(i, mm); });
       dress(this._reg(ext, im)); }
     // ignition exciters, fuel distribution valve and cooling-air control valve on the core
-    for (const [x, th, sx, sy, sz, mt] of [[1.45, 205, 0.16, 0.05, 0.11, harness], [1.45, 228, 0.16, 0.05, 0.11, harness], [1.72, 190, 0.11, 0.07, 0.09, pipeSteel], [2.38, 250, 0.1, 0.07, 0.08, pipeSteel], [2.38, 145, 0.1, 0.07, 0.08, pipeSteel]]) {
+    for (const [x, th, sx, sy, sz, mt] of [[1.45, 205, 0.16, 0.05, 0.11, unitGrey], [1.45, 228, 0.16, 0.05, 0.11, unitGrey], [1.72, 190, 0.11, 0.07, 0.09, pipeSteel], [2.38, 250, 0.1, 0.07, 0.08, pipeSteel], [2.38, 145, 0.1, 0.07, 0.08, pipeSteel]]) {
       const bx = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mt); const r = co(x) + 0.09; bx.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); bx.rotation.x = th * DEG - Math.PI / 2; this._reg(ext, bx);
     }
     for (const x of [1.45, 2.0, 2.55]) dress(this._solid(ext, [[x - 0.005, co(x) + 0.095], [x - 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.095]], { seg: 96, mat: harness })); // clamps
@@ -661,7 +662,7 @@ export class Scene3D {
       const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.022, 0.07, 0.012), pipeSteel, pts.length), mm = new THREE.Matrix4();
       pts.forEach(([x, th], i) => { mm.makeRotationX(th * DEG - Math.PI / 2); const r = co(x) + 0.055; mm.setPosition(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); im.setMatrixAt(i, mm); });
       top(this._reg(ext, im)); }
-    for (const [x, th, sx, sy, sz, mt] of [[1.45, 62, 0.16, 0.05, 0.11, harness], [1.75, 75, 0.12, 0.07, 0.09, pipeSteel], [2.38, 50, 0.1, 0.07, 0.08, pipeSteel], [2.2, -5, 0.14, 0.06, 0.1, harness], [2.6, 96, 0.1, 0.06, 0.08, pipeSteel]]) {
+    for (const [x, th, sx, sy, sz, mt] of [[1.45, 62, 0.16, 0.05, 0.11, unitGrey], [1.75, 75, 0.12, 0.07, 0.09, pipeSteel], [2.38, 50, 0.1, 0.07, 0.08, pipeSteel], [2.2, -5, 0.14, 0.06, 0.1, unitGrey], [2.6, 96, 0.1, 0.06, 0.08, pipeSteel]]) {
       const bx = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mt); const r = co(x) + 0.09; bx.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); bx.rotation.x = th * DEG - Math.PI / 2; top(this._reg(ext, bx));
     }
     // pylon the engine hangs from
@@ -687,7 +688,7 @@ export class Scene3D {
       };
       const coreHeat = [2.0, 2.9, 0.45];
       const byMat = new Map([
-        [pipeSteel, H(FINISH.stainlessTube, coreHeat)], [pipeGold, FINISH.cadmium], [harness, FINISH.braid], [conduit, FINISH.darkBox],
+        [pipeSteel, H(FINISH.stainlessTube, coreHeat)], [pipeGold, FINISH.cadmium], [unitGrey, H(FINISH.castBare, coreHeat)], [harness, FINISH.braid], [conduit, FINISH.darkBox],
         [this.boltMat, FINISH.bareSteel], [linerM, FINISH.acoustic], [white, { ...FINISH.nacellePaint, bottom: 0 }], [fairing, { ...FINISH.titanium, bottom: 0 }],
         [vsvMat, FINISH.titanium], [orange, FINISH.rubber], [perf, FINISH.castBare], [race, { ...FINISH.bareSteel, bottom: 0, grime: 0.05 }], [duct, FINISH.stainlessTube],
         [this.shared.paint, FINISH.nacellePaint], [this.shared.lip, FINISH.polished], [this.shared.loom, FINISH.braid],
