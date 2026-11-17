@@ -3,7 +3,7 @@
 import { Engine } from '../src/sim/engine.js';
 import { Fadec } from '../src/sim/fadec.js';
 import { ICAO_V2527, ICAO } from '../src/sim/v2500.js';
-const e = new Engine(), f = new Fadec(e); f.master = true;
+const e = new Engine(), f = new Fadec(e); f.mode = 'ign'; f.master = true;
 const run = (T) => { const dt = 1 / 60; for (let t = 0; t < T; t += dt) { f.update(dt); e.step(dt); } };
 run(100);
 const o0 = e.out;

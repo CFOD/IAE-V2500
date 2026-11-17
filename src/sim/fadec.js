@@ -44,7 +44,11 @@ export class Fadec {
     this.master = false; // ENG MASTER switch (HP fuel shut-off valve)
     this.tla = 0; // thrust lever 0..1 (idle..TOGA)
     this.rating = 'V2527-A5';
-    this.manStart = false; // manual start pushbutton (opens start valve)
+    this.manStart = false; // ENG MAN START pushbutton (latched; opens the start valve with MODE at CRANK or IGN START)
+    this.mode = 'norm'; // ENG MODE selector: 'crank' | 'norm' | 'ign' (IGN/START)
+    this.apuBleed = true; // APU BLEED pushbutton: air for the starter (shut it to stop a starter that will not disengage)
+    // component faults the player can inject (Panel > Faults)
+    this.faults = { svNoOpen: false, svNoClose: false, ignA: false, ignB: false };
     // manual overrides: null = FADEC authority
     this.ovr = { fuel: null, ignition: null, starter: null, vsv: null, bleed25: null, bleed7: null, bleed10: null };
     // internal
@@ -60,6 +64,15 @@ export class Fadec {
     // Protections the player can switch off (Panel > Control). All on = normal FADEC behaviour.
     this.prot = { egt: true, n1: true, n2: true, accel: true, decel: true, surge: true, startAbort: true };
     this.n1Mode = false; // rated-N1 reversion: thrust is set on fan speed instead of EPR (used when EPR sensing is lost)
+    this.clearStart();
+    this.starterHeat = 0; this.starterFailed = ''; this.starterLimit = false; this._overspeedT = 0;
+    this.startCount = 0; this._modePrev = this.mode;
+  }
+  /** Start-sequence memory: latched faults, purge, continuous relight. */
+  clearStart() {
+    this.startFault = ''; this.manFault = ''; this.svNotOpen = false; this.svNotClosed = false; this._valveStuck = false;
+    this._wetCranked = false; this._purgeWait = false; this._purgeT = null; this.contIgn = false; this.dryAfter = false; this._hungT = 0;
+    this.ecam = []; this.valveOpen = false; this.ignSel = '';
   }
 
   /** Fan speed that gives the selected rating's take-off thrust at sea level (fitted to this model). */
@@ -93,8 +106,10 @@ export class Fadec {
 
   /** Back to cold and dark: switches off, manual overrides released, start sequence forgotten. */
   reset() {
-    this.master = false; this.manStart = false; this.tla = 0;
+    this.master = false; this.manStart = false; this.tla = 0; this.mode = 'norm'; this.apuBleed = true; this._modePrev = 'norm';
     for (const k of Object.keys(this.ovr)) this.ovr[k] = null;
+    for (const k of Object.keys(this.faults)) this.faults[k] = false;
+    this.clearStart(); this.starterHeat = 0; this.starterFailed = ''; this.starterLimit = false; this._overspeedT = 0;
     this.phase = 'off'; this.wf = 0; this.msg = ''; this.timer = 0; this.surgeHold = 0; this.limiter = ''; this.cutout = false;
     this._prevN2 = 0; this._evIdx = 0;
   }
@@ -115,53 +130,113 @@ export class Fadec {
     if (this.surgeHold > 0) this.surgeHold -= dt;
 
     // ---------------- start / run state machine
-    let ign = false, starter = false, fuelOn = false;
-    const idle = this.idleN2(o);
+    // Follows the Airbus A320 training manual (IAE V2500, ATA 80): automatic start with MODE at IGN/START
+    // and MASTER ON (30 s of motoring, then fuel and one igniter, start valve closed at 43 % N2); manual
+    // start with MAN START then MASTER ON (both igniters, no automatic abort); dry and wet crank with
+    // MODE at CRANK. Below 50 % N2 an automatic start is aborted for a start valve fault, ignition
+    // fault, EGT overlimit, stall or hung start: fuel and ignition off, dry motoring, then MASTER OFF.
+    let ign = false, starter = false, fuelOn = false, sched = null, ignSel = '';
+    const idle = this.idleN2(o), F = this.faults;
+    const abort = (what, dry) => { this.startFault = what; this.phase = 'abort'; this.timer = 0; this.dryAfter = dry; };
+    const running = this.phase === 'run' || (o.lit && n2 > idle - 4 && this.phase !== 'abort' && this.phase !== 'aborted');
     if (!this.master) {
-      this.phase = this.manStart ? 'crank' : 'off';
-      starter = this.manStart && n2 < LIMITS.STARTER_CUTOUT_N2;
-      this.msg = this.manStart ? 'DRY CRANK' : '';
-      this.timer = 0;
-    } else {
+      // MASTER OFF shuts the LP and HP fuel valves and resets a start fault. MAN START motors the engine (dry crank).
+      if (this.startFault || this.manFault) { this.startFault = ''; this.manFault = ''; }
+      if (this._wetCranked && !this._purgeWait && this._purgeT === null) this._purgeWait = true;  // after a wet crank the EEC closes the valve...
+      if (this._purgeWait && n2 < 10) { this._purgeWait = false; this._purgeT = 0; }               // ...and reopens it below 10 % N2 for a 60 s dry crank
+      const purging = this._purgeT !== null && this.mode !== 'norm';
+      starter = purging || (this.manStart && this.mode !== 'norm' && !this._purgeWait && (n2 < LIMITS.STARTER_CUTOUT_N2 || this.mode === 'crank'));
+      if (purging) { this._purgeT += dt; if (this._purgeT >= 60) { this._purgeT = null; this._wetCranked = false; } }
+      if (this.mode === 'norm' && !this._purgeWait) { this._purgeT = null; }
+      this.phase = starter ? 'crank' : 'off';
+      this.msg = this._purgeWait ? 'START VALVE CLOSED - PURGE AFTER WET CRANK' : starter ? (this._purgeT !== null ? 'DRY CRANK - PURGING FUEL' : 'DRY CRANK') : '';
+      this.timer = 0; this.cutout = false; this.contIgn = false;
+    } else if (running && this.phase !== 'manual' || this.phase === 'run') {
+      this.phase = 'run'; fuelOn = true; this.msg = '';
+      // continuous relight: IGN/START reselected with the engine running gives both igniters
+      if (this.mode === 'ign' && this._modePrev !== 'ign') this.contIgn = true;
+      if (this.mode !== 'ign') this.contIgn = false;
+      if (this.contIgn) { ign = true; ignSel = 'A+B'; this.msg = 'CONTINUOUS RELIGHT'; }
+      if (!o.lit) { ign = true; ignSel = 'A+B'; this.msg = 'FLAME OUT - AUTO RELIGHT'; if (n2 < 30) { this.phase = 'crank'; this.timer = START_CRANK_S; } }
+      if (this.surgeHold > 0) { ign = true; ignSel = 'A+B'; this.msg = 'ENGINE STALL'; }
+    } else if (this.mode === 'crank') {
+      // wet crank: fuel with ignition inhibited (MAN START in, MASTER ON above 20 % N2)
+      starter = this.manStart; fuelOn = this.manStart && n2 > 10; sched = 'lightup';
+      this.phase = 'wetcrank'; this.msg = fuelOn ? 'WET CRANK' : 'DRY CRANK';
+      if (fuelOn) this._wetCranked = true;
+    } else if (this.mode === 'ign' && this.manStart && this.phase !== 'abort' && this.phase !== 'aborted') {
+      // manual start: both igniters and fuel as soon as MASTER is ON; the EEC still closes the start valve at 43 % N2
+      if (this.phase !== 'manual') { this.phase = 'manual'; this.timer = 0; this.cutout = false; this.manFault = ''; }
+      if (n2 >= LIMITS.STARTER_CUTOUT_N2) this.cutout = true;
+      starter = !this.cutout; ign = !this.cutout; ignSel = ign ? 'A+B' : ''; fuelOn = true; sched = o.lit ? 'accel' : 'lightup'; this.timer += dt;
+      if (egtC > LIMITS.EGT_START) this.manFault = 'EGT OVERLIMIT';
+      if (!o.lit && this.timer > 20) this.manFault = 'IGNITION FAULT';
+      this.msg = 'MANUAL START';
+      if (o.lit && n2 >= idle - 1) this.phase = 'run';
+    } else if (this.mode === 'ign') {
+      if (this.phase === 'manual') this.phase = o.lit ? 'accel' : 'off'; // MAN START released part way: the EEC carries on automatically
       switch (this.phase) {
-        case 'off':
+        case 'off': case 'wetcrank':
+          this.phase = 'crank'; this.timer = 0; this.startCount++;
+        // falls through
         case 'crank':
-          if (o.lit && n2 > idle - 4) { this.phase = 'run'; break; }
-          starter = true; this.cutout = false;
-          ign = n2 >= LIMITS.MIN_START_N2;
-          this.msg = 'START VALVE OPEN';
-          this.timer += dt;
+          starter = true; this.cutout = false; this.timer += dt; this.msg = 'START VALVE OPEN';
+          if (F.svNoOpen && this.timer > 6 && n2 < 5) { this.svNotOpen = true; abort('START VALVE NOT OPEN', false); break; }
           if (this.timer >= START_CRANK_S && n2 > 15) { this.phase = 'lightup'; this.timer = 0; }
+          else if (this.timer > 60) this.msg = 'N2 BELOW 16 % - CHECK STARTER AIR PRESSURE'; // fuel waits for the motoring speed
           break;
         case 'lightup':
-          starter = true; ign = true; fuelOn = true;
-          this.msg = 'IGNITION - FUEL ON';
-          this.timer += dt;
-          if (o.lit) { this.phase = 'accel'; this.timer = 0; }
-          else if (this.timer > 15) { this.phase = 'abort'; this.msg = 'NO LIGHT-UP - START ABORTED'; this.timer = 0; }
+          starter = true; ign = true; fuelOn = true; sched = 'lightup'; this.timer += dt; this.msg = 'IGNITION - FUEL ON';
+          if (o.lit) { this.phase = 'accel'; this.timer = 0; this._hungT = 0; }
+          else if (this.timer > 15 && this.prot.startAbort) abort('IGNITION FAULT', true);
           break;
-        case 'accel':
+        case 'accel': {
           if (n2 >= LIMITS.STARTER_CUTOUT_N2) this.cutout = true; // latched: the starter is not re-engaged
-          starter = !this.cutout; ign = starter; fuelOn = true;
-          this.msg = 'STARTING';
-          this.timer += dt;
+          starter = !this.cutout; ign = starter; fuelOn = true; sched = 'accel'; this.timer += dt; this.msg = 'STARTING';
+          this._hungT = n2dot < 0.12 && n2 < idle - 2 ? this._hungT + dt : 0;
+          const canAbort = n2 < 50 && this.prot.startAbort;
           if (!o.lit) { this.phase = 'lightup'; this.timer = 0; }
-          if (egtC > LIMITS.EGT_START && this.prot.startAbort) { this.phase = 'abort'; this.msg = 'HOT START - ABORTED'; this.timer = 0; }
+          else if (canAbort && this.surgeHold > 0) abort('STALL', true);
+          else if (canAbort && egtC > LIMITS.EGT_START) abort('EGT OVERLIMIT', true);
+          else if (canAbort && this._hungT > 10 && this.timer > 15) abort('HUNG START', true);
           else if (n2 >= idle - 1) { this.phase = 'run'; this.msg = ''; }
-          else if (this.timer > 90) this.msg = 'HUNG START';
+          else if (this._hungT > 10) this.msg = 'HUNG START';
           break;
+        }
         case 'abort':
-          // fuel off, dry crank to cool, then wait for master to be cycled
+          // fuel and ignition off, about 30 s of dry motoring to clear fuel and cool the engine, then the start is aborted
           this.timer += dt;
-          starter = this.timer < 30 && n2 < LIMITS.STARTER_CUTOUT_N2;
+          starter = this.dryAfter && this.timer < 30 && n2 < LIMITS.STARTER_CUTOUT_N2;
+          if (this.timer >= (this.dryAfter ? 30 : 1)) this.phase = 'aborted';
           break;
-        case 'run':
-          fuelOn = true;
-          this.msg = '';
-          if (!o.lit) { ign = true; this.msg = 'FLAME OUT - AUTO RELIGHT'; if (n2 < 30) this.phase = 'crank'; }
-          if (this.surgeHold > 0) { ign = true; this.msg = 'ENGINE STALL'; }
-          break;
+        case 'aborted':
+          break; // the crew sets MASTER OFF
       }
+      if (ign && !ignSel) ignSel = this.startCount % 2 ? 'A' : 'B'; // automatic starts alternate between igniters
+    } else {
+      this.phase = 'off'; this.msg = 'SET MODE TO IGN/START'; // MASTER ON in NORM with the engine stopped: nothing to schedule
+    }
+    this._modePrev = this.mode;
+
+    // ---------------- start valve, igniters and the starter itself
+    if (F.svNoClose && starter) this._valveStuck = true;            // once open it cannot be closed
+    let valve = (starter || this._valveStuck) && !F.svNoOpen;
+    if (!F.svNoClose) this._valveStuck = false;
+    if (this._valveStuck && (this.cutout || this.phase === 'run')) this.svNotClosed = true;
+    if (!this._valveStuck) this.svNotClosed = false;
+    const sparkOk = ign && ((ignSel.includes('A') && !F.ignA) || (ignSel.includes('B') && !F.ignB) || ignSel === '');
+    this.ignSel = ign ? ignSel || 'A+B' : '';
+    // Air starter limits (training manual): 4 min continuous then 30 min off to cool, so heat builds at 1/s
+    // while it turns and falls at 1/7.5 s. Past the limit the ECAM warns but nothing aborts; far past it the
+    // starter is wrecked. With the valve held open above about 50 % N2 the engine has outrun the starter: the
+    // clutch overruns and the turbine spins unloaded on bleed air, so it overspeeds and fails in about 90 s.
+    const turning = (this.ovr.starter != null ? this.ovr.starter : valve) && !this.starterFailed && this.apuBleed;
+    this.starterHeat = Math.max(0, this.starterHeat + (turning ? dt : -dt / 7.5));
+    if (this.starterHeat > 240) this.starterLimit = true; else if (this.starterHeat < 120) this.starterLimit = false;
+    this._overspeedT = turning && n2 > 50 ? this._overspeedT + dt : Math.max(0, this._overspeedT - dt);
+    if (!this.starterFailed && (this.starterHeat > 480 || this._overspeedT > 90)) {
+      this.starterFailed = this._overspeedT > 90 ? 'OVERSPEED' : 'OVERHEAT';
+      eng.events.push({ t: eng.s.t, type: 'starter-failure' });
     }
 
     // ---------------- fuel metering
@@ -173,9 +248,9 @@ export class Fadec {
     let wf = 0;
     this.limiter = '';
     if (fuelOn) {
-      if (this.phase === 'lightup') {
+      if (sched === 'lightup') {
         wf = Math.max(0.033, 0.03 * p3bar);
-      } else if (this.phase === 'accel') {
+      } else if (sched === 'accel') {
         // open-loop start schedule trimmed by EGT
         const trim = clamp((LIMITS.EGT_START - 15 - egtC) / 40, 0.55, 1);
         wf = Math.max(0.03, ruAcc * p3bar * trim);
@@ -220,7 +295,18 @@ export class Fadec {
     if (this.surgeHold > 0) b7 = 3;
     const b10 = n2c < 50 && this.phase !== 'run' ? 1 : 0;
 
-    this.auto = { fuel: wf, ignition: ign, starter, vsv: o.vsvSched, bleed25: b25, bleed7: b7, bleed10: b10 };
+    this.auto = { fuel: wf, ignition: ign, starter: valve, vsv: o.vsvSched, bleed25: b25, bleed7: b7, bleed10: b10 };
+
+    // ---------------- ECAM messages (wording as in the training manual)
+    const ecam = [];
+    if (this.startFault) ecam.push({ title: 'ENG 1 START FAULT', line: this.startFault + (this.phase === 'aborted' ? ' · MASTER OFF' : ' · START ABORTED'), level: 'caution' });
+    if (this.manFault && this.phase === 'manual') ecam.push({ title: 'ENG 1 START FAULT', line: this.manFault + ' · MASTER OFF', level: 'caution' });
+    if (this.svNotClosed) ecam.push({ title: 'ENG 1 START VALVE FAULT', line: 'START VALVE NOT CLOSED · MASTER OFF · NO RESTART', level: 'caution' });
+    if (this.starterFailed) ecam.push({ title: 'ENG 1 STARTER FAULT', line: this.starterFailed === 'OVERSPEED' ? 'STARTER OVERSPEED - FAILED' : 'STARTER OVERHEAT - FAILED', level: 'caution' });
+    else if (this.starterLimit) ecam.push({ title: 'ENG 1 STARTER', line: 'DUTY CYCLE EXCEEDED · ALLOW 30 MIN TO COOL', level: 'caution' });
+    this.ecam = ecam;
+    if (ecam.length) this.msg = `${ecam[0].title} - ${ecam[0].line}`;
+    this.valveOpen = this.ovr.starter != null ? this.ovr.starter : valve;
 
     // ---------------- apply, honouring manual overrides
     const ov = this.ovr;
@@ -228,8 +314,8 @@ export class Fadec {
     // makes a fully manual start possible; the UI drops manual fuel when the master is switched off.
     u.wfCmd = ov.fuel != null ? ov.fuel : this.master ? wf : 0;
     if (ov.fuel != null) this.wf = ov.fuel; // bumpless transfer back to auto
-    u.ignition = ov.ignition != null ? ov.ignition : ign;
-    u.starterValve = ov.starter != null ? ov.starter : starter;
+    u.ignition = ov.ignition != null ? ov.ignition : sparkOk;
+    u.starterValve = (ov.starter != null ? ov.starter : valve) && !this.starterFailed && this.apuBleed;
     u.vsv = ov.vsv; // null -> schedule
     u.bleed25 = ov.bleed25 != null ? ov.bleed25 : b25;
     u.bleed7 = ov.bleed7 != null ? ov.bleed7 : b7;

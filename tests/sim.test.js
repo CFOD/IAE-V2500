@@ -5,7 +5,7 @@ import { Engine } from '../src/sim/engine.js';
 import { Fadec, ratedThrustN } from '../src/sim/fadec.js';
 import { DESIGN, ICAO_V2527, ICAO } from '../src/sim/v2500.js';
 
-function rig() { const e = new Engine(); const f = new Fadec(e); return { e, f }; }
+function rig() { const e = new Engine(); const f = new Fadec(e); f.mode = 'ign'; return { e, f }; }
 function run(e, f, T, each) { const dt = 1 / 60; for (let t = 0; t < T; t += dt) { f.update(dt); e.step(dt); if (each) each(e.out, t); } }
 const surges = (e) => e.events.filter((x) => x.type.startsWith('surge')).length;
 function idling() { const r = rig(); r.f.master = true; run(r.e, r.f, 100); return r; }
@@ -238,4 +238,55 @@ test('oil system: cooler air valve stuck shut overheats the oil at idle, not at 
   const hot = e.out.oilT; assert.ok(hot < 150, `take-off: fuel cooling is enough (${hot})`);
   f.tla = 0; run(e, f, 2400); // the oil and its metalwork take many minutes to heat up
   assert.ok(e.out.oilT > 150, `idle: oil overheats (${e.out.oilT})`);
+});
+
+// ---------------------------------------------------------------- start panel (A320: ENG MODE, MAN START, MASTER)
+const auto = (setup) => { const r = rig(); if (setup) setup(r.f, r.e); r.f.master = true; return r; };
+
+test('automatic start alternates igniters; an igniter fault aborts with a dry crank, then MASTER OFF', () => {
+  const { e, f } = auto((f) => { f.faults.ignA = true; });
+  let fuelOff = null;
+  run(e, f, 50, (o, t) => { if (fuelOff == null && f.phase === 'abort') fuelOff = t; });
+  assert.equal(f.startFault, 'IGNITION FAULT'); assert.ok(!e.out.lit);
+  assert.ok(fuelOff > 44 && fuelOff < 47, `no light 15 s after fuel on: ${fuelOff}`);
+  assert.ok(e.u.wfCmd === 0 && !e.u.ignition && e.u.starterValve, 'fuel and ignition off, motoring to clear the fuel');
+  run(e, f, 35);
+  assert.ok(f.phase === 'aborted' && !e.u.starterValve && f.ecam[0].line.includes('MASTER OFF'));
+  f.master = false; run(e, f, 30); assert.ok(!f.startFault && !f.ecam.length, 'MASTER OFF resets the fault');
+  f.master = true; run(e, f, 70);
+  assert.ok(e.out.lit && f.phase === 'run', 'second start uses igniter B and lights');
+});
+
+test('start valve faults: not open aborts at once; stuck open warns and wrecks the starter unless the bleed is shut', () => {
+  const a = auto((f) => { f.faults.svNoOpen = true; }); run(a.e, a.f, 10);
+  assert.ok(a.f.phase === 'aborted' && a.f.startFault === 'START VALVE NOT OPEN' && a.e.out.N2pct < 0.5);
+  const b = auto((f) => { f.faults.svNoClose = true; }); run(b.e, b.f, 70);
+  assert.ok(b.f.phase === 'run' && b.f.svNotClosed && b.e.u.starterValve && b.f.ecam.some((m) => m.title === 'ENG 1 START VALVE FAULT'));
+  run(b.e, b.f, 70); assert.equal(b.f.starterFailed, 'OVERSPEED');
+  const c = auto((f) => { f.faults.svNoClose = true; }); run(c.e, c.f, 70); c.f.apuBleed = false; run(c.e, c.f, 70);
+  assert.ok(!c.f.starterFailed && !c.e.u.starterValve, 'APU BLEED off removes the air');
+});
+
+test('manual start: both igniters, no automatic abort; crank mode: dry and wet crank, then the 60 s purge', () => {
+  const { e, f } = rig(); f.manStart = true; run(e, f, 25); assert.ok(e.out.N2pct > 20 && !e.out.lit && !e.u.ignition);
+  f.master = true; run(e, f, 40);
+  assert.ok(e.out.lit && f.phase === 'run' && !e.u.starterValve, `manual start: ${f.phase} N2 ${e.out.N2pct}`);
+  const m = rig(); m.f.faults.ignA = m.f.faults.ignB = true; m.f.manStart = true; run(m.e, m.f, 25); m.f.master = true; run(m.e, m.f, 30);
+  assert.ok(m.f.manFault === 'IGNITION FAULT' && m.e.u.wfCmd > 0 && m.f.phase === 'manual', 'manual mode does not abort: the crew must');
+  const w = rig(); w.f.mode = 'crank'; w.f.manStart = true; run(w.e, w.f, 25); w.f.master = true; run(w.e, w.f, 15);
+  assert.ok(!w.e.out.lit && w.e.u.wfCmd > 0 && !w.e.u.ignition, 'wet crank: fuel, ignition inhibited');
+  w.f.master = false; w.f.manStart = false; run(w.e, w.f, 3);
+  assert.ok(!w.e.u.starterValve, 'valve closed while N2 runs down');
+  let reopened = null, closed = null;
+  run(w.e, w.f, 90, (o, t) => { if (reopened == null && w.e.u.starterValve) reopened = { t, n2: o.N2pct }; if (reopened && closed == null && !w.e.u.starterValve) closed = t; });
+  assert.ok(reopened && reopened.n2 < 10.2, `the EEC reopens the start valve below 10 % N2: ${JSON.stringify(reopened)}`);
+  assert.ok(closed - reopened.t > 59 && closed - reopened.t < 62, `purge lasts 60 s: ${closed - reopened.t}`);
+});
+
+test('continuous ignition on IGN/START reselection; the starter duty limit warns without aborting', () => {
+  const { e, f } = idling(); f.mode = 'norm'; run(e, f, 1); assert.ok(!e.u.ignition);
+  f.mode = 'ign'; run(e, f, 1); assert.ok(f.contIgn && e.u.ignition && f.ignSel === 'A+B');
+  f.mode = 'norm'; run(e, f, 1); assert.ok(!e.u.ignition);
+  const c = rig(); c.f.mode = 'crank'; c.f.manStart = true; c.f.starterHeat = 235; run(c.e, c.f, 10);
+  assert.ok(c.f.starterLimit && c.e.u.starterValve && c.f.ecam.some((m) => m.title === 'ENG 1 STARTER'));
 });
