@@ -46,6 +46,21 @@ edge and go to `...B__full` objects; the cut ends get the section material. Dens
 packed into the bays between ribs by a small occupancy map so they do not overlap. Everything that
 reaches the core crosses the bypass duct inside the lower bifurcation.
 
+Large ducts get V-band joints with T-bolt latches, bellows convolutions, inline valve bodies with
+actuators, band-clamp stand-offs and bolted ports where they leave a casing:
+
+- **Starter air**: from the pylon round the back of the fan case (behind the air-cooled oil cooler),
+  forward through the starter air valve, then on to the starter on the gearbox.
+- **Nacelle anti-ice**: out of a flanged port on the fan case, forward through the anti-ice valve.
+- **Bleed air**: stage 7 and stage 10 ports on the HP compressor case; a check valve on the stage 7
+  duct and the HP valve on the stage 10 duct; they join and rise through the upper bifurcation
+  through the pressure regulating valve to the pylon.
+- **Active clearance control**: four spray rings on the HP turbine case and thirteen on the LP turbine
+  case, fed by risers from four axial headers and two collector rings, supplied by the two ACC
+  valves. They carry fan air, so they get a plain stainless finish instead of the heat tint.
+
+Tubes that go into a casing end in a cast boss with a hex union rather than stopping in mid-air.
+
 Conventions the loader understands:
 
 - **Node names** are `<component>_<piece>`. A node whose name ends in `__cut` is shown when the

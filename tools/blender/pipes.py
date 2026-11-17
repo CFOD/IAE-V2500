@@ -45,6 +45,9 @@ class Acc:
 
     def sweep(self, pts, radius, mat, sides=8, cap0=None, cap1=None, vlen=None, flat=False):
         """Tube along a list of Blender-space points. cap0/cap1: material for an end cap, or None."""
+        # repeated points (a sample lying exactly on a cutaway edge is used to end one piece and start the
+        # next) would give a zero tangent and collapse every ring of the tube to its centreline
+        pts = [q for i, q in enumerate(pts) if i == 0 or (q - pts[i - 1]).length > 1e-7]
         if len(pts) < 2: return
         m = self.mi(mat); n = sides; rings = []
         # parallel-transport frames
@@ -261,13 +264,44 @@ class Dresser:
 
     # ---------------------------------------------------------------- frames for fittings
     @staticmethod
+    def _up(p, t):
+        """Radial direction square to t; along the engine axis where the run itself is radial."""
+        rad = Vector((0, p.y, p.z)).normalized(); up = rad - t * rad.dot(t)
+        if up.length < 0.2:
+            ax = Vector((1, 0, 0)); up = ax - t * ax.dot(t)
+        return up.normalized()
+
+    @staticmethod
     def _frame(samples, i):
         p = samples[i][0]
         j0, j1 = max(0, i - 1), min(len(samples) - 1, i + 1)
         t = (samples[j1][0] - samples[j0][0]).normalized()
-        up = Vector((0, p.y, p.z)).normalized()
-        up = (up - t * up.dot(t)).normalized()
+        up = Dresser._up(p, t)
         return p, t, up, t.cross(up).normalized()
+
+    @staticmethod
+    def _arclen(s):
+        L = [0.0]
+        for i in range(1, len(s)): L.append(L[-1] + (s[i][0] - s[i - 1][0]).length)
+        return L
+
+    @staticmethod
+    def _at(s, L, d):
+        """Frame at arc length d along wrapped samples: (p, t, up, lat, th)."""
+        d = max(0.0, min(L[-1], d)); i = 1
+        while i < len(s) - 1 and L[i] < d: i += 1
+        f = (d - L[i - 1]) / max(L[i] - L[i - 1], 1e-9)
+        p = s[i - 1][0].lerp(s[i][0], f); th = s[i - 1][1] + (s[i][1] - s[i - 1][1]) * f
+        t = (s[i][0] - s[i - 1][0]).normalized(); up = Dresser._up(p, t)
+        return p, t, up, t.cross(up).normalized(), th
+
+    def boss(self, p, th, radius, boss_mat, nut_mat=None, depth=0.03, kind=''):
+        """Port where a tube enters a casing: a cast pad standing off the case and a hex union."""
+        rad = Vector((0, p.y, p.z)).normalized()
+        def f(a):
+            a.cyl(p - rad * depth, p + rad * 0.004, max(radius * 2.8, 0.011), boss_mat, 12)
+            a.cyl(p + rad * 0.004, p + rad * 0.015, max(radius * 1.8, 0.007), nut_mat or boss_mat, 6)
+        self._put(th, f, kind)
 
     # ---------------------------------------------------------------- public runs
     def tubes(self, R, way, n=1, d=0.024, radius=0.005, mat=None, clamp_mat=None, bracket_mat=None, nut_mat=None,
@@ -289,9 +323,9 @@ class Dresser:
                             last = L; p, t, up, lat = self._frame(s, i)
                             self._put(s[i][1], lambda a, p=p, t=t: a.cyl(p - t * 0.008, p + t * 0.008, radius * 1.9, nut_mat, 6), kind)
                 if end_boss is not None:
-                    for i in (0, len(s) - 1):
-                        p, t, up, lat = self._frame(s, i)
-                        self._put(s[i][1], lambda a, p=p, up=up: a.cyl(p - up * 0.006, p + up * 0.01, radius * 2.6, boss_mat or nut_mat or mat, 10), kind)
+                    eb = end_boss if isinstance(end_boss, (list, tuple)) else (end_boss, end_boss)
+                    for i, on in ((0, eb[0]), (len(s) - 1, eb[1])):
+                        if on: self.boss(s[i][0], s[i][1], radius, boss_mat or nut_mat or mat, nut_mat, kind=kind)
         if clamp_mat is None: return
         radius = max(radii); width = (n - 1) * d + 2 * radius + 0.012; depth = layers * d * 0.95 + 0.004
         L = 0.0; last = -clamp_every * 0.5
@@ -339,27 +373,81 @@ class Dresser:
                 p, t, up, lat = self._frame(s, i); sgn = -1 if i == 0 else 1
                 self._put(s[i][1], lambda a, p=p, t=t, sgn=sgn: (a.cyl(p, p + t * sgn * 0.03, radius * 1.7, conn_mat, 12), a.cyl(p + t * sgn * 0.03, p + t * sgn * 0.042, radius * 2.0, conn_mat, 12)), kind)
 
-    def duct(self, R, way, radius, mat, flange_mat=None, rb=0.12, joints=(), bellows=(), kind=''):
-        """Large bleed / cooling duct: smooth bends, V-band flanges at joints, optional bellows."""
+    def duct(self, R, way, radius, mat, flange_mat=None, rb=0.12, joints=(), bellows=(), kind='', ends=(True, True),
+             ports=(False, False), port_mat=None, valves=(), supports=0.0, support_mat=None):
+        """Large bleed / cooling / starter duct: smooth bends, V-band joints with T-bolt latches, bellows
+        convolutions, inline valve bodies with actuators, stand-off supports, flanged ports on the casing.
+        joints / bellows / valves are given as fractions of the duct length.
+        valves: [(f, length, body_scale, body_mat, actuator_mat or None)]"""
         s = self.path(R, way, 0.0, 0.0, rb, rb_dive=rb * 0.8)
-        self._emit_sweep(s, radius, mat, 16, kind)
+        self._emit_sweep(s, radius, mat, 18, kind)
         if not flange_mat: return
-        L = [0.0]
-        for i in range(1, len(s)): L.append(L[-1] + (s[i][0] - s[i - 1][0]).length)
-        tot = L[-1]
-        def at(f):
-            target = f * tot
-            for i in range(1, len(s)):
-                if L[i] >= target: return i
-            return len(s) - 1
-        for f in list(joints) + [0.0, 1.0]:
-            i = at(f); p, t, up, lat = self._frame(s, i)
-            self._put(s[i][1], lambda a, p=p, t=t: (a.cyl(p - t * 0.009, p + t * 0.009, radius * 1.18, flange_mat, 20), a.cyl(p - t * 0.004, p + t * 0.004, radius * 1.26, flange_mat, 20)), kind)
+        L = self._arclen(s); tot = L[-1]
+        put = lambda th, fn: self._put(th, fn, kind)
+
+        def vband(d):
+            p, t, up, lat, th = self._at(s, L, d)
+            def f(a):
+                for sg in (-1, 1): a.cyl(p + t * sg * 0.0022, p + t * sg * 0.0085, radius * 1.16, flange_mat, 20)
+                a.sweep([p - t * 0.0065, p + t * 0.0065], radius * 1.22, flange_mat, 20, flange_mat, flange_mat)
+                c = p + up * radius * 1.28
+                a.box(c, t, lat, up, 0.015, 0.03, 0.012, flange_mat)                                  # T-bolt latch
+                a.cyl(c - lat * 0.024, c + lat * 0.024, 0.0032, flange_mat, 6)
+            put(th, f)
+        for fj in joints: vband(fj * tot)
+        for k, on in enumerate(ends):
+            if on and not ports[k]: vband(tot - 0.008 if k else 0.008)
+        for k, on in enumerate(ports):
+            if not on: continue
+            p, t, up, lat, th = self._at(s, L, 0.0 if k == 0 else tot)
+            rad = Vector((0, p.y, p.z)).normalized()
+            def pf(a, p=p, rad=rad):
+                a.cyl(p - rad * 0.03, p + rad * 0.006, radius * 1.75, port_mat or flange_mat, 20)        # cast port pad
+                a.cyl(p + rad * 0.006, p + rad * 0.016, radius * 1.32, flange_mat, 20)                    # bolted flange
+                ax = rad.orthogonal().normalized(); bx = rad.cross(ax)
+                for b in range(8):
+                    q = p + rad * 0.016 + (ax * math.cos(b * TAU / 8) + bx * math.sin(b * TAU / 8)) * radius * 1.18
+                    a.cyl(q, q + rad * 0.006, 0.0042, flange_mat, 6)
+            put(th, pf)
         for f0, f1 in bellows:
-            i0, i1 = at(f0), at(f1)
-            for i in range(i0, i1 + 1, 1):
-                p, t, up, lat = self._frame(s, i)
-                self._put(s[i][1], lambda a, p=p, t=t: a.cyl(p - t * 0.004, p + t * 0.004, radius * 1.1, flange_mat, 16), kind)
+            d0, d1 = f0 * tot, f1 * tot; n = max(4, int((d1 - d0) / 0.0105))
+            for e in (d0, d1):
+                p, t, up, lat, th = self._at(s, L, e)
+                put(th, lambda a, p=p, t=t: a.cyl(p - t * 0.006, p + t * 0.006, radius * 1.08, flange_mat, 20))
+            for k in range(1, n):
+                p, t, up, lat, th = self._at(s, L, d0 + (d1 - d0) * k / n)
+                put(th, lambda a, p=p, t=t: (a.cyl(p - t * 0.0032, p + t * 0.0032, radius * 1.15, flange_mat, 20),
+                                             a.cyl(p - t * 0.0016, p + t * 0.0016, radius * 1.19, flange_mat, 20)))
+        for fv, length, sc, body_mat, act_mat in valves:
+            p, t, up, lat, th = self._at(s, L, fv * tot)
+            def vf(a, p=p, t=t, up=up, lat=lat, length=length, sc=sc, body_mat=body_mat, act_mat=act_mat):
+                a.sweep([p - t * length / 2, p - t * length * 0.3, p + t * length * 0.3, p + t * length / 2], radius * sc, body_mat, 20, body_mat, body_mat)
+                for sg in (-1, 1): a.cyl(p + t * sg * (length / 2 - 0.004), p + t * sg * (length / 2 + 0.006), radius * sc * 1.1, flange_mat, 20)
+                if act_mat:
+                    c = p + up * (radius * sc + 0.034)
+                    a.cyl(p + up * radius * sc * 0.9, c - up * 0.02, 0.012, body_mat, 10)                    # bonnet
+                    a.box(c, t, lat, up, 0.075, 0.06, 0.05, act_mat)                                           # actuator
+                    a.cyl(c + lat * 0.03, c + lat * 0.045, 0.012, flange_mat, 10)                              # electrical connector
+                    a.box(c + up * 0.03, t, lat, up, 0.012, 0.03, 0.01, flange_mat)                            # position indicator
+            put(th, vf)
+        if supports and support_mat:
+            d = supports * 0.6
+            while d < tot - 0.1:
+                p, t, up, lat, th = self._at(s, L, d)
+                rad = Vector((0, p.y, p.z)).normalized()
+                hgt = self._height_above(R, p) - radius
+                if abs(t.dot(rad)) < 0.4 and 0.012 < hgt < 0.3:
+                    def sf(a, p=p, t=t, rad=rad, lat=t.cross(rad).normalized(), hgt=hgt):
+                        a.sweep([p - t * 0.008, p + t * 0.008], radius * 1.07, support_mat, 18, support_mat, support_mat)   # band clamp
+                        a.box(p - rad * (radius + hgt / 2), t, lat, rad, 0.012, 0.034, hgt, support_mat)              # stand-off
+                        a.box(p - rad * (radius + hgt - 0.002), t, lat, rad, 0.04, 0.05, 0.005, support_mat)          # foot
+                    put(th, sf)
+                d += supports
+
+    def ring(self, x, r, radius, mat, kind='', th0=-8.0):
+        """A full ring round the engine at station x (split at the cutaway sector edges)."""
+        smp = [(cyl_to_blender(x, th0 + 360.0 * k / 96, r), th0 + 360.0 * k / 96, False) for k in range(97)]
+        self._emit_sweep(smp, radius, mat, 8, kind)
 
     def hose(self, pts_cyl, radius, mat, end_mat=None, kind=''):
         """Flexible hose through cylindrical points [(x, th, r)], smooth (Catmull-Rom)."""

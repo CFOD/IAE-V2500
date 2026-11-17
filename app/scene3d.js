@@ -577,9 +577,9 @@ export class Scene3D {
     const run = (th, r0, mat, rad, x0 = 1.15, x1 = 2.9, wob = 6) => dress(this._pipe(ext, Array.from({ length: 9 }, (_, i) => { const f = i / 8, x = lerp(x0, x1, f); return [x, co(x) + r0 + 0.012 * Math.sin(f * 9 + th), th + wob * Math.sin(f * 5 + th * 0.1)]; }), rad, mat));
     [[130, 0.075, pipeSteel, 0.011], [150, 0.07, pipeGold, 0.008], [172, 0.085, harness, 0.013, 0.5], [200, 0.07, pipeSteel, 0.016, 1.5, 2.7], [225, 0.075, harness, 0.009], [246, 0.08, pipeSteel, 0.01], [268, 0.07, pipeGold, 0.007, 1.3, 2.2], [292, 0.085, pipeSteel, 0.014, 1.6, 3.0], [316, 0.07, harness, 0.011, 0.5], [338, 0.075, pipeSteel, 0.009]].forEach((a) => run(...a));
     // turbine case cooling manifolds (active clearance control): a cage of tube rings round the LPT
-    for (let k = 0; k < 20; k++) { const x = 2.25 + k * 0.038, rr = co(x) + 0.05; this._solid(ext, [[x - 0.0045, rr], [x - 0.0045, rr + 0.009], [x + 0.0045, rr + 0.009], [x + 0.0045, rr]], { seg: 72, mat: pipeSteel }); }
-    for (const th of [200, 290]) this._pipe(ext, Array.from({ length: 7 }, (_, i) => { const x = 2.24 + i * 0.125; return [x, co(x) + 0.075, th]; }), 0.016, pipeSteel);
-    for (const th of [150, 240, 330]) this._pipe(ext, Array.from({ length: 6 }, (_, i) => { const x = 2.3 + i * 0.135; return [x, co(x) + 0.09, th]; }), 0.014, pipeSteel);
+    for (let k = 0; k < 20; k++) { const x = 2.25 + k * 0.038, rr = co(x) + 0.05; dress(this._solid(ext, [[x - 0.0045, rr], [x - 0.0045, rr + 0.009], [x + 0.0045, rr + 0.009], [x + 0.0045, rr]], { seg: 72, mat: pipeSteel })); }
+    for (const th of [200, 290]) dress(this._pipe(ext, Array.from({ length: 7 }, (_, i) => { const x = 2.24 + i * 0.125; return [x, co(x) + 0.075, th]; }), 0.016, pipeSteel));
+    for (const th of [150, 240, 330]) dress(this._pipe(ext, Array.from({ length: 6 }, (_, i) => { const x = 2.3 + i * 0.135; return [x, co(x) + 0.09, th]; }), 0.014, pipeSteel));
     // a pigtail from the fuel manifold to every nozzle
     for (let k = 0; k < 20; k++) { const th = k * 18 + 9; this._pipe(noz, [[1.917, 0.43, th], [1.892, 0.468, th + 3], [1.862, 0.452, th + 6.5], [1.878, 0.405, th + 8]], 0.0045); }
     // more pipe runs: oil feed and scavenge, cooling air, sense lines
@@ -636,7 +636,7 @@ export class Scene3D {
       for (const th of [246, 258]) unit(ext, new THREE.BoxGeometry(0.17, 0.06, 0.11), pipeGold, 1.2, th, 0.33);
       // turbine case cooling: ACC actuator and the two large fan-air valves (LPT and HPT) feeding the perforated tubes
       unit(ext, new THREE.BoxGeometry(0.14, 0.07, 0.08), pipeGold, 2.12, 286, 0.14);
-      for (const [th, rr] of [[250, 0.05], [236, 0.045]]) { unit(ext, new THREE.CylinderGeometry(rr, rr, 0.24, 18).rotateZ(Math.PI / 2), pipeSteel, 2.2, th, 0.16); this._pipe(ext, [[2.3, co(2.3) + 0.16, th], [2.42, co(2.42) + 0.12, th + 2], [2.55, co(2.55) + 0.07, th + 3]], rr * 0.8, pipeSteel); }
+      for (const [th, rr] of [[250, 0.05], [236, 0.045]]) { unit(ext, new THREE.CylinderGeometry(rr, rr, 0.24, 18).rotateZ(Math.PI / 2), pipeSteel, 2.2, th, 0.16); dress(this._pipe(ext, [[2.3, co(2.3) + 0.16, th], [2.42, co(2.42) + 0.12, th + 2], [2.55, co(2.55) + 0.07, th + 3]], rr * 0.8, pipeSteel)); }
       // buffer air cooler (ACAC) low on the left of the turbine cases, and the EGT junction box underneath
       unit(ext, new THREE.BoxGeometry(0.26, 0.1, 0.16), pipeGold, 2.36, 152, 0.2);
       unit(ext, new THREE.BoxGeometry(0.12, 0.03, 0.08), pipeGold, 2.86, 186, 0.1);
@@ -646,17 +646,16 @@ export class Scene3D {
     const runT = (...a) => top(run(...a));
     [[-6, 0.078, pipeSteel, 0.011, 1.2, 2.9, 4], [6, 0.1, harness, 0.012, 0.5, 2.6, 3], [17, 0.075, pipeGold, 0.007, 1.3, 2.3, 5], [28, 0.098, pipeSteel, 0.009, 0.7, 2.95, 4], [39, 0.078, pipeSteel, 0.014, 1.5, 2.7, 3],
      [50, 0.1, pipeGold, 0.006, 1.2, 2.1, 5], [61, 0.075, harness, 0.01, 0.6, 2.9, 3], [72, 0.098, pipeSteel, 0.008, 1.7, 3.0, 4], [83, 0.078, pipeSteel, 0.012, 1.2, 2.5, 3], [94, 0.1, harness, 0.008, 0.9, 2.8, 4], [105, 0.075, pipeGold, 0.007, 1.4, 2.4, 5]].forEach((a) => runT(...a));
-    for (const th of [30, 90]) top(this._pipe(ext, Array.from({ length: 6 }, (_, i) => { const x = 2.3 + i * 0.135; return [x, co(x) + 0.09, th]; }), 0.014, pipeSteel));
+    for (const th of [30, 90]) dress(top(this._pipe(ext, Array.from({ length: 6 }, (_, i) => { const x = 2.3 + i * 0.135; return [x, co(x) + 0.09, th]; }), 0.014, pipeSteel)));
     // bleed air: stage 7 and stage 10 ducts rise from the HPC case, join at the pressure regulating valve and run up into the pylon
     const duct = new THREE.MeshStandardMaterial({ color: 0xb9bdc0, metalness: 1, roughness: 0.32, roughnessMap: T.brushed });
-    top(this._pipe(ext, [[1.62, co(1.62) + 0.03, 38], [1.6, 0.46, 34], [1.5, 0.6, 24], [1.35, 0.72, 14], [1.2, 0.86, 8], [1.12, 0.98, 6]], 0.045, duct));
-    top(this._pipe(ext, [[1.8, co(1.8) + 0.03, -32], [1.78, 0.44, -28], [1.68, 0.56, -18], [1.5, 0.66, -4], [1.4, 0.7, 8]], 0.034, duct));
-    top(this._pipe(ext, [[2.1, co(2.1) + 0.06, 20], [2.05, 0.52, 16], [1.8, 0.66, 10], [1.5, 0.78, 4], [1.3, 0.92, 2]], 0.022, pipeSteel)); // fuel feed from the pylon
+    dress(top(this._pipe(ext, [[1.62, co(1.62) + 0.03, 38], [1.6, 0.46, 34], [1.5, 0.6, 24], [1.35, 0.72, 14], [1.2, 0.86, 8], [1.12, 0.98, 6]], 0.045, duct)));
+    dress(top(this._pipe(ext, [[1.8, co(1.8) + 0.03, -32], [1.78, 0.44, -28], [1.68, 0.56, -18], [1.5, 0.66, -4], [1.4, 0.7, 8]], 0.034, duct)));
     dress(top(this._pipe(ext, [[0.9, 0.97, -4], [1.3, 0.8, -6], [1.9, 0.6, -10], [2.5, 0.52, -8]], 0.016, harness)));                              // main harness trunk
     for (const [x, th, rr, l] of [[1.5, 24, 0.062, 0.16], [1.66, -17, 0.05, 0.13], [1.3, 12, 0.07, 0.12]]) {                                // bleed valves and the precooler inlet flange
       const v = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, l, 20).rotateZ(Math.PI / 2), duct), r = x < 1.4 ? 0.76 : x < 1.6 ? 0.6 : 0.57;
-      v.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); top(this._reg(ext, v));
-      const act = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.06), harness); act.position.set(x, (r + rr + 0.035) * Math.cos(th * DEG), (r + rr + 0.035) * Math.sin(th * DEG)); act.rotation.x = th * DEG; top(this._reg(ext, act));
+      v.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); dress(top(this._reg(ext, v)));
+      const act = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.06), harness); act.position.set(x, (r + rr + 0.035) * Math.cos(th * DEG), (r + rr + 0.035) * Math.sin(th * DEG)); act.rotation.x = th * DEG; dress(top(this._reg(ext, act)));
     }
     { const pts = []; for (let th = -8; th < 112; th += 13) for (const x of [1.3, 1.62, 1.95, 2.3, 2.66, 2.92]) if (((th * 7 + x * 31 + 400) | 0) % 3 !== 0) pts.push([x, th]);
       const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.022, 0.07, 0.012), pipeSteel, pts.length), mm = new THREE.Matrix4();
@@ -971,8 +970,9 @@ export class Scene3D {
     const coreHeat = [2.0, 2.9, 0.45];
     const authoredFinish = (name, partId, casting) => {
       const tube = { tube_ss: FINISH.stainlessTube, tube_ti: { ...FINISH.titanium, scale: 10, bottom: 0.25 }, tube_cad: FINISH.cadmium, fitting: { ...FINISH.bareSteel, scale: 12 },
-        clamp_block: { ...FINISH.castBare, scale: 10, bump: 0.3 }, bracket: { ...FINISH.bareSteel, scale: 10 }, vband: { ...FINISH.bareSteel, scale: 8 }, duct: { ...FINISH.stainlessTube, scale: 4 } }[name];
-      if (tube) return partId === 'ext' ? { ...tube, heat: coreHeat } : tube;
+        clamp_block: { ...FINISH.castBare, scale: 10, bump: 0.3 }, bracket: { ...FINISH.bareSteel, scale: 10 }, vband: { ...FINISH.bareSteel, scale: 8 }, duct: { ...FINISH.stainlessTube, scale: 4 },
+        tube_acc: { ...FINISH.stainlessTube, scale: 9, grime: 0.22, streak: 0.2 } }[name];
+      if (tube) return partId === 'ext' && name !== 'tube_acc' ? { ...tube, heat: coreHeat } : tube;   // clearance-control tubes carry cool fan air
       return {
         cast: casting ? FINISH.castBare : FINISH.castPaint, steel: FINISH.bareSteel, gold: FINISH.chromate, dark: FINISH.darkBox, composite: FINISH.composite,
         primer: FINISH.primer, acoustic: FINISH.acoustic, clamp_red: FINISH.rubber, loom_band: FINISH.rubber, connector: FINISH.connector, firesleeve: FINISH.fireSleeve,

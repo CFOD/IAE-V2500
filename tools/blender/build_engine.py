@@ -327,8 +327,6 @@ def build():
     cap = cylinder('cap', th_pos(0.52, 128, 0.99), th_pos(0.52, 126.5, 1.0), 0.03, 0.03, gold)
     strap = [cylinder('strap', th_pos(0.52, a, 0.955), th_pos(0.52, a - 1.2, 0.955), 0.089, 0.089, steel) for a in (145, 134)]
     made.append(finish(join('fancase_oiltank', [tank, cap] + strap), 0))
-    # large duct wrapped round the case, top to bottom
-    made.append(tube('fancase_duct', [(0.86, a, 0.945 + 0.012 * math.sin(a / 9)) for a in range(114, 181, 6)] + [(0.8, 184, 0.95), (0.7, 186, 0.965)], 0.05, steel))
     # harness bundles and small pipes along the case
 
     # ---- accessory gearbox: a flat casting wrapped under the fan case, accessories fore and aft
@@ -342,7 +340,7 @@ def build():
     acc = [
         # air turbine starter: flanged body, V-band clamp, inlet scroll and air duct stub
         stack('starter', 0.36, 199, R, [(0.012, 0.07, 0.07), (0.02, 0.058, 0.058), (0.008, 0.066, 0.066), (0.1, 0.06, 0.055), (0.012, 0.064, 0.064), (0.07, 0.05, 0.04)], steel, -1),
-        tube('starterduct', [(0.2, 199, R), (0.2, 204, R + 0.02), (0.24, 214, R + 0.015), (0.4, 224, R + 0.01), (0.7, 232, R), (1.0, 250, R - 0.01), (1.15, 300, R - 0.01), (1.18, 350, R + 0.02)], 0.03, steel),
+        # (the starter air duct itself is routed in dressing.py, with its joints, bellows and supports)
         stack('startervalve', 0.42, 222, R + 0.01, [(0.012, 0.042, 0.042), (0.09, 0.05, 0.05), (0.012, 0.042, 0.042)], gold),
         # integrated drive generator: finned barrel with a terminal block
         stack('idg', 0.78, 197, R - 0.005, [(0.012, 0.075, 0.075), (0.03, 0.062, 0.062)] + [(0.008, 0.07 if k % 2 == 0 else 0.062, 0.07 if k % 2 == 0 else 0.062) for k in range(18)] + [(0.05, 0.062, 0.04)], cast),

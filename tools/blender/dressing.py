@@ -9,7 +9,7 @@ built the way real dressing is (parallel groups, concentric bends, clamps every 
 between the right end points.
 """
 import math
-from pipes import Dresser
+from pipes import Dresser, cyl_to_blender
 
 
 def smooth_bump(u):
@@ -47,6 +47,9 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
         'duct': material('duct', (0.82, 0.83, 0.84), 1.0, 0.3),
         'flange': material('vband', (0.66, 0.67, 0.68), 1.0, 0.32),
         'boss': material('cast', (0.56, 0.63, 0.7), 0.35, 0.5),
+        'valve': material('steel', (0.62, 0.64, 0.66), 0.9, 0.4),         # cast valve bodies
+        'act': material('gold', (0.8, 0.66, 0.3), 0.85, 0.35),            # chromated actuators
+        'acc': material('tube_acc', (0.8, 0.8, 0.79), 1.0, 0.3),           # clearance-control spray tubes: fan air inside, so no heat tint
     }
 
     # ------------------------------------------------------------------ surfaces the routes follow
@@ -63,7 +66,7 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
         for xf in (1.17, 1.5, 1.88, 2.21, 2.44): e = max(e, core_base(x) + 0.03 * smooth_bump((x - xf) / 0.03))
         e = max(e, r_at(P['coreOuter'], x) + 0.098 * plateau(x, 1.14, 1.37, 0.04))   # stator levers and unison rings
         e = max(e, (0.392 + 0.033 * smooth_bump((x - 2.05) / 0.03)) * plateau(x, 1.95, 2.16, 0.04))   # diffuser case and its flange
-        if x > 2.22: e = max(e, r_at(P['coreOuter'], x) + 0.068)
+        if x > 2.22: e = max(e, r_at(P['coreOuter'], x) + 0.084)   # clearance-control rings and headers
         return e
 
     absr = lambda x: 0.0  # routes given in absolute radius (crossing the bypass duct)
@@ -72,9 +75,10 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     C = Dresser('ext_dress', in_cut, section)
 
     def T(dr, R, way, n=1, d=0.022, radius=0.005, mat='ss', clamp=True, nuts=True, layers=1, rb=0.04, boss=False, every=0.2):
+        # boss: True (both ends), or (start, end) - the ends that go into a casing through a cast port
         dr.tubes(R, way, n=n, d=d, radius=radius, mat=[M[m] for m in mat] if isinstance(mat, (list, tuple)) else M[mat],
                  clamp_mat=M['clamp'] if clamp else None, bracket_mat=M['brk'], nut_mat=M['nut'] if nuts else None,
-                 layers=layers, rb=rb, end_boss=True if boss else None, boss_mat=M['boss'], clamp_every=every)
+                 layers=layers, rb=rb, end_boss=boss if boss else None, boss_mat=M['boss'], clamp_every=every)
 
     def H(dr, R, way, radius=0.009, bands=True, conn=(True, True), rb=0.05):
         dr.loom(R, way, radius=radius, mat=M['loom'], band_mat=M['band'] if bands else None, clamp_mat=M['red'], bracket_mat=M['brk'],
@@ -95,8 +99,16 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     T(D, fan, [(0.74, 236, 0.07), (0.71, 232, 0.02), (0.71, 214, 0.02), (0.71, 210, 0.06)], n=2, d=0.032, radius=0.011, mat='ss', rb=0.05)
     # pressure sense lines from the EEC forward over the top (P2, P12.5)
     T(D, fan, [(0.29, 300, 0.05), (0.255, 302, 0.018), (0.255, 349, 0.018), (0.145, 349, 0.018), (0.145, 358, 0.018), (0.0, 358, 0.03)], n=3, d=0.012, radius=0.003, mat='cad', rb=0.03)
-    # anti-ice duct with its joints
-    D.duct(fan_base, [(1.19, 328, 0.105), (0.95, 330, 0.105), (0.1, 334, 0.105), (-0.02, 334, 0.105)], 0.032, M['duct'], M['flange'], joints=(0.3, 0.7))
+    # Nacelle anti-ice: HP stage 7 air comes up through the fan frame and out of the fan case at a flanged
+    # port, then runs forward through the anti-ice valve (2 o'clock) to the inlet lip
+    D.duct(fan_base, [(1.04, 330, 0.0), (1.04, 330, 0.07), (0.96, 330, 0.105), (0.1, 334, 0.105), (-0.02, 334, 0.105)], 0.027, M['duct'], M['flange'],
+           rb=0.07, joints=(0.38, 0.8), ports=(True, False), port_mat=M['boss'], supports=0.3, support_mat=M['brk'])
+    # Air turbine starter supply: from the pylon at the top, round the back of the fan case behind the
+    # air-cooled oil cooler, forward to the starter air valve, then on to the starter on the gearbox
+    D.duct(fan_base, [(0.534, 222, 0.1), (1.135, 222, 0.1), (1.135, 330, 0.1), (1.19, 342, 0.124), (1.19, 356, 0.17)], 0.031, M['duct'], M['flange'],
+           rb=0.09, joints=(0.3, 0.58), bellows=((0.84, 0.9),), supports=0.28, support_mat=M['brk'])
+    D.duct(fan_base, [(0.138, 199, 0.0915), (0.09, 199, 0.0915), (0.09, 222, 0.1), (0.42, 222, 0.1)], 0.031, M['duct'], M['flange'],
+           rb=0.04, bellows=((0.62, 0.72),), supports=0.25, support_mat=M['brk'])
     # fire detection loop along the right side of the fan case (double element, on red clamps)
     for dd in (0.0, 0.012):
         D.loom(fan, [(0.36 + dd, 212, 0.012), (0.36 + dd, 352, 0.012)], radius=0.0028, mat=M['cad'], clamp_mat=M['red'], clamp_every=0.18, rb=0.03)
@@ -171,7 +183,40 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     H(C, core, [(2.1, 150, 0.05), (2.3, 152, 0.05)], radius=0.006, conn=(False, True), rb=0.03)                    # buffer air cooler sensor
     # turbine cooling air (stage 10) from the HPC to the HP turbine case, both sides
     for th in (215, 145):
-        T(C, core, [(1.8, th, 0.03), (1.86, th, 0.06), (2.28, th, 0.03)], n=1, radius=0.013, mat='ti', rb=0.06, boss=True)
+        T(C, core, [(1.8, th, 0.0), (1.86, th, 0.06), (2.19, th, 0.03)], n=1, radius=0.013, mat='ti', rb=0.06, boss=True)
+
+    # ================================================================== BLEED AIR to the aircraft
+    # Stage 7 (IP) and stage 10 (HP) ports on the HPC case. The IP duct has a check valve, the HP duct the
+    # HP valve; they join and rise through the upper bifurcation, through the pressure regulating valve,
+    # to the precooler in the pylon.
+    C.duct(core, [(1.58, 30, 0.0), (1.58, 30, 0.075), (1.58, 9, 0.075), (1.5, 3, 0.14), (1.5, 3, 0.57)], 0.038, M['duct'], M['flange'],
+           rb=0.07, joints=(0.18, 0.52), bellows=((0.6, 0.66),), ports=(True, False), port_mat=M['boss'],
+           valves=((0.33, 0.07, 1.22, M['valve'], None), (0.8, 0.12, 1.3, M['valve'], M['act'])))
+    C.duct(core, [(1.8, 332, 0.0), (1.8, 332, 0.08), (1.8, 352, 0.08), (1.62, 358, 0.1), (1.536, 1, 0.16)], 0.031, M['duct'], M['flange'],
+           rb=0.06, joints=(0.22, 0.78), ports=(True, False), port_mat=M['boss'], valves=((0.5, 0.11, 1.35, M['valve'], M['act']),))
+
+    # ================================================================== ACTIVE CLEARANCE CONTROL
+    # Fan air, metered by the two ACC valves, is sprayed onto the turbine cases from rings of perforated
+    # tube to shrink them onto the blade tips: four rings on the HP turbine, thirteen on the LP turbine,
+    # each fed from four axial headers and a collector ring.
+    co = lambda x: r_at(P['coreOuter'], x)
+    ring_r = lambda x: co(x) + 0.05
+    for x in [2.25, 2.29, 2.33, 2.37] + [2.48 + 0.04 * k for k in range(13)]:
+        C.ring(x, ring_r(x), 0.0065, M['acc'])
+    for x, rr in ((2.405, 0.013), (2.44, 0.016)):
+        C.ring(x, co(x) + 0.076, rr, M['acc'])
+    for x0, x1, xs in ((2.24, 2.405, [2.25, 2.29, 2.33, 2.37]), (2.44, 2.97, [2.48 + 0.04 * k for k in range(13)])):
+        for th in (45, 135, 225, 315):
+            C.tubes(ring_r, [(x0, th, 0.026), (x1, th, 0.026)], n=1, radius=0.011, mat=M['acc'], rb=0.03)
+            for x in xs:   # a short riser from the header into every ring, with a union nut
+                a = cyl_to_blender(x, th, ring_r(x)); b = cyl_to_blender(x, th, ring_r(x) + 0.026); m = a.lerp(b, 0.45)
+                C._put(th, lambda acc, a=a, b=b, m=m: (acc.cyl(a, b, 0.0045, M['acc'], 8), acc.cyl(m - (b - a).normalized() * 0.004, m + (b - a).normalized() * 0.004, 0.0075, M['nut'], 6)))
+            for x in (x0 + 0.03, (x0 + x1) / 2, x1 - 0.03):   # header brackets down to the case
+                q = cyl_to_blender(x, th, co(x) + 0.03); r2 = cyl_to_blender(x, th, ring_r(x) + 0.026)
+                C._put(th, lambda acc, q=q, r2=r2: acc.cyl(q, r2, 0.005, M['brk'], 6))
+    # supply ducts from the ACC valves (procedural units on the core at x 2.08-2.32) down to the collector rings
+    C.duct(core, [(2.32, 236, 0.076), (2.36, 236, 0.076), (2.405, 236, -0.008)], 0.028, M['acc'], M['flange'], rb=0.03)
+    C.duct(core, [(2.32, 250, 0.076), (2.38, 250, 0.076), (2.44, 250, -0.008)], 0.032, M['acc'], M['flange'], rb=0.03)
     # buffer air: HPC stage 12 -> air-cooled air cooler -> No. 4 compartment
     C.duct(core, [(1.84, 158, 0.04), (2.0, 158, 0.06), (2.3, 154, 0.06)], 0.018, M['duct'], M['flange'], rb=0.08, joints=(0.5,))
     # sense lines along the HPC (P3 to the EEC via the bifurcation, No. 4 bearing pressure)
@@ -241,7 +286,8 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
             jitter = lambda P: (P[0] + rng.uniform(-0.012, 0.012), P[1] + rng.uniform(-2.5, 2.5), P[2])
             way = route_fan(jitter(A), jitter(B), (n - 1) * d + 2 * r)
             if way is None: continue
-            T(D, fan, way, n=n, d=d, radius=r, mat=rng.choice(mats), rb=0.025 + 0.004 * n, every=0.2 + rng.uniform(0, 0.06))
+            T(D, fan, way, n=n, d=d, radius=r, mat=rng.choice(mats), rb=0.025 + 0.004 * n, every=0.2 + rng.uniform(0, 0.06),
+              boss=(A[2] <= 0.031, B[2] <= 0.031))   # low anchors are ports on the fan case itself
             made_n += 1
     # a few more harness branches on each side
     for A, B, r in (((0.765, 302, 0.045), (1.17, 250, 0.02), 0.008), ((0.765, 306, 0.045), (0.42, 220, 0.08), 0.006), ((0.27, 304, 0.05), (0.05, 330, 0.03), 0.006),
@@ -263,9 +309,11 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
         A, B = rng.sample(CA, 2)
         if abs(A[0] - B[0]) < 0.06 and abs(A[1] - B[1]) < 6: continue
         n = rng.choice([1, 1, 2, 2, 3]); r = rng.choice([0.0025, 0.003, 0.004, 0.005]); d = 2.2 * r + 0.006
-        way = route_core((A[0], A[1] + rng.uniform(-2, 2), A[2]), (B[0], B[1] + rng.uniform(-2, 2), B[2]), (n - 1) * d + 2 * r)
+        into_case = rng.random() < 0.4 and B[0] > 1.4   # a share of the lines end at a port in the casing
+        hb = 0.0 if into_case else B[2]
+        way = route_core((A[0], A[1] + rng.uniform(-2, 2), A[2]), (B[0], B[1] + rng.uniform(-2, 2), hb), (n - 1) * d + 2 * r)
         if way is None: continue
-        T(C, core, way, n=n, d=d, radius=r, mat=rng.choice(['ss', 'ti', 'ti', 'cad']), rb=0.025 + 0.004 * n, every=0.18)
+        T(C, core, way, n=n, d=d, radius=r, mat=rng.choice(['ss', 'ti', 'ti', 'cad']), rb=0.025 + 0.004 * n, every=0.18, boss=(False, into_case))
         made_n += 1
     for A, B, r in (((2.1, 220, 0.05), (1.6, 300, 0.04), 0.007), ((2.1, 160, 0.05), (1.36, 140, 0.07), 0.006), ((2.1, 280, 0.05), (2.08, 284, 0.06), 0.005),
                     ((2.1, 200, 0.05), (2.5, 220, 0.03), 0.006)):
