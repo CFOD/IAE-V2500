@@ -77,9 +77,25 @@ out) from flanges, V-band clamps, ports, plugs, sight glasses and connectors:
 - **Elsewhere**: the starter air valve in its duct, and the oil tank on saddles on the lower left of the
   fan case (filler, sight glass, quantity transmitter, supply and return ports for the gearbox lines).
 
-The space between the fan case and the fan cowl is smaller in this model than on the real engine, so the
-units are slimmer than the real ones. In the app each has a card with what it does, a live readout from
-the simulation, and its controls and faults.
+One table in `accessories.py` (`LAYOUT`) places every unit; the gearbox casting, the starter duct and the
+hydraulic, oil, fuel and cooler lines in `dressing.py` are aimed at the ports it gives, so moving a unit
+moves its plumbing. Units are drawn at their real size (IDG about 0.3 m wide, starter about 0.19 m across);
+connectors and fittings keep standard sizes. The nacelle is 2.24 m across round the fan cowl, which leaves
+the real room under the cowl. In the app each unit has a card with what it does, a live readout from the
+simulation, and its controls and faults.
+
+Units on the core, under the core cowl, are built the same way by `tools/blender/core_units.py`: the two
+ignition exciters (with high-tension leads to the igniter plugs), the VSV actuator with its crank shaft and
+the links to the four unison rings, the fuel distribution valve feeding the manifold pigtails, the two
+clearance-control valves with their fan-air inlets and fuel-pressure actuator, and the buffer air cooler.
+
+## Colours
+
+Build scripts give colours as they should look on screen (sRGB); `material()` stores them linear, which is
+what glTF and Blender expect. (Storing the sRGB numbers directly made every authored part render one gamma
+step too light, so painted cases and tubes looked almost white.) Painted surfaces are not metallic; the
+`cast` material is painted blue-grey on the fan case and becomes a duller bare-casting grey on the gearbox
+and accessory housings when the app loads it. Stainless tubes are satin (roughness about 0.4), not mirror.
 
 Conventions the loader understands:
 
@@ -128,7 +144,7 @@ Conventions the loader understands:
 
 Component ids: `inlet lip fancase fancowl cna spinner fan lpc lpccase hpc hpccase hpt hptcase lpt lptcase
 lpshaft hpshaft bearings combcase liner fuel ign corecowl tec agb starter sav idg hydpump fuelpump fmu oilpump
-pma oiltank eec ext pylon`.
+pma oiltank exciters vsvact fdv accvalves acac eec ext pylon`.
 
 The cutaway wedge applies only to generated geometry. An authored casing is shown whole; split it
 in the model (or hide it with Remove part) to see inside.

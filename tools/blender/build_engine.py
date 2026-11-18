@@ -40,12 +40,17 @@ def smooth_nacelle(x):
 def sample(fn, x0, x1, n):
     return [[x0 + (x1 - x0) * i / n, fn(x0 + (x1 - x0) * i / n)] for i in range(n + 1)]
 
+def srgb_to_linear(c):
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
 def material(name, color, metallic=0.0, rough=0.5, coat=0.0):
+    """Colours are given as they should look on screen (sRGB) and stored linear, as glTF and Blender expect.
+    (Storing the sRGB numbers directly made every authored part one gamma step too light: near-white.)"""
     m = bpy.data.materials.get(name)
     if m: return m
     m = bpy.data.materials.new(name); m.use_nodes = True
     b = m.node_tree.nodes['Principled BSDF']
-    b.inputs['Base Color'].default_value = (*color, 1); b.inputs['Metallic'].default_value = metallic; b.inputs['Roughness'].default_value = rough
+    b.inputs['Base Color'].default_value = (*(srgb_to_linear(c) for c in color), 1); b.inputs['Metallic'].default_value = metallic; b.inputs['Roughness'].default_value = rough
     if 'Coat Weight' in b.inputs: b.inputs['Coat Weight'].default_value = coat
     return m
 
@@ -303,12 +308,12 @@ def build():
     skin('fancowl_doors', G, 1.2 - G, 0.022, 16)
 
     # ---- bare fan case (reference: MTU and manufacturer photos, museum model)
-    cast = material('cast', (0.56, 0.63, 0.7), 0.35, 0.5)      # fan case and castings are painted a light blue-grey
-    loom = material('loom', (0.86, 0.85, 0.8), 0.0, 0.9)       # harnesses are sleeved in white braid
+    cast = material('cast', (0.5, 0.56, 0.62), 0.05, 0.55)     # fan case painted blue-grey (bare castings get their own grey in the app)
+    loom = material('loom', (0.78, 0.76, 0.7), 0.0, 0.9)       # harnesses are sleeved in white braid, dulled by service
     comp = material('composite', (0.07, 0.12, 0.08), 0.1, 0.6) # graphite composite cascades
-    steel = material('steel', (0.72, 0.74, 0.76), 1.0, 0.25)
+    steel = material('steel', (0.7, 0.71, 0.72), 1.0, 0.36)
     dark = material('dark', (0.05, 0.055, 0.06), 0.2, 0.55)
-    gold = material('gold', (0.66, 0.52, 0.26), 0.9, 0.38)     # chromate-conversion-coated accessory units
+    gold = material('gold', (0.7, 0.58, 0.33), 0.85, 0.42)     # chromate-conversion-coated accessory units (olive gold)
     fc_in = lambda x: r_at(P['bypOuter'], x) + 0.0135
     case_loop = sample(lambda x: fc_in(x) + 0.02, -0.02, 1.19, 16) + list(reversed(sample(fc_in, -0.02, 1.19, 16)))
     case = revolve('fancase_casing', case_loop, cast)
@@ -357,6 +362,8 @@ def build():
         acc.append(cylinder('pad', th_pos(x, th, rt - 0.002), th_pos(x, th, rt + 0.012), 0.022, 0.022, cast, seg=12))
     made.append(finish(join('agb_gearbox', [gb] + acc), 0.003))
     accessories.build_accessories(H, made)
+    import core_units
+    CORE_UNITS = core_units.build_core_units(H, made, P, r_at)
     # ---- EEC: flat finned box on the upper side of the fan case, on four feet, with its connectors and looms
     eec = [box('eec', th_pos(0.5, 305, 0.895), (0.42, 0.3, 0.05), 305, gold), box('eeccover', th_pos(0.5, 305, 0.93), (0.4, 0.28, 0.025), 305, dark)]
     eec += [box('fin', th_pos(0.31 + 0.038 * k, 305, 0.947), (0.012, 0.28, 0.012), 305, dark) for k in range(11)]
@@ -562,7 +569,7 @@ def build():
             'inlet': {'match': '^inlet_', 'drop': ['skin']}, 'lip': {'match': '^lip_', 'drop': ['skin']},
             'fancowl': {'match': '^fancowl_', 'drop': ['skin']}, 'fancase': {'match': '^fancase_', 'drop': []},
             'cna': {'match': '^cna_', 'drop': ['skin', 'liner']}, 'agb': {'match': '^agb_'}, 'eec': {'match': '^eec_'},
-            **{c: {'match': f'^{c}_'} for c, _ in accessories.UNITS},
+            **{c: {'match': f'^{c}_'} for c, _ in accessories.UNITS}, **{c: {'match': f'^{c}_'} for c in CORE_UNITS},
             'pylon': {'match': '^pylon_'}, 'ext': {'match': '^ext_', 'drop': ['dress']},
         },
     }

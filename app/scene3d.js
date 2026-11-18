@@ -358,19 +358,20 @@ export class Scene3D {
     const paint = { color: 0xc9cdd1, metalness: 0, roughness: 0.45, clearcoat: 1, clearcoatRoughness: 0.14 };
     const polished = { color: 0xc9ced3, metalness: 1, roughness: 0.3 }; // matte, not mirror, per photos
     const titanium = { color: 0xa9b0b7, metalness: 1, roughness: 0.34 };
-    const caseM = { color: 0x8496a8, metalness: 0.4, roughness: 0.52, bumpMap: T.cast, bumpScale: 0.35 }; // compressor and diffuser cases are painted blue-grey
+    const caseM = { color: 0x8496a8, metalness: 0.06, roughness: 0.55, bumpMap: T.cast, bumpScale: 0.35 }; // compressor and diffuser cases are painted blue-grey (paint: not metallic)
     const hotM = { color: 0xb4aea6, metalness: 0.95, roughness: 0.46, roughnessMap: T.brushed, bumpMap: T.cast, bumpScale: 0.3 };
     const composite = { color: 0x24272b, metalness: 0.1, roughness: 0.55, clearcoat: 0.4, clearcoatRoughness: 0.5 };
     const linerM = new THREE.MeshPhysicalMaterial({ color: 0x8f959b, metalness: 0.5, roughness: 0.75, map: T.liner, side: THREE.DoubleSide });
-    this.boltMat = new THREE.MeshStandardMaterial({ color: 0xbfc5ca, metalness: 1, roughness: 0.3 });
-    const pipeSteel = new THREE.MeshStandardMaterial({ color: 0xc3c8cc, metalness: 1, roughness: 0.25 });
+    this.boltMat = new THREE.MeshStandardMaterial({ color: 0xa9aeb3, metalness: 1, roughness: 0.36 });
+    const pipeSteel = new THREE.MeshStandardMaterial({ color: 0xa4a9ad, metalness: 1, roughness: 0.38 });   // stainless: grey, satin, not mirror
     const pipeGold = new THREE.MeshStandardMaterial({ color: 0xb0914e, metalness: 0.95, roughness: 0.38 }); // cadmium-plated / bronze fittings and small-bore lines
-    const harness = new THREE.MeshStandardMaterial({ color: 0xd9d6cc, metalness: 0, roughness: 0.92 }); // looms are sleeved in white braid (SR Technics component photos)
+    const harness = new THREE.MeshStandardMaterial({ color: 0xc6c0b2, metalness: 0, roughness: 0.92 }); // looms are sleeved in white braid (SR Technics component photos)
     const conduit = new THREE.MeshStandardMaterial({ color: 0x1b1d20, metalness: 0.1, roughness: 0.7 });
     const unitGrey = new THREE.MeshStandardMaterial({ color: 0x8e9398, metalness: 0.7, roughness: 0.45 }); // cast accessory housings (exciters, valve bodies)
     this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughnessMap: T.brushed }), section: this.capMat, loom: new THREE.MeshStandardMaterial({ color: 0xffffff, map: T.braid, roughness: 0.85, metalness: 0, bumpMap: T.braid, bumpScale: 0.4 }) };
     const C = (K) => `${(K - 273.15).toFixed(0)} °C`, B = (p) => `${(p / 1e5).toFixed(2)} bar`;
     const A = (d) => this._part(d);
+    const castM = { color: 0x8a9198, metalness: 0.45, roughness: 0.55 }, chromM = { color: 0xa8894a, metalness: 0.85, roughness: 0.42 };
 
     // ---------------- nacelle
     const inlet = A({ id: 'inlet', name: 'Inlet cowl', ex: -1.5, mat: paint, desc: 'Slows and straightens the incoming air for the fan. The inner barrel is a perforated acoustic liner that absorbs fan noise.', live: (o) => `Airflow ${o.W2.toFixed(0)} kg/s · inlet ${C(o.T2)}, ${B(o.P2)}` });
@@ -567,7 +568,6 @@ export class Scene3D {
     // Gearbox and the units it drives: each is its own part. These simple shapes stand in until the
     // authored model loads (tools/blender/accessories.py builds the real ones).
     const along = (part, x0, x1, th, r, rad, mat = part.mat) => this._reg(part, new THREE.Mesh(new THREE.CylinderGeometry(rad, rad, Math.abs(x1 - x0), 24).rotateZ(Math.PI / 2).translate((x0 + x1) / 2, r * Math.cos(th * DEG), r * Math.sin(th * DEG)), mat));
-    const castM = { color: 0x8a9198, metalness: 0.6, roughness: 0.5 }, chromM = { color: 0xa8894a, metalness: 0.9, roughness: 0.4 };
     const kw = (w) => `${((w || 0) / 1000).toFixed(0)} kW`;
     const agb = A({ id: 'agb', name: 'Accessory gearbox', ex: -0.55, mat: castM, desc: 'Hangs under the fan case. A tower shaft from the HP spool turns the angle gearbox at the fan frame, and a lay shaft carries the drive forward to this casting, whose gears turn every accessory at a fixed ratio to N2. Mechanics turn the core by hand at the cranking pad for borescope inspections.', live: (o) => `Driven at N2 ${o.N2pct.toFixed(1)} % · accessory load ${kw(o.accPower)}` });
     { const b = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.11, 0.8), agb.mat); b.position.set(0.57, -0.975, 0); this._reg(agb, b); along(agb, 0.78, 1.06, 183, 0.93, 0.026); }
@@ -609,10 +609,6 @@ export class Scene3D {
       const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.022, 0.07, 0.012), pipeSteel, pts.length), mm = new THREE.Matrix4();
       pts.forEach(([x, th], i) => { mm.makeRotationX(th * DEG - Math.PI / 2); const r = co(x) + 0.055; mm.setPosition(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); im.setMatrixAt(i, mm); });
       dress(this._reg(ext, im)); }
-    // ignition exciters, fuel distribution valve and cooling-air control valve on the core
-    for (const [x, th, sx, sy, sz, mt] of [[1.45, 205, 0.16, 0.05, 0.11, unitGrey], [1.45, 228, 0.16, 0.05, 0.11, unitGrey], [1.72, 190, 0.11, 0.07, 0.09, pipeSteel], [2.38, 250, 0.1, 0.07, 0.08, pipeSteel], [2.38, 145, 0.1, 0.07, 0.08, pipeSteel]]) {
-      const bx = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mt); const r = co(x) + 0.09; bx.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); bx.rotation.x = th * DEG - Math.PI / 2; this._reg(ext, bx);
-    }
     for (const x of [1.45, 2.0, 2.55]) dress(this._solid(ext, [[x - 0.005, co(x) + 0.095], [x - 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.095]], { seg: 96, mat: harness })); // clamps
     // oil feed, scavenge and vent pipes to the bearing compartments, run through struts at the bottom of the engine
     for (const [pts, rad, mt] of [
@@ -642,23 +638,27 @@ export class Scene3D {
     // fire detection: two sensing loops clipped side by side round the core, and the nacelle temperature sensor
     for (const dx of [0, 0.012]) this._pipe(ext, Array.from({ length: 40 }, (_, i) => { const f = i / 39; return [1.45 + dx + 1.3 * f, co(1.45 + 1.3 * f) + 0.125, 122 + 226 * (0.5 - 0.5 * Math.cos(f * Math.PI * 3))]; }), 0.003, pipeGold);
     for (const [x, th] of [[1.6, 262], [1.6, 302], [1.8, 282], [1.6, 128]]) { const h = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.012, 24), new THREE.MeshStandardMaterial({ color: 0x0c0d0e, roughness: 0.9 })); const r = rAt(P.bypInner, x) + 0.004; h.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); h.rotation.x = th * DEG; this._into(this._hingeInner(this.byId.corecowl, 'cd', th < 180 ? 'L' : 'R'), this.byId.corecowl, h); }
-    // ---- core units placed from the component-location manual
-    { const unit = (part, geo, mat, x, th, dr) => onCore(part, new THREE.Mesh(geo, mat), x, th, co(x) + dr);
-      // VSV actuator and its crank shaft (left), high-pressure bleed valve
-      unit(hpcCase, new THREE.CylinderGeometry(0.04, 0.04, 0.2, 16).rotateZ(Math.PI / 2), pipeGold, 1.28, 138, 0.14);
-      unit(hpcCase, new THREE.CylinderGeometry(0.012, 0.012, 0.3, 8).rotateZ(Math.PI / 2), pipeSteel, 1.3, 150, 0.1);
-      unit(hpcCase, new THREE.CylinderGeometry(0.05, 0.05, 0.14, 18).rotateZ(Math.PI / 2), pipeGold, 1.86, 140, 0.13);
-      // fuel distribution valve: ten outlets, one to each manifold
-      unit(this.byId.fuel || hpcCase, new THREE.CylinderGeometry(0.05, 0.05, 0.09, 10).rotateZ(Math.PI / 2), pipeGold, 1.82, 318, 0.13);
-      for (let k = 0; k < 10; k++) this._pipe(ext, [[1.86, co(1.86) + 0.13 + 0.03 * Math.cos(k * 0.63), 318 + 4 * Math.sin(k * 0.63)], [1.9, 0.47, 318 + (k - 4.5) * 3], [1.917, 0.44, ((318 + (k - 4.5) * 36) % 360 + 360) % 360 > 112 || true ? 318 + (k - 4.5) * 7 : 0]], 0.004, pipeSteel);
-      // ignition exciters on the right, just behind the fan frame
-      for (const th of [246, 258]) unit(ext, new THREE.BoxGeometry(0.17, 0.06, 0.11), pipeGold, 1.2, th, 0.33);
-      // turbine case cooling: ACC actuator and the two large fan-air valves (LPT and HPT) feeding the perforated tubes
-      unit(ext, new THREE.BoxGeometry(0.14, 0.07, 0.08), pipeGold, 2.12, 286, 0.14);
-      for (const [th, rr] of [[250, 0.05], [236, 0.045]]) { unit(ext, new THREE.CylinderGeometry(rr, rr, 0.24, 18).rotateZ(Math.PI / 2), pipeSteel, 2.2, th, 0.16); dress(this._pipe(ext, [[2.3, co(2.3) + 0.16, th], [2.42, co(2.42) + 0.12, th + 2], [2.55, co(2.55) + 0.07, th + 3]], rr * 0.8, pipeSteel)); }
-      // buffer air cooler (ACAC) low on the left of the turbine cases, and the EGT junction box underneath
-      unit(ext, new THREE.BoxGeometry(0.26, 0.1, 0.16), pipeGold, 2.36, 152, 0.2);
-      unit(ext, new THREE.BoxGeometry(0.12, 0.03, 0.08), pipeGold, 2.86, 186, 0.1);
+    // ---- core units placed from the component-location manual. Each is a part of its own; these simple shapes
+    // stand in until the authored model loads (tools/blender/core_units.py builds the real ones).
+    { const unit = (part, geo, mat, x, th, r) => onCore(part, new THREE.Mesh(geo, mat), x, th, r);
+      const exciters = A({ id: 'exciters', name: 'Ignition exciters', ex: 0.1, mat: chromM, desc: 'Two capacitor-discharge units on the HP compressor case. Each turns 115 V AC into high-voltage pulses, one or two a second, and sends them down a shielded lead to its igniter plug. On automatic starts the EEC uses them in turn, so a dead one shows up on alternate starts.', live: (o, f) => (o.ignOn ? `Sparking: igniter ${(f && f.ignSel) || 'A+B'}` : 'Off') });
+      for (const th of [222, 240]) unit(exciters, new THREE.BoxGeometry(0.18, 0.06, 0.094), exciters.mat, 1.55, th, co(1.55) + 0.075);
+      const vsvact = A({ id: 'vsvact', name: 'VSV actuator', ex: 0.05, mat: chromM, desc: 'A ram worked by fuel pressure from the FMU turns the crank shaft, and four links turn the unison rings: the inlet guide vanes and the first three stator rows of the HP compressor close at low speed, keeping the front stages out of stall, and open as N2 rises. A position sensor reports back to the EEC.', live: (o) => `Vanes ${o.vsv.toFixed(1)}° shut · schedule ${o.vsvSched.toFixed(1)}°` });
+      unit(vsvact, new THREE.CylinderGeometry(0.034, 0.034, 0.165, 16).rotateZ(Math.PI / 2), vsvact.mat, 1.25, 138, 0.43);
+      unit(vsvact, new THREE.CylinderGeometry(0.01, 0.01, 0.29, 8).rotateZ(Math.PI / 2), pipeSteel, 1.26, 150, 0.398);
+      const fdv = A({ id: 'fdv', name: 'Fuel distribution valve', ex: 0.3, mat: chromM, desc: 'Takes the metered fuel from the FMU and shares it between the ten pigtails that feed the fuel manifold and its twenty nozzles. It closes when the pressure falls, so the manifold does not drain through the nozzles after shutdown.', live: (o) => `${(o.wf * 3600).toFixed(0)} kg/h in · ${(o.wf * 360).toFixed(0)} kg/h per outlet` });
+      unit(fdv, new THREE.CylinderGeometry(0.05, 0.05, 0.085, 16).rotateZ(Math.PI / 2), fdv.mat, 1.82, 318, co(1.86) + 0.13);
+      const accvalves = A({ id: 'accvalves', name: 'Clearance control valves', ex: 0.1, mat: castM, desc: 'Two butterfly valves let fan air through to the spray rings on the HP and LP turbine cases, worked by a fuel-pressure actuator on the EEC\'s command. Opened in climb and cruise, they cool the cases so they shrink onto the blade tips and less gas leaks past.', live: (o) => `HPT ${(100 * (o.accH || 0)).toFixed(0)} % · LPT ${(100 * (o.accL || 0)).toFixed(0)} % open` });
+      for (const [th, rr] of [[236, 0.045], [250, 0.05]]) unit(accvalves, new THREE.CylinderGeometry(rr, rr, 0.24, 18).rotateZ(Math.PI / 2), accvalves.mat, 2.2, th, 0.475);
+      unit(accvalves, new THREE.BoxGeometry(0.12, 0.06, 0.076), pipeGold, 2.12, 286, co(2.12) + 0.14);
+      const acac = A({ id: 'acac', name: 'Buffer air cooler', ex: 0.15, mat: castM, desc: 'Air-to-air heat exchanger: fan air from a scoop in the core cowl cools air taken from the HP compressor before it pressurises the seals of the No. 4 bearing chamber, so the hot air does not cook the oil there.', live: (o) => `Compressor air in at ${(o.T3 - 273.15).toFixed(0)} °C` });
+      unit(acac, new THREE.BoxGeometry(0.24, 0.07, 0.14), acac.mat, 2.34, 152, 0.465);
+      // EGT junction box underneath
+      unit(ext, new THREE.BoxGeometry(0.12, 0.03, 0.08), pipeGold, 2.86, 186, co(2.86) + 0.1);
+      // high-pressure bleed valve low on the left
+      unit(hpcCase, new THREE.CylinderGeometry(0.05, 0.05, 0.14, 18).rotateZ(Math.PI / 2), pipeGold, 1.86, 140, co(1.86) + 0.13);
+      // fuel manifold pigtails from the distribution valve
+      for (let k = 0; k < 10; k++) this._pipe(ext, [[1.86, co(1.86) + 0.13 + 0.03 * Math.cos(k * 0.63), 318 + 4 * Math.sin(k * 0.63)], [1.9, 0.47, 318 + (k - 4.5) * 3], [1.917, 0.44, 318 + (k - 4.5) * 7]], 0.004, pipeSteel);
     }
     // ---- upper half of the core. This is the sector the cutaway removes, so it is only shown with the cutaway closed.
     const top = (ob) => { ob.userData.variant = 'full'; return ob; };
@@ -698,6 +698,7 @@ export class Scene3D {
         inlet: FINISH.nacellePaint, fancowl: FINISH.nacellePaint, cna: FINISH.nacellePaint, pylon: FINISH.nacellePaint, lip: FINISH.polished,
         fancase: FINISH.castPaint, lpccase: FINISH.castPaint, hpccase: FINISH.castPaint, agb: FINISH.castBare, eec: FINISH.darkBox,
         starter: FINISH.castBare, sav: FINISH.castBare, idg: FINISH.castBare, hydpump: FINISH.castBare, pma: FINISH.castBare, oiltank: FINISH.castBare, fuelpump: FINISH.chromate, fmu: FINISH.chromate, oilpump: FINISH.chromate,
+        exciters: FINISH.chromate, vsvact: FINISH.chromate, fdv: FINISH.chromate, accvalves: FINISH.castBare, acac: FINISH.castBare,
         spinner: { ...FINISH.darkBox, bottom: 0, grime: 0.08 }, fan: FINISH.titanium, lpc: FINISH.compressorBlade, hpc: FINISH.compressorBlade,
         hpt: H(FINISH.turbineBlade, [2.0, 2.45, 0.8]), lpt: H(FINISH.turbineBlade, [2.3, 3.05, 0.7]),
         hptcase: H(FINISH.hotCase, [2.0, 2.5, 0.9]), lptcase: H(FINISH.hotCase, [2.3, 3.1, 0.9]), combcase: H(FINISH.hotCase, [1.75, 2.6, 0.5]),
@@ -1046,12 +1047,15 @@ export class Scene3D {
             if (/^txt:/.test(mt.name)) return (this._labels ||= {})[mt.name] ||= labelMaterial(mt.name.slice(4));
             const sh = this.shared[mt.name];
             if (mt.name === 'section') return sh || mt;
-            const casting = mt.name === 'cast' && /oiltank|gearbox|agb_|dressing|eec|starter_|sav_|idg_|hydpump_|fuelpump_|fmu_|oilpump_|pma_/i.test(m.name);
+            const casting = mt.name === 'cast' && /oiltank|gearbox|agb_|dressing|eec|starter_|sav_|idg_|hydpump_|fuelpump_|fmu_|oilpump_|pma_|exciters_|vsvact_|fdv_|accvalves_|acac_/i.test(m.name);
             const key = mt.name + (casting ? ':bare' : '');
             return (own[key] ||= (() => {
               let c;
               if (sh) { c = sh.clone(); c.onBeforeCompile = sh.onBeforeCompile; c.customProgramCacheKey = sh.customProgramCacheKey; }
               else { c = mt.clone(); c.side = THREE.DoubleSide; }
+              if (mt.name === 'cast') {   // one material in the file, two finishes: painted fan case, bare cast housings
+                if (casting) { c.color.set(0x8c8f8c); c.metalness = 0.45; c.roughness = 0.58; } else { c.metalness = 0.05; c.roughness = 0.55; }
+              }
               const f = authoredFinish(mt.name, id, casting);
               if (f) finish(c, f);
               part.extMats.push(c); return c;

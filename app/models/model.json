@@ -64,6 +64,21 @@
     "oiltank": {
       "match": "^oiltank_"
     },
+    "exciters": {
+      "match": "^exciters_"
+    },
+    "vsvact": {
+      "match": "^vsvact_"
+    },
+    "fdv": {
+      "match": "^fdv_"
+    },
+    "accvalves": {
+      "match": "^accvalves_"
+    },
+    "acac": {
+      "match": "^acac_"
+    },
     "pylon": {
       "match": "^pylon_"
     },

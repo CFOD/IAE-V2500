@@ -34,23 +34,23 @@ def plateau(x, a, b, ramp):
 def build_dressing(P, r_at, in_cut, material, link, made, section):
     # ------------------------------------------------------------------ materials
     M = {
-        'ss': material('tube_ss', (0.78, 0.79, 0.8), 1.0, 0.26),          # stainless rigid tube
-        'ti': material('tube_ti', (0.6, 0.61, 0.6), 1.0, 0.38),           # titanium / inconel tube (duller)
-        'cad': material('tube_cad', (0.68, 0.56, 0.3), 0.9, 0.36),        # cadmium-plated / chromate fittings and lines
-        'nut': material('fitting', (0.74, 0.74, 0.72), 1.0, 0.3),
+        'ss': material('tube_ss', (0.74, 0.75, 0.76), 1.0, 0.38),          # stainless rigid tube
+        'ti': material('tube_ti', (0.62, 0.62, 0.6), 1.0, 0.44),           # titanium / inconel tube (duller)
+        'cad': material('tube_cad', (0.7, 0.6, 0.36), 0.9, 0.4),        # cadmium-plated / chromate fittings and lines
+        'nut': material('fitting', (0.74, 0.74, 0.72), 1.0, 0.34),
         'clamp': material('clamp_block', (0.42, 0.44, 0.47), 0.6, 0.5),    # block clamps
         'red': material('clamp_red', (0.74, 0.2, 0.09), 0.0, 0.62),       # red silicone P-clamp cushions (photos)
         'brk': material('bracket', (0.5, 0.52, 0.55), 0.9, 0.48),
-        'loom': material('loom', (0.86, 0.85, 0.8), 0.0, 0.9),            # white braided harness (swapped for a braid texture on load)
+        'loom': material('loom', (0.78, 0.76, 0.7), 0.0, 0.9),            # white braided harness (swapped for a braid texture on load)
         'band': material('loom_band', (0.72, 0.13, 0.08), 0.0, 0.6),      # red identification sleeves
         'conn': material('connector', (0.46, 0.48, 0.5), 0.9, 0.4),
         'fire': material('firesleeve', (0.78, 0.36, 0.14), 0.0, 0.85),    # orange silicone fire sleeve on hoses
-        'duct': material('duct', (0.82, 0.83, 0.84), 1.0, 0.3),
-        'flange': material('vband', (0.66, 0.67, 0.68), 1.0, 0.32),
-        'boss': material('cast', (0.56, 0.63, 0.7), 0.35, 0.5),
+        'duct': material('duct', (0.76, 0.77, 0.78), 1.0, 0.4),
+        'flange': material('vband', (0.66, 0.67, 0.68), 1.0, 0.36),
+        'boss': material('cast', (0.5, 0.56, 0.62), 0.05, 0.55),
         'valve': material('steel', (0.62, 0.64, 0.66), 0.9, 0.4),         # cast valve bodies
         'act': material('gold', (0.8, 0.66, 0.3), 0.85, 0.35),            # chromated actuators
-        'acc': material('tube_acc', (0.8, 0.8, 0.79), 1.0, 0.3),           # clearance-control spray tubes: fan air inside, so no heat tint
+        'acc': material('tube_acc', (0.76, 0.76, 0.75), 1.0, 0.38),           # clearance-control spray tubes: fan air inside, so no heat tint
     }
 
     # ------------------------------------------------------------------ surfaces the routes follow
@@ -184,11 +184,11 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     # ================================================================== CORE
     hc = 0.022  # standard height above the core envelope
     # metered fuel: bifurcation -> round the HPC at x 1.43 up the right side -> fuel distribution valve
-    T(C, core, [(1.47, 180, hc), (1.43, 186, hc), (1.43, 300, hc), (1.72, 300, hc), (1.76, 312, 0.06)], n=1, radius=0.009, mat='ss', rb=0.06)
+    T(C, core, [(1.47, 180, hc), (1.43, 186, hc), (1.43, 300, hc), (1.66, 300, hc), (1.7, 314, 0.08), (1.75, 318, 0.108)], n=1, radius=0.009, mat='ss', rb=0.05)   # into the FDV (core_units.py)
     # servo fuel: to the VSV actuator (left), HP valve (left) and clearance-control actuator (right)
-    T(C, core, [(1.3, 178, hc), (1.43, 170, hc), (1.43, 146, hc), (1.36, 140, 0.07)], n=2, d=0.011, radius=0.003, mat='cad', rb=0.04)
+    T(C, core, [(1.3, 178, hc), (1.43, 170, hc), (1.43, 146, hc), (1.3, 140, 0.085)], n=2, d=0.011, radius=0.003, mat='cad', rb=0.04)   # VSV actuator ports
     T(C, core, [(1.3, 178, hc), (1.7, 172, hc), (1.7, 146, hc), (1.8, 141, 0.06)], n=2, d=0.011, radius=0.003, mat='cad', rb=0.04)
-    T(C, core, [(1.3, 182, hc), (1.7, 186, hc), (1.7, 270, hc), (2.08, 278, hc), (2.08, 284, 0.06)], n=2, d=0.011, radius=0.003, mat='cad', rb=0.04)
+    T(C, core, [(1.3, 182, hc), (1.7, 186, hc), (1.7, 270, hc), (2.08, 278, hc), (2.095, 286, 0.105)], n=2, d=0.011, radius=0.003, mat='cad', rb=0.04)   # ACC actuator ports
     # P3 servo air to the four handling bleed valves
     T(C, core, [(1.4, 182, hc), (1.43, 190, hc + 0.02), (1.43, 252, hc + 0.02), (1.55, 254, 0.05)], n=2, d=0.016, radius=0.0035, mat='ss', rb=0.04)
     T(C, core, [(1.4, 182, hc), (1.43, 190, hc + 0.035), (1.43, 292, hc + 0.035), (1.55, 296, 0.05)], n=1, radius=0.0035, mat='ss', rb=0.04)
@@ -199,8 +199,11 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     # core harness ring on the diffuser case, with breakouts
     H(C, core, [(1.66, 182, hc), (2.1, 186, 0.045), (2.1, 300, 0.045), (2.1, 318, 0.045)], radius=0.013, conn=(False, True))
     H(C, core, [(1.74, 178, hc), (2.1, 174, 0.045), (2.1, 120, 0.045)], radius=0.011, conn=(False, True))
-    H(C, core, [(2.1, 246, 0.05), (1.6, 246, hc + 0.06), (1.25, 246, 0.06)], radius=0.007, conn=(False, True))    # ignition exciter A
-    H(C, core, [(2.1, 258, 0.05), (1.6, 258, hc + 0.06), (1.25, 258, 0.06)], radius=0.007, conn=(False, True))    # ignition exciter B
+    H(C, core, [(2.1, 214, 0.05), (1.6, 214, hc + 0.06), (1.43, 218, 0.05), (1.41, 222, 0.041)], radius=0.007, conn=(False, True))    # ignition exciter A input
+    H(C, core, [(2.1, 248, 0.05), (1.6, 248, hc + 0.06), (1.43, 244, 0.05), (1.41, 240, 0.041)], radius=0.007, conn=(False, True))    # ignition exciter B input
+    # high-tension leads (metal braid) from each exciter to its igniter plug on the diffuser case (igniters at 227.6 and 47.5 deg)
+    C.loom(core, [(1.67, 222, 0.057), (1.8, 224, 0.075), (1.95, 227.6, 0.11), (2.01, 227.6, 0.088)], radius=0.0075, mat=M['ti'], clamp_mat=M['red'], bracket_mat=M['brk'], conn_mat=M['nut'], connectors=(True, True), rb=0.04)
+    C.loom(core, [(1.67, 240, 0.057), (1.73, 244, 0.1), (1.73, 400, 0.1), (1.95, 405, 0.11), (2.01, 407.5, 0.088)], radius=0.0075, mat=M['ti'], clamp_mat=M['red'], bracket_mat=M['brk'], conn_mat=M['nut'], connectors=(True, True), rb=0.04)
     H(C, core, [(2.1, 196, 0.05), (2.6, 196, hc), (2.84, 190, 0.05)], radius=0.008, conn=(False, True))            # EGT junction box
     H(C, core, [(2.1, 150, 0.05), (2.3, 152, 0.05)], radius=0.006, conn=(False, True), rb=0.03)                    # buffer air cooler sensor
     # turbine cooling air (stage 10) from the HPC to the HP turbine case, both sides
@@ -240,7 +243,7 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     C.duct(core, [(2.32, 236, 0.076), (2.36, 236, 0.076), (2.405, 236, -0.008)], 0.028, M['acc'], M['flange'], rb=0.03)
     C.duct(core, [(2.32, 250, 0.076), (2.38, 250, 0.076), (2.44, 250, -0.008)], 0.032, M['acc'], M['flange'], rb=0.03)
     # buffer air: HPC stage 12 -> air-cooled air cooler -> No. 4 compartment
-    C.duct(core, [(1.84, 158, 0.04), (2.0, 158, 0.06), (2.3, 154, 0.06)], 0.018, M['duct'], M['flange'], rb=0.08, joints=(0.5,))
+    C.duct(core, [(1.84, 158, 0.04), (2.0, 158, 0.06), (2.15, 152, 0.13), (2.215, 152, 0.135)], 0.018, M['duct'], M['flange'], rb=0.06, joints=(0.5,))   # into the buffer air cooler
     # sense lines along the HPC (P3 to the EEC via the bifurcation, No. 4 bearing pressure)
     T(C, core, [(1.42, 179, hc + 0.06), (1.9, 186, hc + 0.06), (1.9, 230, hc + 0.06), (2.0, 232, 0.05)], n=3, d=0.01, radius=0.0025, mat='cad', rb=0.03)
 
@@ -320,9 +323,13 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     # core: same treatment between the core components, below the core cowl
     CORE_BAYS = [1.43, 1.7, 2.1, 2.32]
     vsv = lambda x, lo, hi: x < 1.39
-    route_core = packer(CORE_BAYS, (0.02, 0.034, 0.048, 0.062), 0.075, [vsv])
+    units = [lambda x, lo, hi: 1.44 < x < 1.69 and lo < 248 and hi > 214,      # ignition exciters
+             lambda x, lo, hi: 1.75 < x < 1.88 and lo < 328 and hi > 308,      # fuel distribution valve
+             lambda x, lo, hi: 1.98 < x < 2.34 and lo < 258 and hi > 228,      # clearance-control valves
+             lambda x, lo, hi: 2.2 < x < 2.47 and lo < 162 and hi > 142]       # buffer air cooler
+    route_core = packer(CORE_BAYS, (0.02, 0.034, 0.048, 0.062), 0.075, [vsv] + units)
     CA = [(1.55, 254, 0.05), (1.55, 296, 0.05), (1.75, 280, 0.05), (1.55, 132, 0.05), (1.36, 140, 0.07), (1.8, 141, 0.06), (1.76, 312, 0.06), (2.08, 284, 0.06),
-          (2.2, 236, 0.07), (2.2, 250, 0.07), (2.3, 152, 0.06), (2.84, 190, 0.05), (1.25, 246, 0.06), (1.25, 258, 0.06), (2.0, 232, 0.05), (2.0, 166, 0.03),
+          (2.2, 236, 0.07), (2.2, 250, 0.07), (2.3, 152, 0.06), (2.84, 190, 0.05), (1.45, 222, 0.04), (1.45, 240, 0.04), (2.0, 232, 0.05), (2.0, 166, 0.03),
           (1.45, 180, 0.03), (1.6, 180, 0.03), (1.75, 180, 0.03), (1.9, 182, 0.04), (2.02, 200, 0.04), (2.02, 140, 0.04), (2.25, 210, 0.05), (2.25, 120, 0.05),
           (2.5, 220, 0.03), (2.5, 140, 0.03), (1.6, 220, 0.04), (1.6, 300, 0.04), (1.95, 260, 0.05), (1.95, 300, 0.05)]
     made_n = 0; tries = 0

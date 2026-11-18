@@ -339,6 +339,7 @@ const HINT = 'Drag to orbit, scroll to zoom, right-drag to pan. Click any part o
 const PART_CTL = {
   fuel: ['fuel'], ign: ['ign'], liner: ['fuel', 'Fuel heating value'], hpccase: ['vsv', 'b7', 'b10'], lpccase: ['b25'], agb: ['offtake'],
   starter: ['starter', 'starterPsi'], sav: ['starter', 'starterPsi'], idg: ['offtake'], hydpump: ['offtake'], fuelpump: ['fuel'], fmu: ['fuel'],
+  exciters: ['ign'], vsvact: ['vsv'], fdv: ['fuel'], accvalves: ['accH', 'accL'],
   eec: ['n1mode', 'pEgt', 'pAccel', 'pDecel'], combcase: ['cust'], fan: ['Fan efficiency'], lpc: ['LPC efficiency'], hpc: ['HPC efficiency', 'HPC flow capacity'],
   hpt: ['HPT efficiency', 'Turbine cooling air'], hptcase: ['HPT nozzle area', 'accH'], lpt: ['LPT efficiency'], lptcase: ['LPT nozzle area', 'accL'], ext: ['accH', 'accL'], cna: ['Final nozzle area', 'Bypass mixer area'], tec: ['Core mixer area'],
 };
@@ -346,6 +347,7 @@ const PART_CTL = {
 const PART_FAULTS = {
   fan: ['bird'], hpc: ['fod'], hpt: ['hpt'], hpccase: ['vsv'], lpccase: ['b25'], ign: ['ignA', 'ignB'], eec: ['epr'], ext: ['accstuck'], liner: ['flame'], bearings: ['seal4'],
   starter: ['lowair', 'startv'], sav: ['svopen', 'startv'], oiltank: ['oilleak'], oilpump: ['oilpump', 'oilfilter'],
+  exciters: ['ignA', 'ignB'], vsvact: ['vsv'], accvalves: ['accstuck'],
 };
 // The card collapses to one line when its header is clicked. With nothing selected that choice is
 // remembered (the help text only needs reading once); picking a part opens it to show the details.
