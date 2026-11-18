@@ -319,7 +319,7 @@ if (PHONE.matches && !$('drawer').classList.contains('shut')) { $('drawer').clas
 if (TOUCH && view3d) view3d.maxDpr = 1.5;
 new ResizeObserver(() => frame3d()).observe($('dock'));
 PHONE.addEventListener('change', () => requestAnimationFrame(frame3d));
-if (document.fullscreenEnabled) {
+if (document.fullscreenEnabled && (TOUCH || PHONE.matches)) {   // desktop has F11; this keeps its top bar to one row
   const fb = $('btnFull'); fb.hidden = false;
   const label = () => { fb.textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen'; fb.classList.toggle('on', !!document.fullscreenElement); };
   fb.onclick = async () => {
