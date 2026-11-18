@@ -324,52 +324,27 @@ def build():
     made.extend([finish(case, 0.0015), finish(ccut, 0.0015)])
 
     R_CASE = 0.87  # outer surface of the fan case
-    # oil tank: tall domed cylinder on the side of the case
-    tank = cylinder('tank', th_pos(0.52, 149, 0.955), th_pos(0.52, 129, 0.955), 0.085, 0.085, cast, dome=0.05)
-    cap = cylinder('cap', th_pos(0.52, 128, 0.99), th_pos(0.52, 126.5, 1.0), 0.03, 0.03, gold)
-    strap = [cylinder('strap', th_pos(0.52, a, 0.955), th_pos(0.52, a - 1.2, 0.955), 0.089, 0.089, steel) for a in (145, 134)]
-    made.append(finish(join('fancase_oiltank', [tank, cap] + strap), 0))
+    # (the oil tank is its own component: accessories.py)
     # harness bundles and small pipes along the case
 
     # ---- accessory gearbox: a flat casting wrapped under the fan case, accessories fore and aft
     gb = arc_solid('gb', [[0.36, 0.875], [0.36, 0.985], [0.5, 1.0], [0.72, 0.995], [0.78, 0.97], [0.78, 0.875]], 152, 208, cast)
-    R = 0.935
-    def bolts(x, th, r, rad, n=8):
-        from mathutils import Vector
-        c = Vector(th_pos(x, th, r)); t = math.radians(th)
-        radial = Vector((0, -math.sin(t), math.cos(t))); tang = Vector((0, -math.cos(t), -math.sin(t)))
-        return [cylinder('b', c + rad * (math.cos(a) * radial + math.sin(a) * tang) - Vector((0.006, 0, 0)), c + rad * (math.cos(a) * radial + math.sin(a) * tang) + Vector((0.006, 0, 0)), 0.005, 0.005, steel, seg=6) for a in [2 * math.pi * k / n for k in range(n)]]
-    acc = [
-        # air turbine starter: flanged body, V-band clamp, inlet scroll and air duct stub
-        stack('starter', 0.36, 199, R, [(0.012, 0.07, 0.07), (0.02, 0.058, 0.058), (0.008, 0.066, 0.066), (0.1, 0.06, 0.055), (0.012, 0.064, 0.064), (0.07, 0.05, 0.04)], steel, -1),
-        # (the starter air duct itself is routed in dressing.py, with its joints, bellows and supports)
-        stack('startervalve', 0.42, 222, R + 0.01, [(0.012, 0.042, 0.042), (0.09, 0.05, 0.05), (0.012, 0.042, 0.042)], gold),
-        # integrated drive generator: finned barrel with a terminal block
-        stack('idg', 0.78, 197, R - 0.005, [(0.012, 0.075, 0.075), (0.03, 0.062, 0.062)] + [(0.008, 0.07 if k % 2 == 0 else 0.062, 0.07 if k % 2 == 0 else 0.062) for k in range(18)] + [(0.05, 0.062, 0.04)], cast),
-        box('idgterm', th_pos(0.9, 197, R + 0.062), (0.09, 0.07, 0.03), 197, dark),
-        # hydraulic pump: stepped body with two ports
-        stack('hyd', 0.36, 181, R, [(0.012, 0.058, 0.058), (0.06, 0.048, 0.048), (0.05, 0.04, 0.036), (0.04, 0.03, 0.03)], gold, -1),
-        tube('hydline', [(0.26, 181, R + 0.04), (0.2, 176, R + 0.05), (0.1, 160, R + 0.03), (0.0, 140, R - 0.02)], 0.011, steel),
-        tube('hydline', [(0.3, 183, R + 0.04), (0.24, 186, R + 0.055), (0.12, 190, R + 0.05)], 0.009, steel),
-        # fuel pump and fuel metering unit
-        stack('fuelpump', 0.78, 165, R - 0.005, [(0.012, 0.064, 0.064), (0.09, 0.055, 0.055), (0.008, 0.06, 0.06), (0.07, 0.048, 0.044)], gold),
-        box('fmu', th_pos(1.02, 165, R - 0.005), (0.12, 0.11, 0.1), 165, gold),
-        stack('scav', 0.78, 181, R, [(0.012, 0.05, 0.05), (0.07, 0.045, 0.045), (0.05, 0.038, 0.03)], gold),
-        tube('fuelline', [(1.08, 165, R), (1.14, 170, R - 0.02), (1.2, 176, R - 0.06), (1.3, 178, R - 0.14)], 0.013, steel),
-        # oil pump and filter housings
-        stack('oilpump', 0.36, 166, R + 0.005, [(0.012, 0.046, 0.046), (0.07, 0.04, 0.04), (0.02, 0.03, 0.03)], gold, -1),
-        stack('filter', 0.78, 155, R - 0.02, [(0.01, 0.05, 0.05), (0.11, 0.045, 0.045), (0.012, 0.05, 0.05), (0.02, 0.02, 0.02)], gold),
-    ]
-    for x, th, rr, rad in [(0.354, 199, R, 0.064), (0.786, 197, R - 0.005, 0.069), (0.354, 181, R, 0.053), (0.786, 165, R - 0.005, 0.059)]: acc += bolts(x, th, rr, rad)
+    # The accessories on its faces are components of their own (accessories.py); the lay shaft, angle gearbox
+    # and hand-cranking pad are part of the gearbox.
+    import sys; sys.path.insert(0, os.path.dirname(__file__))
+    from types import SimpleNamespace
+    import accessories
+    H = SimpleNamespace(link=link, join=join, finish=finish, th_pos=th_pos, material=material)
+    acc = accessories.gearbox_extras(H, accessories.materials(H))
     # stiffening ribs and mounting pads on the gearbox casting
     for th0 in (158, 168, 178, 188, 198):
         acc.append(arc_solid('rib', [[0.38, 0.985], [0.38, 0.997], [0.74, 1.004], [0.74, 0.992]], th0, th0 + 1.2, cast, steps=2))
     acc += [
-        # permanent magnet alternator, de-oiler, oil lines up to the tank, gearbox mount links to the fan case
-        stack('pma', 0.36, 190, R + 0.012, [(0.01, 0.036, 0.036), (0.05, 0.034, 0.034), (0.02, 0.022, 0.018)], gold, -1),
+        # de-oiler and its breather out through the cowl, oil supply and return to the tank (ports on its lower end), gearbox mount links
         cylinder('deoiler', th_pos(0.57, 207, 0.94), th_pos(0.57, 213, 0.94), 0.05, 0.045, cast, seg=20),
-        tube('oil', [(0.4, 166, 1.0), (0.44, 160, 1.005), (0.5, 155, 0.995), (0.52, 151, 0.985)], 0.012, steel),
-        tube('oil', [(0.7, 183, 1.0), (0.66, 170, 1.012), (0.6, 157, 0.998), (0.56, 151, 0.988)], 0.010, gold),
+        tube('breather', [(0.6, 212, 0.94), (0.8, 211, 0.965), (0.98, 209, 0.99), (1.03, 203, 0.997)], 0.011, steel),
+        tube('oil', [(0.4, 166, 1.0), (0.44, 160, 1.005), (0.48, 154, 0.992), (0.5, 150.4, 0.982), (0.5, 149.6, 0.977)], 0.009, steel),
+        tube('oil', [(0.7, 183, 1.0), (0.66, 170, 1.008), (0.58, 156, 0.996), (0.54, 150.4, 0.982), (0.54, 149.6, 0.977)], 0.009, gold),
         tube('drain', [(0.6, 180, 1.0), (0.7, 180, 1.03), (0.86, 180, 1.03)], 0.006, steel),
     ]
     for th in (154, 206):
@@ -378,6 +353,7 @@ def build():
     for x, th in [(0.44, 160), (0.44, 172), (0.44, 190), (0.44, 200), (0.7, 162), (0.7, 176), (0.7, 190), (0.7, 202)]:
         acc.append(cylinder('pad', th_pos(x, th, 0.985), th_pos(x, th, 1.004), 0.022, 0.022, cast, seg=12))
     made.append(finish(join('agb_gearbox', [gb] + acc), 0.003))
+    accessories.build_accessories(H, made)
     # ---- EEC: flat finned box on the upper side of the fan case, on four feet, with its connectors and looms
     eec = [box('eec', th_pos(0.5, 305, 0.895), (0.42, 0.3, 0.05), 305, gold), box('eeccover', th_pos(0.5, 305, 0.93), (0.4, 0.28, 0.025), 305, dark)]
     eec += [box('fin', th_pos(0.31 + 0.038 * k, 305, 0.947), (0.012, 0.28, 0.012), 305, dark) for k in range(11)]
@@ -425,7 +401,8 @@ def build():
     made.append(box('inlet_p2t2__full', th_pos(-0.2, 4, r_at(P['inletInner'], -0.2) - 0.035), (0.06, 0.012, 0.07), 4, steel))   # belongs to the intake cowl, inside the cutaway sector
     # fire detection loops round the gearbox (two elements side by side), per the booklet diagram
     for d in (0.0, 0.012):
-        put(180, tube('fire', [(0.33 + d, 152, 1.0), (0.33 + d, 180, 1.012), (0.33 + d, 208, 1.0), (0.57, 211, 0.99), (0.81 - d, 208, 1.0), (0.81 - d, 180, 1.012), (0.81 - d, 152, 1.0), (0.57, 150, 0.995), (0.33 + d, 152, 1.0)], 0.0035, gold))
+        # (on top of the casting, just inside its faces, so it clears the accessory flanges and clamps)
+        put(180, tube('fire', [(0.372 + d, 152, 0.995), (0.372 + d, 180, 1.0), (0.372 + d, 208, 0.995), (0.57, 211, 0.99), (0.768 - d, 208, 0.99), (0.768 - d, 180, 0.997), (0.768 - d, 152, 0.99), (0.57, 150, 0.995), (0.372 + d, 152, 0.995)], 0.0035, gold))
     # hydraulic control unit for the reverser and the pylon disconnect panels at the top of the fan frame
     put(352, box('hcu', th_pos(1.0, 352, 0.915), (0.2, 0.14, 0.07), 352, gold))
     for k in range(3): put(352, stack('hcus', 0.93 + 0.06 * k, 349, 0.96, [(0.012, 0.016, 0.016), (0.04, 0.02, 0.02)], steel))
@@ -580,6 +557,7 @@ def build():
             'inlet': {'match': '^inlet_', 'drop': ['skin']}, 'lip': {'match': '^lip_', 'drop': ['skin']},
             'fancowl': {'match': '^fancowl_', 'drop': ['skin']}, 'fancase': {'match': '^fancase_', 'drop': []},
             'cna': {'match': '^cna_', 'drop': ['skin', 'liner']}, 'agb': {'match': '^agb_'}, 'eec': {'match': '^eec_'},
+            **{c: {'match': f'^{c}_'} for c, _ in accessories.UNITS},
             'pylon': {'match': '^pylon_'}, 'ext': {'match': '^ext_', 'drop': ['dress']},
         },
     }

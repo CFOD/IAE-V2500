@@ -37,6 +37,33 @@
     "eec": {
       "match": "^eec_"
     },
+    "starter": {
+      "match": "^starter_"
+    },
+    "pma": {
+      "match": "^pma_"
+    },
+    "hydpump": {
+      "match": "^hydpump_"
+    },
+    "oilpump": {
+      "match": "^oilpump_"
+    },
+    "idg": {
+      "match": "^idg_"
+    },
+    "fuelpump": {
+      "match": "^fuelpump_"
+    },
+    "fmu": {
+      "match": "^fmu_"
+    },
+    "sav": {
+      "match": "^sav_"
+    },
+    "oiltank": {
+      "match": "^oiltank_"
+    },
     "pylon": {
       "match": "^pylon_"
     },

@@ -169,18 +169,19 @@ const FAULTS = [
   { id: 'flame', name: 'Flame-out', desc: 'Blow the flame out now (momentary). With protections on the FADEC relights it.', once: () => { eng.s.lit = false; eng.events.push({ t: eng.s.t, type: 'flameout-lean' }); } },
 ];
 const applyMods = (mods, undo) => { for (const [k, v] of Object.entries(mods)) { if (k.startsWith('eff')) m[k] += undo ? -v : v; else m[k] = undo ? m[k] / v : m[k] * v; } };
-function refreshFaults() { for (const f of FAULTS) if (f.btn) { f.btn.classList.toggle('on', !!f.active); f.btn.textContent = f.once ? 'Trigger' : f.active ? 'Clear' : 'Inject'; } }
+function refreshFaults() { for (const f of FAULTS) for (const b of [f.btn, f.cardBtn]) if (b) { b.classList.toggle('on', !!f.active); b.textContent = f.once ? 'Trigger' : f.active ? 'Clear' : 'Inject'; } }
+function toggleFault(f) {
+  if (f.once) { f.once(); logMsg(`Fault: ${f.name}`); return; }
+  f.active = !f.active;
+  if (f.mods) applyMods(f.mods, !f.active); else (f.active ? f.on : f.off)();
+  if (f.active && f.bang) eng.events.push({ t: eng.s.t, type: f.bang });
+  logMsg(`Fault ${f.active ? 'injected' : 'cleared'}: ${f.name}`); refreshFaults();
+}
 const flt = $('t-flt');
 for (const f of FAULTS) {
   const el = document.createElement('div'); el.className = 'fault'; el.innerHTML = `<b>${f.name}</b><button></button><span>${f.desc}</span>`; flt.appendChild(el);
   f.btn = el.querySelector('button');
-  f.btn.onclick = () => {
-    if (f.once) { f.once(); logMsg(`Fault: ${f.name}`); return; }
-    f.active = !f.active;
-    if (f.mods) applyMods(f.mods, !f.active); else (f.active ? f.on : f.off)();
-    if (f.active && f.bang) eng.events.push({ t: eng.s.t, type: f.bang });
-    logMsg(`Fault ${f.active ? 'injected' : 'cleared'}: ${f.name}`); refreshFaults();
-  };
+  f.btn.onclick = () => toggleFault(f);
 }
 refreshFaults();
 flt.insertAdjacentHTML('beforeend', '<p class="note">Faults stack with whatever you have set under Hardware and Control. Restore new-engine condition (Hardware tab) clears the damage-type faults.</p>');
@@ -336,9 +337,15 @@ let selPart = null, hist = 0;
 const HINT = 'Drag to orbit, scroll to zoom, right-drag to pan. Click any part of the engine to inspect it.';
 // controls that belong to each component, shown on its card
 const PART_CTL = {
-  fuel: ['fuel'], ign: ['ign'], liner: ['fuel', 'Fuel heating value'], hpccase: ['vsv', 'b7', 'b10'], lpccase: ['b25'], agb: ['starter', 'starterPsi', 'offtake'],
+  fuel: ['fuel'], ign: ['ign'], liner: ['fuel', 'Fuel heating value'], hpccase: ['vsv', 'b7', 'b10'], lpccase: ['b25'], agb: ['offtake'],
+  starter: ['starter', 'starterPsi'], sav: ['starter', 'starterPsi'], idg: ['offtake'], hydpump: ['offtake'], fuelpump: ['fuel'], fmu: ['fuel'],
   eec: ['n1mode', 'pEgt', 'pAccel', 'pDecel'], combcase: ['cust'], fan: ['Fan efficiency'], lpc: ['LPC efficiency'], hpc: ['HPC efficiency', 'HPC flow capacity'],
   hpt: ['HPT efficiency', 'Turbine cooling air'], hptcase: ['HPT nozzle area', 'accH'], lpt: ['LPT efficiency'], lptcase: ['LPT nozzle area', 'accL'], ext: ['accH', 'accL'], cna: ['Final nozzle area', 'Bypass mixer area'], tec: ['Core mixer area'],
+};
+// faults that belong to each component, injected from its card
+const PART_FAULTS = {
+  fan: ['bird'], hpc: ['fod'], hpt: ['hpt'], hpccase: ['vsv'], lpccase: ['b25'], ign: ['ignA', 'ignB'], eec: ['epr'], ext: ['accstuck'], liner: ['flame'], bearings: ['seal4'],
+  starter: ['lowair', 'startv'], sav: ['svopen', 'startv'], oiltank: ['oilleak'], oilpump: ['oilpump', 'oilfilter'],
 };
 // The card collapses to one line when its header is clicked. With nothing selected that choice is
 // remembered (the help text only needs reading once); picking a part opens it to show the details.
@@ -354,10 +361,17 @@ function showPart(p) {
   selPart = p; $('partcard').classList.toggle('empty', !p); setCardCollapsed(p ? false : hintCollapsed);
   $('pcCtl').replaceChildren();
   if (p) for (const k of PART_CTL[p.id] || []) if (D[k]) addRow($('pcCtl'), D[k]);
+  for (const f of FAULTS) f.cardBtn = null;
+  if (p) for (const id of PART_FAULTS[p.id] || []) {
+    const f = FAULTS.find((x) => x.id === id); if (!f) continue;
+    const el = document.createElement('div'); el.className = 'fault'; el.innerHTML = `<b>${f.name}</b><button></button>`;
+    f.cardBtn = el.querySelector('button'); f.cardBtn.onclick = () => toggleFault(f); el.title = f.desc; $('pcCtl').appendChild(el);
+  }
+  refreshFaults();
   $('pcName').textContent = p ? p.name : 'Nothing selected';
   $('pcDesc').textContent = p ? p.desc : HINT;
   $('pcRemove').hidden = !p;
-  if (!p) $('pcLive').textContent = '';
+  $('pcLive').textContent = p ? p.live(eng.out, fadec) : '';
 }
 function refreshRemoved() {
   const gone = view3d.parts.filter((p) => p.removed);
@@ -498,7 +512,7 @@ function tick(now) {
   if (frame++ % 3 === 0) {
     refreshRows();
     $('clock').textContent = stamp();
-    if (selPart) $('pcLive').textContent = selPart.live(o);
+    if (selPart) $('pcLive').textContent = selPart.live(o, fadec);
     $('status').innerHTML = statusHtml(o); $('state').textContent = stateText(o);
     if (active.drawer === 'mon') {
       if (active.sd === 'maps') drawMaps($('maps'), eng);

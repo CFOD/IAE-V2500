@@ -564,12 +564,31 @@ export class Scene3D {
     this._ring(tec, strut, 13, (m, th) => { m.makeRotationX(th); m.setPosition(3.065, 0.275 * Math.cos(th), 0.275 * Math.sin(th)); });
 
     // ---------------- accessories and pipework
-    const agb = A({ id: 'agb', name: 'Accessory gearbox, starter, generator, fuel pump', ex: -0.55, mat: { color: 0x8a9198, metalness: 0.9, roughness: 0.45 }, desc: 'Hangs under the fan case inside the cowl and is driven from the HP spool by a long shaft. Carries the air turbine starter, the generator, hydraulic and fuel pumps and the fuel metering unit.', live: (o) => `Starter torque ${o.tStart.toFixed(0)} N·m · N2 ${o.N2pct.toFixed(1)} %` });
-    const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.46).translate(0.7, -1.13, 0), agb.mat); this._reg(agb, box);
-    for (const [x, z, rr, l, mt] of [[0.48, 0.2, 0.1, 0.34, pipeSteel], [0.9, -0.17, 0.12, 0.42, agb.mat], [0.92, 0.2, 0.07, 0.3, pipeGold], [0.5, -0.2, 0.085, 0.28, agb.mat]]) {
-      const c = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr * 0.9, l, 20).rotateZ(Math.PI / 2).translate(x, -1.22, z), mt); this._reg(agb, c);
-    }
-    this._pipe(agb, [[0.48, 1.2, 171], [0.48, 1.0, 166], [0.6, 0.86, 160], [1.3, 0.8, 150]], 0.034, pipeSteel); // starter air duct
+    // Gearbox and the units it drives: each is its own part. These simple shapes stand in until the
+    // authored model loads (tools/blender/accessories.py builds the real ones).
+    const along = (part, x0, x1, th, r, rad, mat = part.mat) => this._reg(part, new THREE.Mesh(new THREE.CylinderGeometry(rad, rad, Math.abs(x1 - x0), 24).rotateZ(Math.PI / 2).translate((x0 + x1) / 2, r * Math.cos(th * DEG), r * Math.sin(th * DEG)), mat));
+    const castM = { color: 0x8a9198, metalness: 0.6, roughness: 0.5 }, chromM = { color: 0xa8894a, metalness: 0.9, roughness: 0.4 };
+    const kw = (w) => `${((w || 0) / 1000).toFixed(0)} kW`;
+    const agb = A({ id: 'agb', name: 'Accessory gearbox', ex: -0.55, mat: castM, desc: 'Hangs under the fan case. A tower shaft from the HP spool turns the angle gearbox at the fan frame, and a lay shaft carries the drive forward to this casting, whose gears turn every accessory at a fixed ratio to N2. Mechanics turn the core by hand at the cranking pad for borescope inspections.', live: (o) => `Driven at N2 ${o.N2pct.toFixed(1)} % · accessory load ${kw(o.accPower)}` });
+    { const b = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.11, 0.8), agb.mat); b.position.set(0.57, -0.935, 0); this._reg(agb, b); along(agb, 0.78, 1.06, 180, 0.918, 0.026); }
+    const starter = A({ id: 'starter', name: 'Air turbine starter', ex: -0.85, mat: castM, desc: 'Air from the APU, a ground cart or the other engine spins a small turbine at high speed; a reduction gear and an overrunning clutch turn the HP spool through the gearbox. The start valve closes at about 43 % N2 and the clutch freewheels from then on.', live: (o) => (o.starterAir ? (o.tStart > 1 ? `Driving: ${o.tStart.toFixed(0)} N·m at the spool · duct ${(o.starterPsi || 0).toFixed(0)} psi` : `Air on, starter run out: no torque left at N2 ${o.N2pct.toFixed(1)} %`) : 'Freewheeling (no air)') });
+    along(starter, 0.138, 0.36, 199, 0.935, 0.064);
+    const sav = A({ id: 'sav', name: 'Starter air valve', ex: -0.55, mat: castM, desc: 'Butterfly valve in the starter duct. The EEC energises its solenoid and duct pressure opens it. If it will not open, a mechanic can turn it with a wrench through an access panel in the right fan cowl while the crew runs the start.', live: (o, f) => `${f && f.valveOpen ? 'OPEN' : 'CLOSED'} · duct ${(o.starterPsi || 0).toFixed(0)} psi` });
+    along(sav, 0.42, 0.534, 222, 0.943, 0.05);
+    const idg = A({ id: 'idg', name: 'Integrated drive generator (IDG)', ex: -0.3, mat: castM, desc: 'A constant-speed drive and a generator in one oil-filled case: the drive turns the varying gearbox speed into a steady 12,000 rpm, so the aircraft gets 115 V at 400 Hz. Rated 90 kVA. The crew can disconnect it from the gearbox if it overheats; it can only be reconnected on the ground.', live: (o) => (o.N2pct > 55 ? `On line: 115 V · 400 Hz · drive input N2 ${o.N2pct.toFixed(1)} %` : `Off line: below idle (N2 ${o.N2pct.toFixed(1)} %)`) });
+    along(idg, 0.78, 1.07, 197, 0.937, 0.065);
+    const hydpump = A({ id: 'hydpump', name: 'Engine-driven hydraulic pump', ex: -0.85, mat: castM, desc: 'Variable-displacement piston pump that holds an aircraft hydraulic system at 3,000 psi (green on engine 1, yellow on engine 2); the thrust reverser runs on it. The crew can depressurise it from the cockpit. Its load and the generator\'s are the power off-take below.', live: (o) => (o.N2pct > 20 ? `About 3,000 psi · driven at N2 ${o.N2pct.toFixed(1)} %` : `Building pressure · N2 ${o.N2pct.toFixed(1)} %`) });
+    along(hydpump, 0.2, 0.36, 182, 0.935, 0.05);
+    const fuelpump = A({ id: 'fuelpump', name: 'Fuel pump', ex: -0.3, mat: chromM, desc: 'Two stages on one shaft. A centrifugal low-pressure stage lifts fuel from the aircraft tanks and sends it through the fuel-cooled oil cooler and the LP filter; a gear high-pressure stage then delivers more than the engine can use to the metering unit, which spills the surplus back. Delivery shown is an estimate (flow in proportion to N2).', live: (o) => { const d = 9000 * o.N2pct / 100, wf = o.wf * 3600; return `Delivery ≈ ${d.toFixed(0)} kg/h · burned ${wf.toFixed(0)} · spilled back ≈ ${Math.max(0, d - wf).toFixed(0)} kg/h`; } });
+    along(fuelpump, 0.78, 0.93, 165, 0.93, 0.058);
+    const fmu = A({ id: 'fmu', name: 'Fuel metering unit (FMU)', ex: -0.3, mat: chromM, desc: 'Meters fuel to the nozzles as the EEC commands: a torque motor positions the metering valve and a position sensor reports back to both EEC channels. It shuts the fuel off when the master switch goes off, and sends servo fuel to the stator vane, bleed and clearance-control actuators.', live: (o) => `Metered ${(o.wf * 3600).toFixed(0)} kg/h · shut-off valve ${o.wf > 1e-4 ? 'open' : 'shut'}` });
+    { const b = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.11, 0.14), fmu.mat); b.position.set(1.01, 0.93 * Math.cos(165 * DEG), 0.93 * Math.sin(165 * DEG)); b.rotation.x = 165 * DEG; this._reg(fmu, b); }
+    const oilpump = A({ id: 'oilpump', name: 'Oil pump and scavenge filter', ex: -0.85, mat: chromM, desc: 'One pressure element and several scavenge elements on a common shaft. The pressure stage feeds the bearings; the scavenge stages pull the oil back out of the bearing chambers and gearboxes, through the scavenge filter and the chip detectors, to the tank. There is no pressure regulator, so pressure follows N2.', live: (o) => `Oil ${(o.oilP || 0).toFixed(0)} psi · filter ΔP ${(o.oilFilterDp || 0).toFixed(1)} psi · ${(o.oilT || 0).toFixed(0)} °C` });
+    along(oilpump, 0.25, 0.36, 166, 0.94, 0.045); along(oilpump, 0.78, 0.95, 155, 0.915, 0.047);
+    const pma = A({ id: 'pma', name: 'Dedicated alternator', ex: -0.85, mat: castM, desc: 'Permanent-magnet alternator that powers the EEC by itself once the core turns above about 10 % N2, so engine control does not depend on the aircraft electrical system. Below that the aircraft supplies the EEC.', live: (o) => (o.N2pct > 10 ? `Powering the EEC (N2 ${o.N2pct.toFixed(1)} %)` : 'EEC on aircraft power') });
+    along(pma, 0.28, 0.36, 190, 0.947, 0.036);
+    const oiltank = A({ id: 'oiltank', name: 'Oil tank', ex: -0.55, mat: castM, desc: 'Holds 25 US quarts usable. Oil coming back from the scavenge pumps passes a de-aerator inside the tank. The level shows on the sight glass and on the ECAM through a quantity transmitter. Several quarts are always out round the system while the engine runs, so the level drops after start and recovers after shutdown.', live: (o) => `Quantity ${(o.oilQ || 0).toFixed(1)} qt · ${(o.oilT || 0).toFixed(0)} °C` });
+    { const t = new THREE.Mesh(new THREE.CylinderGeometry(0.074, 0.074, 0.33, 24), oiltank.mat); t.position.set(0.52, 0.94 * Math.cos(139 * DEG), 0.94 * Math.sin(139 * DEG)); t.rotation.x = 139 * DEG + Math.PI / 2; this._reg(oiltank, t); }
     const eec = A({ id: 'eec', name: 'Electronic engine control (FADEC)', ex: -0.55, mat: { color: 0x15181b, metalness: 0.3, roughness: 0.5 }, desc: 'Dual-channel computer on the fan case. Sets fuel flow, stator angle and bleed valves, and protects the engine limits.', live: () => '' });
     const eb = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.09, 0.3), eec.mat); eb.position.set(0.55, -0.62, -0.84); eb.rotation.x = 0.94; this._reg(eec, eb);
     const ext = A({ id: 'ext', name: 'External pipework and harnesses', ex: 0.1, mat: pipeSteel, desc: 'Fuel, oil, bleed-air and cooling pipes and the electrical harnesses that dress the core. Visible with the core cowl removed.', live: (o) => `Turbine cooling ${o.Wcool.toFixed(1)} kg/s · handling bleed ${(o.Wb7 + o.Wb10).toFixed(1)} kg/s · clearance control ${(100 * (o.accH || 0)).toFixed(0)} / ${(100 * (o.accL || 0)).toFixed(0)} % (+${(100 * ((o.accEff || [0])[0])).toFixed(1)} pt HPT)` });
@@ -678,6 +697,7 @@ export class Scene3D {
       const byPart = {
         inlet: FINISH.nacellePaint, fancowl: FINISH.nacellePaint, cna: FINISH.nacellePaint, pylon: FINISH.nacellePaint, lip: FINISH.polished,
         fancase: FINISH.castPaint, lpccase: FINISH.castPaint, hpccase: FINISH.castPaint, agb: FINISH.castBare, eec: FINISH.darkBox,
+        starter: FINISH.castBare, sav: FINISH.castBare, idg: FINISH.castBare, hydpump: FINISH.castBare, pma: FINISH.castBare, oiltank: FINISH.castBare, fuelpump: FINISH.chromate, fmu: FINISH.chromate, oilpump: FINISH.chromate,
         spinner: { ...FINISH.darkBox, bottom: 0, grime: 0.08 }, fan: FINISH.titanium, lpc: FINISH.compressorBlade, hpc: FINISH.compressorBlade,
         hpt: H(FINISH.turbineBlade, [2.0, 2.45, 0.8]), lpt: H(FINISH.turbineBlade, [2.3, 3.05, 0.7]),
         hptcase: H(FINISH.hotCase, [2.0, 2.5, 0.9]), lptcase: H(FINISH.hotCase, [2.3, 3.1, 0.9]), combcase: H(FINISH.hotCase, [1.75, 2.6, 0.5]),
@@ -1026,7 +1046,7 @@ export class Scene3D {
             if (/^txt:/.test(mt.name)) return (this._labels ||= {})[mt.name] ||= labelMaterial(mt.name.slice(4));
             const sh = this.shared[mt.name];
             if (mt.name === 'section') return sh || mt;
-            const casting = mt.name === 'cast' && /oiltank|gearbox|agb_|dressing|eec/i.test(m.name);
+            const casting = mt.name === 'cast' && /oiltank|gearbox|agb_|dressing|eec|starter_|sav_|idg_|hydpump_|fuelpump_|fmu_|oilpump_|pma_/i.test(m.name);
             const key = mt.name + (casting ? ':bare' : '');
             return (own[key] ||= (() => {
               let c;

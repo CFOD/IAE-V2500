@@ -61,6 +61,26 @@ actuators, band-clamp stand-offs and bolted ports where they leave a casing:
 
 Tubes that go into a casing end in a cast boss with a hex union rather than stopping in mid-air.
 
+The gearbox accessories and the oil tank are components of their own, built by
+`tools/blender/accessories.py`, so each can be picked, read about and removed on its own. Every unit is
+modelled in a frame at its mounting pad (local x along the engine axis away from the pad, local z radially
+out) from flanges, V-band clamps, ports, plugs, sight glasses and connectors:
+
+- **Front face of the gearbox**: air turbine starter (reduction-gear housing, exhaust screen, inlet to the
+  starter duct), dedicated alternator, hydraulic pump (ports where the hydraulic lines leave), lube and
+  scavenge pump with its chip detector.
+- **Rear face**: IDG (case in two bolted halves, feeder terminal block and cables, sight glass, charge
+  filter, disconnect solenoid and reset ring, cooler ports), fuel pump with the fuel metering unit behind it
+  (torque motor and position-sensor connectors, shut-off solenoid, servo-fuel manifold and metered-fuel
+  outlet where the routed lines start), scavenge filter with its clogging indicator, hand-cranking pad.
+- **Gearbox casting**: lay shaft to the angle gearbox at the fan frame, tower-shaft housing, breather.
+- **Elsewhere**: the starter air valve in its duct, and the oil tank on saddles on the lower left of the
+  fan case (filler, sight glass, quantity transmitter, supply and return ports for the gearbox lines).
+
+The space between the fan case and the fan cowl is smaller in this model than on the real engine, so the
+units are slimmer than the real ones. In the app each has a card with what it does, a live readout from
+the simulation, and its controls and faults.
+
 Conventions the loader understands:
 
 - **Node names** are `<component>_<piece>`. A node whose name ends in `__cut` is shown when the
@@ -106,8 +126,9 @@ Conventions the loader understands:
 - Components not listed keep their generated geometry, so an exterior-only model can be combined
   with the generated internals.
 
-Component ids: `inlet lip fancase cna spinner fan lpc lpccase hpc hpccase hpt hptcase lpt lptcase
-lpshaft hpshaft combcase liner fuel ign corecowl tec agb eec ext`.
+Component ids: `inlet lip fancase fancowl cna spinner fan lpc lpccase hpc hpccase hpt hptcase lpt lptcase
+lpshaft hpshaft bearings combcase liner fuel ign corecowl tec agb starter sav idg hydpump fuelpump fmu oilpump
+pma oiltank eec ext pylon`.
 
 The cutaway wedge applies only to generated geometry. An authored casing is shown whole; split it
 in the model (or hide it with Remove part) to see inside.

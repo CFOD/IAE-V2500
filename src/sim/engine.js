@@ -473,6 +473,7 @@ export class Engine {
     out.hptPR = P4 / s.P45; out.lptPR = s.P45 / s.P5;
     out.ignOn = u.ignition; out.fuelUsed = s.fuelUsed;
     out.tq1 = tq1; out.tq2 = tq2; out.tStart = tStart;
+    out.accPower = accPower; out.starterAir = !!u.starterValve; out.starterPsi = u.starterPsi;   // for the accessory cards
     out.pwrFan = o.fan.power; out.pwrLpc = o.lpc.power; out.pwrHpc = o.hpc.power;
     out.pwrHpt = o.hpt.power; out.pwrLpt = o.lpt.power;
     out.sfc = out.thrust > 100 ? (s.wf / out.thrust) * 3600 * 9.80665 : 0; // lb/lbf/h == kg/kgf/h
