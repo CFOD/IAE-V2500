@@ -10,6 +10,7 @@ between the right end points.
 """
 import math
 from pipes import Dresser, cyl_to_blender
+import accessories as AC
 
 
 def smooth_bump(u):
@@ -74,6 +75,22 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     D = Dresser('fancase_dress', in_cut, section)
     C = Dresser('ext_dress', in_cut, section)
 
+    # end points on the gearbox accessories, from their layout (accessories.py)
+    def on(key, local, x_off=0.0):
+        x, th, r = AC.at(key, local); return (x + x_off, th, r - fan(x + x_off))
+    hyd_x, hyd_th, hyd_r, hyd_s = AC.LAYOUT['hydpump']
+    hyd_port = (hyd_x - 0.1 * hyd_s, hyd_th, hyd_r + 0.042 * hyd_s + 0.012)
+    op_x, op_th, op_r, op_s = AC.LAYOUT['oilpump']
+    oil_port = (op_x - 0.02 * op_s, op_th + 2, op_r + 0.044 * op_s + 0.012)
+    fp_s = AC.LAYOUT['fuelpump'][3]
+    fcoc_port = on('fuelpump', (0.22, AC.side(162, 166, 1.04) / fp_s, 0.058 + 0.012 / fp_s))
+    servo_port = on('fuelpump', (AC.FMU_REAR + 0.012 + 0.006 / fp_s, 0.0, 0.003))
+    metered_port = on('fuelpump', (AC.FMU_REAR + 0.01 + 0.01 / fp_s, AC.side(160, 166, 0.97) / fp_s, 0.003))
+    idg_s = AC.LAYOUT['idg'][3]
+    idg_ports = [on('idg', (a, -0.114 - 0.012 / idg_s, -0.012)) for a in AC.IDG_COOLER]
+    sav_plug = on('sav', (0.004, -0.09, 0.02), x_off=-0.012)
+    duct_h = lambda x: AC.LAYOUT['sav'][2] - fan_base(x)       # starter duct centreline height above the case
+
     def T(dr, R, way, n=1, d=0.022, radius=0.005, mat='ss', clamp=True, nuts=True, layers=1, rb=0.04, boss=False, every=0.2):
         # boss: True (both ends), or (start, end) - the ends that go into a casing through a cast port
         dr.tubes(R, way, n=n, d=d, radius=radius, mat=[M[m] for m in mat] if isinstance(mat, (list, tuple)) else M[mat],
@@ -96,7 +113,7 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     # P3 servo air from the solenoids down the right side to the lower bifurcation (they feed the HPC bleed valves)
     T(D, fan, [(0.585, 266, 0.05), (0.62, 262, 0.03), (0.9, 262, 0.015), (0.9, 214, 0.015), (1.12, 214, 0.015), (1.12, 190, 0.015), (1.16, 186, 0.015)], n=4, d=0.016, radius=0.0035, mat='ss', rb=0.045)
     # air-cooled oil cooler <-> gearbox
-    T(D, fan, [(0.74, 236, 0.07), (0.71, 232, 0.02), (0.71, 214, 0.02), (0.71, 210, 0.06)], n=2, d=0.032, radius=0.011, mat='ss', rb=0.05)
+    T(D, fan, [(0.74, 236, 0.07), (0.71, 232, 0.02), (0.71, 216, 0.02), (0.71, 212.4, 0.11)], n=2, d=0.032, radius=0.011, mat='ss', rb=0.05)
     # pressure sense lines from the EEC forward over the top (P2, P12.5)
     T(D, fan, [(0.29, 300, 0.05), (0.255, 302, 0.018), (0.255, 349, 0.018), (0.145, 349, 0.018), (0.145, 358, 0.018), (0.0, 358, 0.03)], n=3, d=0.012, radius=0.003, mat='cad', rb=0.03)
     # Nacelle anti-ice: HP stage 7 air comes up through the fan frame and out of the fan case at a flanged
@@ -105,31 +122,36 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
            rb=0.07, joints=(0.38, 0.8), ports=(True, False), port_mat=M['boss'], supports=0.3, support_mat=M['brk'])
     # Air turbine starter supply: from the pylon at the top, round the back of the fan case behind the
     # air-cooled oil cooler, forward to the starter air valve, then on to the starter on the gearbox
-    D.duct(fan_base, [(0.534, 222, 0.1), (1.135, 222, 0.1), (1.135, 330, 0.1), (1.19, 342, 0.124), (1.19, 356, 0.17)], 0.031, M['duct'], M['flange'],
-           rb=0.09, joints=(0.3, 0.58), bellows=((0.84, 0.9),), supports=0.28, support_mat=M['brk'])
-    D.duct(fan_base, [(0.138, 199, 0.0915), (0.09, 199, 0.0915), (0.09, 222, 0.1), (0.42, 222, 0.1)], 0.031, M['duct'], M['flange'],
-           rb=0.04, bellows=((0.62, 0.72),), supports=0.25, support_mat=M['brk'])
+    sx = AC.SAV_X1; st_th = AC.LAYOUT['starter'][1]; sv_th = AC.LAYOUT['sav'][1]
+    D.duct(fan_base, [(sx, sv_th, duct_h(sx)), (1.135, sv_th, duct_h(1.135)), (1.135, 330, duct_h(1.135)), (1.19, 342, duct_h(1.19) + 0.02), (1.19, 356, duct_h(1.19) + 0.07)], AC.DUCT_R, M['duct'], M['flange'],
+           rb=0.11, joints=(0.3, 0.58), bellows=((0.84, 0.9),), supports=0.28, support_mat=M['brk'])
+    ix = AC.STARTER_INLET_X
+    D.duct(fan_base, [(ix, st_th, duct_h(ix)), (0.052, st_th, duct_h(0.052)), (0.052, sv_th, duct_h(0.052)), (0.42, sv_th, duct_h(0.42))], AC.DUCT_R, M['duct'], M['flange'],
+           rb=0.05, bellows=((0.62, 0.72),), supports=0.25, support_mat=M['brk'])
     # fire detection loop along the right side of the fan case (double element, on red clamps)
     for dd in (0.0, 0.012):
         D.loom(fan, [(0.36 + dd, 212, 0.012), (0.36 + dd, 352, 0.012)], radius=0.0028, mat=M['cad'], clamp_mat=M['red'], clamp_every=0.18, rb=0.03)
     # small looms to the ACOC temperature sensor and the starter valve
     H(D, fan, [(0.765, 300, 0.04), (0.9, 296, 0.025), (0.9, 246, 0.025), (0.9, 241, 0.09)], radius=0.006)
-    H(D, fan, [(0.29, 296, 0.05), (0.255, 292, 0.025), (0.255, 226, 0.025), (0.4, 224, 0.06)], radius=0.006)
+    H(D, fan, [(0.29, 296, 0.05), (0.255, 292, 0.025), (0.255, sav_plug[1] + 2, 0.025), (sav_plug[0] - 0.02, sav_plug[1], sav_plug[2]), sav_plug], radius=0.006)
 
     # ================================================================== FAN CASE, LEFT SIDE (fuel, oil, hydraulics)
     # hydraulic pump -> fluid disconnect panel on the upper left (suction, pressure, case drain)
-    T(D, fan, [(0.26, 182, 0.13), (0.255, 176, 0.02), (0.255, 24, 0.02), (1.09, 24, 0.02), (1.13, 14, 0.14)], n=3, d=0.034,
+    hx, hth, hr = hyd_port
+    T(D, fan, [(hx, hth, hr - fan(hx)), (hx - 0.01, hth - 6, 0.07), (0.175, hth - 8.5, 0.02), (0.175, 24, 0.02), (1.09, 24, 0.02), (1.13, 14, 0.14)], n=3, d=0.04,
       radius=[0.012, 0.007, 0.006], mat='ss', rb=0.07, every=0.24)
     # fuel supply and return from the pylon panel down to the LP fuel filter
     T(D, fan, [(1.13, 8, 0.14), (1.13, 20, 0.02), (1.13, 128, 0.02), (1.1, 138, 0.08)], n=2, d=0.03, radius=[0.011, 0.008], mat='ss', rb=0.07)
     # LP filter / fuel-cooled oil cooler <-> pump and metering unit on the gearbox
-    T(D, fan, [(1.0, 140, 0.05), (0.97, 146, 0.02), (0.97, 158, 0.02), (1.0, 162, 0.09)], n=2, d=0.03, radius=0.01, mat='ss', rb=0.05)
+    T(D, fan, [(1.0, 140, 0.05), (0.97, 146, 0.02), (0.97, 157, 0.02), fcoc_port], n=2, d=0.03, radius=0.01, mat='ss', rb=0.05)
     # oil pressure to the transmitter and low-pressure switch at the top left
-    T(D, fan, [(0.34, 168, 0.12), (0.145, 166, 0.018), (0.145, 52, 0.018), (0.55, 52, 0.018), (0.6, 49, 0.05)], n=2, d=0.014, radius=0.004, mat='cad', rb=0.04)
+    ox, oth, orr = oil_port
+    T(D, fan, [(ox, oth, orr - fan(ox)), (0.19, oth + 0.5, orr - fan(0.19)), (0.115, oth - 2, 0.03), (0.115, 52, 0.018), (0.55, 52, 0.018), (0.6, 49, 0.05)], n=2, d=0.014, radius=0.004, mat='cad', rb=0.04)
     # scavenge filter differential pressure lines
-    T(D, fan, [(0.76, 150, 0.1), (0.71, 146, 0.018), (0.71, 62, 0.018), (0.66, 56, 0.05)], n=2, d=0.014, radius=0.0035, mat='ss', rb=0.035)
+    T(D, fan, [(0.8, 149.5, 0.95 - fan(0.8)), (0.71, 146, 0.018), (0.71, 62, 0.018), (0.66, 56, 0.05)], n=2, d=0.014, radius=0.0035, mat='ss', rb=0.035)
     # IDG oil cooler <-> IDG, round behind the gearbox
-    T(D, fan, [(0.98, 104, 0.06), (0.9, 108, 0.018), (0.9, 196, 0.018), (0.82, 200, 0.08)], n=2, d=0.026, radius=0.008, mat='ss', rb=0.05)
+    (ix0, ith, ih), (ix1, _, _) = idg_ports; ixm = (ix0 + ix1) / 2
+    T(D, fan, [(0.98, 104, 0.06), (0.9, 108, 0.018), (0.9, 214.5, 0.018), (ixm, 214.5, ih - 0.03), (ixm, ith + 0.5, ih)], n=2, d=abs(ix1 - ix0), radius=0.008, mat='ss', rb=0.05)
     # harness trunk over the top to the left-side sensors, with breakouts
     H(D, fan, [(0.765, 305, 0.045), (0.71, 318, 0.03), (0.71, 455, 0.03), (0.86, 460, 0.03), (0.95, 462, 0.07)], radius=0.011)
     H(D, fan, [(0.71, 362, 0.042), (0.42, 362, 0.03), (0.32, 362, 0.045)], radius=0.005, conn=(False, True))      # vibration pick-up
@@ -140,9 +162,9 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
 
     # ================================================================== BOTTOM: everything for the core gathers at the lower bifurcation
     # servo fuel from the metering unit (VSV, booster bleed, clearance control actuators)
-    T(D, fan, [(1.08, 166, 0.1), (1.12, 170, 0.015), (1.12, 178, 0.015), (1.16, 180, 0.015)], n=6, d=0.011, radius=0.003, mat='cad', rb=0.03)
+    T(D, fan, [servo_port, (1.15, 171, 0.015), (1.15, 178, 0.015), (1.16, 180, 0.015)], n=6, d=0.011, radius=0.003, mat='cad', rb=0.03)
     # metered fuel to the core
-    T(D, fan, [(1.08, 160, 0.1), (1.14, 164, 0.02), (1.14, 176, 0.02), (1.17, 178, 0.02)], n=1, radius=0.009, mat='ss', rb=0.04)
+    T(D, fan, [metered_port, (1.165, 164, 0.02), (1.165, 176, 0.02), (1.175, 178, 0.02)], n=1, radius=0.009, mat='ss', rb=0.04)
 
     # crossing the bypass duct inside the lower bifurcation (absolute radius); each group stacks along x
     def cross(th, x, r0, r1, n, d, radius, mat, loom=False):
@@ -264,17 +286,17 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
         return route
 
     FAN_BAYS = [0.145, 0.255, 0.365, 0.52, 0.71, 0.9, 1.09]
-    gearbox = lambda x, lo, hi: 0.33 < x < 0.81 and lo < 210 and hi > 150
-    oiltank = lambda x, lo, hi: 0.43 < x < 0.62 and lo < 151 and hi > 126
+    gearbox = lambda x, lo, hi: 0.06 < x < 1.2 and lo < AC.GEARBOX['th1'] + 4 and hi > AC.GEARBOX['th0'] - 4   # gearbox and its units
+    oiltank = lambda x, lo, hi: 0.38 < x < 0.66 and lo < 148 and hi > 119
     route_fan = packer(FAN_BAYS, (0.012, 0.024, 0.036), 0.05, [gearbox, oiltank])
     RH = [(0.765, 298, 0.045), (0.765, 304, 0.045), (0.765, 310, 0.045), (0.27, 300, 0.05), (0.27, 308, 0.05), (0.6, 281, 0.06), (0.66, 281, 0.06),
           (0.55, 266, 0.05), (0.64, 266, 0.05), (0.72, 266, 0.05), (0.81, 266, 0.05), (0.7, 256, 0.05), (0.79, 256, 0.05), (0.74, 232, 0.07), (1.06, 244, 0.07),
-          (0.42, 220, 0.08), (0.5, 210, 0.07), (0.7, 210, 0.07), (0.62, 326, 0.1), (1.0, 346, 0.08), (0.26, 250, 0.01), (1.17, 214, 0.02), (1.17, 236, 0.02),
+          sav_plug, (0.5, 213, 0.11), (0.7, 213, 0.11), (0.62, 326, 0.1), (1.0, 346, 0.08), (0.26, 250, 0.01), (1.17, 214, 0.02), (1.17, 236, 0.02),
           (1.17, 268, 0.02), (1.17, 296, 0.02), (1.17, 320, 0.02), (1.17, 190, 0.02), (1.17, 200, 0.02), (0.05, 300, 0.03), (0.05, 340, 0.03)]
-    LH = [(0.5, 150, 0.07), (0.7, 150, 0.07), (0.44, 140, 0.09), (0.6, 136, 0.09), (0.95, 120, 0.08), (1.09, 126, 0.08), (1.02, 140, 0.09), (0.88, 100, 0.06),
+    LH = [(0.36, 146.5, 0.1), (0.72, 146.5, 0.1), (0.4, 128, 0.13), (0.64, 138, 0.13), (0.95, 120, 0.08), (1.09, 126, 0.08), (1.02, 140, 0.09), (0.88, 100, 0.06),
           (1.08, 100, 0.06), (0.6, 48, 0.05), (0.66, 54, 0.05), (0.3, 6, 0.04), (0.4, 34, 0.06), (0.4, 46, 0.06), (0.3, 70, 0.07), (0.8, 60, 0.05), (1.13, 10, 0.14),
           (1.13, 18, 0.14), (1.17, 30, 0.02), (1.17, 60, 0.02), (1.17, 90, 0.02), (1.17, 120, 0.02), (1.17, 150, 0.02), (1.17, 170, 0.02), (1.17, 160, 0.02),
-          (0.05, 20, 0.03), (0.05, 90, 0.03), (0.05, 150, 0.03), (0.36, 160, 0.06), (0.78, 160, 0.06)]
+          (0.05, 20, 0.03), (0.05, 90, 0.03), (0.05, 150, 0.03), (0.36, 150, 0.1), (0.785, 159.5, 0.05)]
     mats = ['ss', 'ss', 'ss', 'ti', 'cad', 'ss', 'ti']
     for side, anchors, nrun in (('R', RH, 46), ('L', LH, 46)):
         made_n = 0; tries = 0
@@ -290,8 +312,8 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
               boss=(A[2] <= 0.031, B[2] <= 0.031))   # low anchors are ports on the fan case itself
             made_n += 1
     # a few more harness branches on each side
-    for A, B, r in (((0.765, 302, 0.045), (1.17, 250, 0.02), 0.008), ((0.765, 306, 0.045), (0.42, 220, 0.08), 0.006), ((0.27, 304, 0.05), (0.05, 330, 0.03), 0.006),
-                    ((0.88, 100, 0.06), (1.17, 80, 0.02), 0.007), ((0.6, 48, 0.05), (1.17, 40, 0.02), 0.006), ((0.36, 160, 0.06), (0.145, 120, 0.03), 0.006)):
+    for A, B, r in (((0.765, 302, 0.045), (1.17, 250, 0.02), 0.008), ((0.765, 306, 0.045), sav_plug, 0.006), ((0.27, 304, 0.05), (0.05, 330, 0.03), 0.006),
+                    ((0.88, 100, 0.06), (1.17, 80, 0.02), 0.007), ((0.6, 48, 0.05), (1.17, 40, 0.02), 0.006), ((0.36, 150, 0.1), (0.145, 120, 0.03), 0.006)):
         way = route_fan(A, B, 2 * r)
         if way: H(D, fan, way, radius=r, conn=(True, True))
 

@@ -18,7 +18,7 @@ CUT_A, CUT_B = math.radians(-8), math.radians(112)  # must match scene3d.js
 # section profiles [x, r] - keep in step with app/cutaway.js
 P = {
     'inletInner': [[-0.78, 0.8], [-0.62, 0.765], [-0.3, 0.79], [0, 0.81]],
-    'nacelle': [[-0.78, 0.8], [-0.74, 0.9], [-0.45, 1.0], [0.5, 1.04], [2.0, 0.98], [3.55, 0.635]],
+    'nacelle': [[-0.78, 0.8], [-0.74, 0.9], [-0.45, 1.0], [-0.1, 1.07], [0.3, 1.11], [1.0, 1.12], [2.0, 1.03], [3.55, 0.635]],
     'bypOuter': [[0, 0.81], [0.35, 0.81], [1.2, 0.8], [2.4, 0.74], [3.2, 0.66], [3.55, 0.61]],
     'bypInner': [[0.4, 0.47], [0.7, 0.54], [1.3, 0.56], [2.4, 0.54], [3.0, 0.52], [3.12, 0.46]],
     'coreOuter': [[0.4, 0.47], [0.85, 0.44], [1.15, 0.3], [1.85, 0.25], [1.92, 0.33], [2.18, 0.33], [2.22, 0.3], [2.42, 0.33], [3.0, 0.48], [3.12, 0.44]],
@@ -328,7 +328,6 @@ def build():
     # harness bundles and small pipes along the case
 
     # ---- accessory gearbox: a flat casting wrapped under the fan case, accessories fore and aft
-    gb = arc_solid('gb', [[0.36, 0.875], [0.36, 0.985], [0.5, 1.0], [0.72, 0.995], [0.78, 0.97], [0.78, 0.875]], 152, 208, cast)
     # The accessories on its faces are components of their own (accessories.py); the lay shaft, angle gearbox
     # and hand-cranking pad are part of the gearbox.
     import sys; sys.path.insert(0, os.path.dirname(__file__))
@@ -336,22 +335,26 @@ def build():
     import accessories
     H = SimpleNamespace(link=link, join=join, finish=finish, th_pos=th_pos, material=material)
     acc = accessories.gearbox_extras(H, accessories.materials(H))
+    GBX = accessories.GEARBOX; gt0, gt1 = GBX['th0'], GBX['th1']; rt = GBX['r_out']
+    gb = arc_solid('gb', [[0.36, 0.875], [0.36, rt - 0.022], [0.42, rt], [0.7, rt], [0.78, rt - 0.027], [0.78, 0.875]], gt0, gt1, cast)
     # stiffening ribs and mounting pads on the gearbox casting
-    for th0 in (158, 168, 178, 188, 198):
-        acc.append(arc_solid('rib', [[0.38, 0.985], [0.38, 0.997], [0.74, 1.004], [0.74, 0.992]], th0, th0 + 1.2, cast, steps=2))
+    for th0 in (156, 166, 176, 186, 196, 206):
+        acc.append(arc_solid('rib', [[0.42, rt - 0.001], [0.42, rt + 0.011], [0.7, rt + 0.011], [0.7, rt - 0.001]], th0, th0 + 1.2, cast, steps=2))
     acc += [
-        # de-oiler and its breather out through the cowl, oil supply and return to the tank (ports on its lower end), gearbox mount links
-        cylinder('deoiler', th_pos(0.57, 207, 0.94), th_pos(0.57, 213, 0.94), 0.05, 0.045, cast, seg=20),
-        tube('breather', [(0.6, 212, 0.94), (0.8, 211, 0.965), (0.98, 209, 0.99), (1.03, 203, 0.997)], 0.011, steel),
-        tube('oil', [(0.4, 166, 1.0), (0.44, 160, 1.005), (0.48, 154, 0.992), (0.5, 150.4, 0.982), (0.5, 149.6, 0.977)], 0.009, steel),
-        tube('oil', [(0.7, 183, 1.0), (0.66, 170, 1.008), (0.58, 156, 0.996), (0.54, 150.4, 0.982), (0.54, 149.6, 0.977)], 0.009, gold),
-        tube('drain', [(0.6, 180, 1.0), (0.7, 180, 1.03), (0.86, 180, 1.03)], 0.006, steel),
+        # de-oiler and its breather out through the cowl, drain to the mast
+        cylinder('deoiler', th_pos(0.57, gt1 + 1, 0.975), th_pos(0.57, gt1 + 7, 0.975), 0.055, 0.05, cast, seg=20),
+        tube('breather', [(0.6, gt1 + 7, 0.975), (0.8, gt1 + 5, 1.01), (1.0, gt1 + 2.5, 1.07), (1.03, gt1, 1.098)], 0.011, steel),
+        tube('drain', [(0.6, 180, rt), (0.7, 180, rt + 0.035), (0.92, 180, rt + 0.035), (0.95, 180, smooth_nacelle(0.95) - 0.01)], 0.006, steel),
     ]
-    for th in (154, 206):
-        acc.append(cylinder('gblink', th_pos(0.57, th, 0.88), th_pos(0.57, th + (4 if th < 180 else -4), 0.96), 0.014, 0.014, steel, seg=10))
+    # oil supply and return between the gearbox and the tank's lower-end ports
+    tp = [accessories.at('oiltank', q) for q in accessories.TANK_PORTS]
+    for (x, th, r), x0, m in zip(tp, (0.45, 0.62), (steel, gold)):
+        acc.append(tube('oil', [(x0, gt0 + 10, rt + 0.004), (x0 + (x - x0) * 0.5, gt0 + 4, rt), (x, th + 1.4, r + 0.012), (x, th + 0.3, r)], 0.009, m))
+    for th in (gt0 + 2, gt1 - 2):   # mount links from the gearbox sides to the fan case
+        acc.append(cylinder('gblink', th_pos(0.57, th, 0.88), th_pos(0.57, th + (-4 if th < 180 else 4), 0.97), 0.014, 0.014, steel, seg=10))
         acc.append(box('gblug', th_pos(0.57, th, 0.885), (0.06, 0.05, 0.03), th, cast))
-    for x, th in [(0.44, 160), (0.44, 172), (0.44, 190), (0.44, 200), (0.7, 162), (0.7, 176), (0.7, 190), (0.7, 202)]:
-        acc.append(cylinder('pad', th_pos(x, th, 0.985), th_pos(x, th, 1.004), 0.022, 0.022, cast, seg=12))
+    for x, th in [(0.48, 160), (0.48, 172), (0.48, 190), (0.48, 200), (0.66, 162), (0.66, 176), (0.66, 190), (0.66, 202)]:
+        acc.append(cylinder('pad', th_pos(x, th, rt - 0.002), th_pos(x, th, rt + 0.012), 0.022, 0.022, cast, seg=12))
     made.append(finish(join('agb_gearbox', [gb] + acc), 0.003))
     accessories.build_accessories(H, made)
     # ---- EEC: flat finned box on the upper side of the fan case, on four feet, with its connectors and looms
@@ -402,7 +405,8 @@ def build():
     # fire detection loops round the gearbox (two elements side by side), per the booklet diagram
     for d in (0.0, 0.012):
         # (on top of the casting, just inside its faces, so it clears the accessory flanges and clamps)
-        put(180, tube('fire', [(0.372 + d, 152, 0.995), (0.372 + d, 180, 1.0), (0.372 + d, 208, 0.995), (0.57, 211, 0.99), (0.768 - d, 208, 0.99), (0.768 - d, 180, 0.997), (0.768 - d, 152, 0.99), (0.57, 150, 0.995), (0.372 + d, 152, 0.995)], 0.0035, gold))
+        g0, g1, gr = accessories.GEARBOX['th0'], accessories.GEARBOX['th1'], accessories.GEARBOX['r_out']
+        put(180, tube('fire', [(0.372 + d, g0 + 1, gr - 0.01), (0.372 + d, 180, gr - 0.008), (0.372 + d, g1 - 1, gr - 0.01), (0.57, g1 + 0.6, gr - 0.03), (0.768 - d, g1 - 1, gr - 0.02), (0.768 - d, 180, gr - 0.016), (0.768 - d, g0 + 1, gr - 0.02), (0.57, g0 - 0.6, gr - 0.03), (0.372 + d, g0 + 1, gr - 0.01)], 0.0035, gold))
     # hydraulic control unit for the reverser and the pylon disconnect panels at the top of the fan frame
     put(352, box('hcu', th_pos(1.0, 352, 0.915), (0.2, 0.14, 0.07), 352, gold))
     for k in range(3): put(352, stack('hcus', 0.93 + 0.06 * k, 349, 0.96, [(0.012, 0.016, 0.016), (0.04, 0.02, 0.02)], steel))
@@ -458,8 +462,8 @@ def build():
     o = revolve('lip_ring', lip, lipm); c = duplicate(o, 'lip_ring__cut'); boolean(c, wedge); made.extend([finish(o, 0), finish(c, 0)])
 
     # strake high on the cowl side (kept side of the cutaway)
-    th = math.radians(62); rs = 1.02   # the strake is on the left-hand door (TTM figure); that is inside the cutaway sector
-    def at(x, dr): r = rs + dr; return (x, -r * math.sin(th), r * math.cos(th))
+    th = math.radians(62)   # the strake is on the left-hand door (TTM figure); that is inside the cutaway sector
+    def at(x, dr): r = smooth_nacelle(x) - 0.012 + dr; return (x, -r * math.sin(th), r * math.cos(th))
     bm = bmesh.new(); t = 0.007
     strake_pts = [(0.28, -0.02), (0.92, -0.02), (0.9, 0.085), (0.5, 0.03)]
     for side in (-1, 1):
@@ -473,7 +477,7 @@ def build():
 
     # ---- pylon fairing
     # Narrow leading-edge fairing rising off the fan cowl, deep box under the wing, aft fairing tapering to a point.
-    pyl = loft('pylon_fairing', [(0.02, 0.012, 0.99, 1.0), (0.1, 0.05, 0.985, 1.05), (0.25, 0.09, 0.98, 1.13), (0.5, 0.125, 0.975, 1.24), (0.9, 0.15, 0.965, 1.36), (1.5, 0.16, 0.945, 1.46), (2.2, 0.16, 0.9, 1.5),
+    pyl = loft('pylon_fairing', [(0.02, 0.012, 1.07, 1.09), (0.1, 0.05, 1.065, 1.13), (0.25, 0.09, 1.06, 1.2), (0.5, 0.125, 1.05, 1.29), (0.9, 0.15, 1.035, 1.39), (1.5, 0.16, 1.0, 1.47), (2.2, 0.16, 0.93, 1.5),
                                  (2.9, 0.145, 0.86, 1.5), (3.4, 0.115, 0.86, 1.46), (3.8, 0.075, 0.93, 1.4), (4.15, 0.035, 1.05, 1.34), (4.4, 0.008, 1.18, 1.28)], paint, n=28)
     pc = duplicate(pyl, 'pylon_fairing__cut'); boolean(pc, wedge); made.extend([finish(pyl, 0), finish(pc, 0)])
     # pylon panel lines, access panels and the lower aft fairing in bare metal (far side, so they survive the cutaway)
@@ -512,19 +516,19 @@ def build():
     surf = OML
     marks = []
     marks += outline('m', 0.5, 0.82, 152, 168, line, surf)            # pressure-relief door
-    marks += outline('m', 0.92, 1.08, 150, 158, line, surf)           # oil service door
-    marks += outline('m', 0.3, 0.52, 214, 224, line, surf)            # starter valve access (right-hand cowl)
+    marks += outline('m', 0.44, 0.6, 115, 126, line, surf)            # oil service door, over the tank filler
+    marks += outline('m', 0.4, 0.6, 216, 229, line, surf)             # starter valve access (right-hand cowl)
     marks.append(patch('m', 0.13, 0.15, 128, 166, red, surf))         # hazard stripe: stay clear of the intake
     marks.append(patch('m', 0.19, 0.31, 130.5, 137.5, label('R:DANGER'), surf))
     marks.append(patch('m', 0.19, 0.45, 139, 146.5, label('STAND CLEAR OF HAZARD|AREAS WHILE ENGINE|IS RUNNING'), surf))
-    marks.append(patch('m', 0.54, 0.78, 155.5, 158.5, label('PRESSURE RELIEF DOOR'), surf, lift=0.0026)); marks.append(patch('m', 0.93, 1.07, 152, 154.2, label('OIL SERVICE'), surf, lift=0.0026))
-    marks.append(patch('m', 0.32, 0.5, 217, 219.6, label('STARTER VALVE ACCESS'), surf, lift=0.0026)); marks.append(patch('m', 0.56, 0.78, 121, 124.5, label('NO STEP'), surf))
+    marks.append(patch('m', 0.54, 0.78, 155.5, 158.5, label('PRESSURE RELIEF DOOR'), surf, lift=0.0026)); marks.append(patch('m', 0.455, 0.585, 119.4, 121.6, label('OIL SERVICE'), surf, lift=0.0026))
+    marks.append(patch('m', 0.42, 0.58, 221.2, 223.8, label('STARTER VALVE ACCESS'), surf, lift=0.0026)); marks.append(patch('m', 0.72, 0.94, 121, 124.5, label('NO STEP'), surf))
     marks.append(patch('m', 0.66, 0.96, 228, 241, black, surf))        # air-cooled oil cooler outlet
     for k in range(7): marks.append(patch('m', 0.68 + 0.04 * k, 0.695 + 0.04 * k, 229, 240, line, surf, lift=0.003))   # louvre slats
     marks += outline('m', 0.6, 0.78, 250, 262, line, surf)             # EEC / relay access
     for x0 in (0.35, 0.75): marks.append(patch('m', x0, x0 + 0.16, 186, 192, black, surf))                      # two ventilation grilles at the bottom of the right-hand door
-    marks.append(patch('m', 1.0, 1.06, 200, 204, black, surf))                                                  # gearbox breather outlet
-    marks += outline('m', 0.3, 0.44, 162, 170, line, surf); marks.append(patch('m', 0.31, 0.43, 164.5, 166.5, label('MASTER CHIP DETECTOR'), surf, lift=0.0026))
+    marks.append(patch('m', 1.0, 1.06, 210, 214, black, surf))                                                  # gearbox breather outlet
+    marks += outline('m', 0.21, 0.35, 155, 165, line, surf); marks.append(patch('m', 0.22, 0.34, 158.9, 160.9, label('MASTER CHIP DETECTOR'), surf, lift=0.0026))
     join_sides('fancowl_markings', marks, made)
     # nose cowl: anti-ice exhaust slot low on the right, interphone jack panel, hoist points near the top (booklet photo)
     im = [patch('m', -0.36, -0.2, 236, 246, black, surf), patch('m', -0.3, -0.24, 270, 273, placard, surf)] + outline('m', -0.33, -0.21, 268, 275, line, surf)
@@ -541,7 +545,8 @@ def build():
     lat = [box('latch', th_pos(x, 180, OML(x) + 0.001), (0.09, 0.032, 0.007), 180, bare) for x in (0.2, 0.6, 1.0)]
     join_sides('fancowl_latches', lat, made)
     join_sides('cna_latches', [box('latch', th_pos(x, 180, OML(x) + 0.001), (0.09, 0.032, 0.007), 180, bare) for x in (1.28, 1.6, 1.85, 2.1, 2.5, 2.62)], made)
-    made.append(finish(loft('fancowl_drainmast', [(0.84, 0.004, -1.06, -1.03), (0.9, 0.012, -1.16, -1.0), (0.98, 0.012, -1.17, -1.0), (1.06, 0.004, -1.12, -1.0)], bare, n=12), 0))
+    dm = smooth_nacelle(0.95) - 1.02   # the mast hangs from the cowl bottom
+    made.append(finish(loft('fancowl_drainmast', [(0.84, 0.004, -1.06 - dm, -1.03 - dm), (0.9, 0.012, -1.16 - dm, -1.0 - dm), (0.98, 0.012, -1.17 - dm, -1.0 - dm), (1.06, 0.004, -1.12 - dm, -1.0 - dm)], bare, n=12), 0))
 
     # ---- routed dressing: tubes, harnesses, ducts and hoses (tools/blender/dressing.py)
     import sys; sys.path.insert(0, os.path.dirname(__file__))
