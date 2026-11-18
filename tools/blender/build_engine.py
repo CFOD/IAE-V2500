@@ -389,7 +389,7 @@ def build():
     import sys; sys.path.insert(0, os.path.dirname(__file__))
     from types import SimpleNamespace
     import accessories
-    H = SimpleNamespace(link=link, join=join, finish=finish, th_pos=th_pos, material=material)
+    H = SimpleNamespace(link=link, join=join, finish=finish, th_pos=th_pos, material=material, arc_solid=arc_solid)
     acc = accessories.gearbox_extras(H, accessories.materials(H))
     GBX = accessories.GEARBOX; gt0, gt1 = GBX['th0'], GBX['th1']; rt = GBX['r_out']
     gb = arc_solid('gb', [[0.36, 0.875], [0.36, rt - 0.022], [0.42, rt], [0.7, rt], [0.78, rt - 0.027], [0.78, 0.875]], gt0, gt1, cast)

@@ -140,31 +140,49 @@ def build_core_units(H, made, P, r_at, bevel=0.001):
 
 
 def build_mounts(H, made, P, r_at, in_cut, bevel=0.0015):
-    """Engine mounts. Front: a fitting on top of the fan frame, two links with spherical bearings up to the
-    pylon's front mount beam, and a shear pin. Rear: a beam on the turbine case top with two links up through
-    the upper bifurcation to the pylon's aft fitting. Both sit in the cutaway sector, so they are shown with
-    the cutaway closed (node suffix __full)."""
+    """Engine mounts, from the Airbus training manual (70 power plant, FWD mount & AFT mount figure).
+    FWD mount, on the intermediate case at the top centre: beam bolted to the pylon forward part (4 bolts,
+    alignment shear pins), cross beam, two thrust links down to the engine, and a support bearing on the
+    engine's forward support shaft; carries thrust, vertical and side loads. AFT mount, on the turbine exhaust
+    case lugs: the pylon aft part (adaptor) on a curved beam, two side links and a centre link; carries torque,
+    vertical and side loads and is free fore and aft for thermal growth. Both lie in the cutaway sector, so
+    they are shown with the cutaway closed (node suffix __full)."""
     M = materials(H)
     co = lambda x: r_at(P['coreOuter'], x)
-    F = Kit(H, frame(H, 1.12, 0, 0.88))
-    F.box('mf', (0, 0, 0), (0.15, 0.3, 0.03), M['cast'])                                  # base fitting on the fan frame
-    for bx in (-0.055, 0.055):                                                             # two rows of bolts through the base
-        for by in (-0.125, -0.07, 0.07, 0.125): F.hexa('mf', (bx, by, 0.015), (bx, by, 0.023), 0.006, M['nut'])
-    for sy in (-1, 1):
-        F.box('mf', (0, sy * 0.105, 0.04), (0.07, 0.022, 0.05), M['cast'])                # clevis lugs
-        a, b = Vector((0, sy * 0.105, 0.05)), Vector((0, sy * 0.045, 0.105))
-        F.cyl('mf', a, b, 0.014, 0.014, M['steel'], seg=14)                                # link
-        for q in (a, b): F.ring('mf', -0.012, 0.012, 0.012, 0.022, M['steel'], origin=q, axis=(1, 0, 0), seg=16)   # spherical bearings
-    F.cyl('mf', (0, 0, 0.015), (0, 0, 0.1), 0.024, 0.02, M['steel'], seg=18)              # shear pin
-    F.box('mf', (0, 0, 0.115), (0.14, 0.15, 0.03), M['steel'])                             # pylon front mount beam
-    R = Kit(H, frame(H, 2.85, 0, co(2.85) + 0.07))
-    R.box('mr', (0, 0, 0), (0.1, 0.24, 0.014), M['cast'])                                  # rear mount beam on the turbine case
-    for sy in (-1, 1):
-        R.box('mr', (0, sy * 0.04, 0.02), (0.06, 0.016, 0.03), M['cast'])
-        a, b = Vector((0, sy * 0.04, 0.03)), Vector((0, sy * 0.022, 0.17))
-        R.cyl('mr', a, b, 0.011, 0.011, M['steel'], seg=12)
-        for q in (a, b): R.ring('mr', -0.01, 0.01, 0.009, 0.017, M['steel'], origin=q, axis=(1, 0, 0), seg=14)
-    R.box('mr', (0, 0, 0.185), (0.12, 0.1, 0.03), M['steel'])                              # pylon aft fitting
+    # ---------------- forward mount (local frame on top of the intermediate case, x 1.12)
+    r0 = 0.89
+    F = Kit(H, frame(H, 1.12, 0, r0))
+    F.cyl('mf', (-0.08, 0, 0.05), (0.0, 0, 0.05), 0.022, 0.022, M['steel'], seg=18)          # engine forward support shaft (axial)
+    F.box('mf', (-0.07, 0, 0.0), (0.05, 0.06, 0.1), M['cast'])                                # its boss on the case
+    F.rev('mf', [(-0.04, 0.034), (-0.03, 0.044), (0.04, 0.044), (0.05, 0.034)], M['cast'], origin=(0, 0, 0.05), axis=(1, 0, 0), seg=28)   # support bearing housing
+    F.box('mf', (0.01, 0, 0.115), (0.2, 0.18, 0.05), M['cast'])                               # beam assembly
+    for bx in (-0.06, 0.08):                                                                    # pylon mount bolts (4) and shear pins (2)
+        for by in (-0.06, 0.06): F.hexa('mf', (bx, by, 0.14), (bx, by, 0.152), 0.009, M['nut'])
+    for by in (-0.025, 0.025): F.cyl('mf', (0.01, by, 0.14), (0.01, by, 0.165), 0.006, 0.006, M['steel'], seg=12)
+    F.box('mf', (0.1, 0, 0.1), (0.05, 0.34, 0.045), M['cast'])                                # cross beam assembly
+    for sy in (-1, 1):                                                                          # thrust links, splayed down to lugs on the case
+        a = Vector((0.1, sy * 0.155, 0.1)); zc = math.sqrt(0.835 ** 2 - 0.3 ** 2) - r0
+        b = Vector((-0.22, sy * 0.3, zc + 0.025))
+        F.cyl('mf', a, b, 0.015, 0.015, M['steel'], seg=14)
+        for q in (a, b): F.ring('mf', -0.014, 0.014, 0.013, 0.024, M['steel'], origin=q, axis=(1, 0, 0), seg=16)
+        F.box('mf', b + Vector((0, 0, -0.018)), (0.06, 0.05, 0.03), M['cast'])                  # engine lug
+    F.box('mf', (0.01, 0, 0.17), (0.24, 0.14, 0.06), M['steel'])                              # pylon forward part (bottom of the pylon)
     made.append(H.finish(H.join('mounts_front__full', F.objs), bevel))
-    made.append(H.finish(H.join('mounts_rear__full', R.objs), bevel))
+    # ---------------- aft mount (on the turbine exhaust case lugs, x 3.0 - 3.09)
+    xa, xb = 3.0, 3.09; rc = co(3.045)
+    beam = H.arc_solid('mr', [[xa, rc + 0.04], [xa, rc + 0.075], [xb, rc + 0.075], [xb, rc + 0.04]], -26, 26, M['cast'], steps=26)
+    R = Kit(H, frame(H, 3.045, 0, rc))
+    for th, half in ((-24, 0), (24, 0), (0, 1)):                                               # side links and centre link to the case lugs
+        t = math.radians(th); rot = Matrix.Rotation(t, 4, 'X')
+        top = rot @ Vector((0, 0, 0.04)); bot = rot @ Vector((0, 0, 0.005)) + (rot @ Vector((0, 1, 0))) * (0.035 if th >= 0 else -0.035) * (1 if not half else 0.5)
+        R.cyl('mr', top, bot, 0.011, 0.011, M['steel'], seg=12)
+        for q in (top, bot): R.ring('mr', -0.012, 0.012, 0.01, 0.019, M['steel'], origin=q, axis=(1, 0, 0), seg=14)
+        R.box('mr', bot - rot @ Vector((0, 0, 0.012)), (0.05, 0.03, 0.024), M['cast'], rot)    # turbine exhaust case lug
+    R.box('mr', (0, 0, 0.11), (0.13, 0.2, 0.07), M['steel'])                                  # pylon aft part (engine version adaptor)
+    for k in range(3): R.box('mr', (0, -0.06 + 0.06 * k, 0.145), (0.1, 0.04, 0.004), M['dark'])  # its pockets
+    for bx in (-0.045, 0.045):
+        for by in (-0.08, 0.08): R.cyl('mr', (bx, by, 0.075), (bx, by, 0.086), 0.007, 0.007, M['nut'], seg=10)   # barrel nuts / mount bolts
+    zp = 0.86 - rc
+    R.box('mr', (0, 0, (0.145 + zp) / 2), (0.08, 0.06, zp - 0.145), M['steel'])               # pylon aft structure up to the pylon
+    made.append(H.finish(H.join('mounts_rear__full', [beam] + R.objs), bevel))
     return ['mounts']

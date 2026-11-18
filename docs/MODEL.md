@@ -91,9 +91,12 @@ Units on the core, under the core cowl, are built the same way by `tools/blender
 ignition exciters (with high-tension leads to the igniter plugs), the VSV actuator with its crank shaft and
 the links to the four unison rings, the fuel distribution valve feeding the manifold pigtails, the two
 clearance-control valves with their fan-air inlets and fuel-pressure actuator, the buffer air cooler and
-the EGT junction box. `build_mounts` adds the engine mounts: the front mount on the fan frame (fitting,
-two links with spherical bearings, shear pin, pylon beam) and the rear mount on the turbine case (beam and
-two links up through the upper bifurcation); they lie in the cutaway sector, so they show with it closed.
+the EGT junction box. `build_mounts` adds the engine mounts, after the Airbus training manual figure (70 power
+plant, FWD mount & AFT mount): forward mount on the intermediate case (beam with four pylon bolts and
+alignment shear pins, cross beam, two thrust links to lugs on the case, support bearing on the engine's
+forward support shaft); aft mount on the turbine exhaust case lugs (pylon aft adaptor on a curved beam, two
+side links and a centre link). The upper bifurcation runs aft over the aft mount. Both lie in the cutaway
+sector, so they show with it closed.
 
 ## Nacelle shape
 
