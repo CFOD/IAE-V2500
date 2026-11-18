@@ -48,3 +48,6 @@ app/sounds/*
 !app/sounds/start_21.wav
 !app/sounds/start_26.wav
 !app/sounds/start_30.wav
+__pycache__/
+*.pyc
+dist-web/
