@@ -80,14 +80,26 @@ out) from flanges, V-band clamps, ports, plugs, sight glasses and connectors:
 One table in `accessories.py` (`LAYOUT`) places every unit; the gearbox casting, the starter duct and the
 hydraulic, oil, fuel and cooler lines in `dressing.py` are aimed at the ports it gives, so moving a unit
 moves its plumbing. Units are drawn at their real size (IDG about 0.3 m wide, starter about 0.19 m across);
-connectors and fittings keep standard sizes. The nacelle is 2.24 m across round the fan cowl, which leaves
-the real room under the cowl. In the app each unit has a card with what it does, a live readout from the
+connectors and fittings keep standard sizes. A numeric check keeps every unit inside the closed cowl and
+clear of the fan case. In the app each unit has a card with what it does, a live readout from the
 simulation, and its controls and faults.
 
 Units on the core, under the core cowl, are built the same way by `tools/blender/core_units.py`: the two
 ignition exciters (with high-tension leads to the igniter plugs), the VSV actuator with its crank shaft and
 the links to the four unison rings, the fuel distribution valve feeding the manifold pigtails, the two
 clearance-control valves with their fan-air inlets and fuel-pressure actuator, and the buffer air cooler.
+
+## Nacelle shape
+
+From the Airbus A320 Aircraft Characteristics (airport and maintenance planning) document, figure
+2-12-0-991-032 (IAE V2500 major dimensions): 5.25 m long; at the inlet attach flange 2.01 m wide, 0.99 m above
+the engine centreline and 1.10 m below it, so the section is egg-shaped, deeper underneath where the gearbox
+is; 1.98 / 1.93 m wide at the combustion chamber flanges, 1.64 m at the turbine exhaust case flange and 1.24 m
+at the nozzle exit. In the model the inlet lip is at x -0.95 and the nozzle exit at x 4.30 (the fan face is
+x 0). `P['nacelle']` is the side profile and `nacelleTop` / `nacelleBot` the top and bottom; the cowls are
+built round on the side profile and `egg_deform` reshapes them by angle. Fan cowls open 50 deg and the
+reverser halves 45 deg (figures 033 and 034). The bare engine (fig. 031: 3.10 m long, 1.715 m across the fan
+case) matches the generated engine.
 
 ## Colours
 

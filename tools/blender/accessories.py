@@ -22,7 +22,7 @@ GEARBOX = dict(th0=148, th1=212, x0=0.36, x1=0.78, r_in=0.875, r_out=1.072)
 LAYOUT = {
     'oilpump': (0.36, 160, 0.975, 1.35), 'hydpump': (0.36, 172, 0.975, 1.3), 'pma': (0.36, 183, 0.99, 1.25), 'starter': (0.36, 196, 0.975, 1.33),
     'scav': (0.78, 154, 0.95, 1.25), 'fuelpump': (0.78, 166, 0.97, 1.3), 'crank': (0.78, 176, 0.955, 1.2), 'lay': (0.78, 183, 0.93, 1.0),
-    'idg': (0.78, 198, 0.985, 1.36), 'sav': (0.42, 222, 0.975, 1.3), 'oiltank': (0.52, 133.5, 0.97, 1.33),
+    'idg': (0.78, 198, 0.978, 1.28), 'sav': (0.42, 222, 0.955, 1.3), 'oiltank': (0.52, 133.5, 0.925, 1.1),   # sized to the real cowl (Airbus AC)
 }
 STARTER_INLET_X = 0.36 - 0.205 * 1.33     # where the starter duct meets the starter
 SAV_X1 = 0.42 + 0.114 * 1.3               # aft flange of the starter air valve (the duct from the pylon ends here)
@@ -420,10 +420,9 @@ def oiltank(H, M):
     for a in (-Ls, Ls): K.ring('ot', a - 0.003, a + 0.003, Rt, Rt + 0.0025, M['cast'], axis=(0, 1, 0))   # weld beads
     for a in (-0.07, 0.07):                                                                       # saddles and straps
         K.ring('ot', a - 0.01, a + 0.01, Rt + 0.0005, Rt + 0.004, M['steel'], axis=(0, 1, 0))
-        K.box('ot', (0.0, a, -0.083), (0.07, 0.024, 0.024), M['cast'])
-        K.box('ot', (0.0, a, -0.0955), (0.1, 0.03, 0.006), M['cast'])
+        K.box('ot', (0.0, a, -0.0715), (0.09, 0.03, 0.005), M['cast'])                         # flat pads: the tank sits close on the case
         K.hexa('ot', (0.0, a, Rt + 0.004), (0.0, a, Rt + 0.011), 0.005, M['nut'])               # strap tensioner
-    d = Vector((0, 0.87, 0.5)); b = Vector((0, 0.148, 0.03))                                     # gravity filler, angled up the side
+    d = Vector((0, 0.96, 0.28)).normalized(); b = Vector((0, 0.146, 0.018))                      # gravity filler, laid along the side under the cowl
     K.cyl('ot', b, b + d * 0.03, 0.019, 0.019, M['cast'], seg=24)
     K.ring('ot', 0.012, 0.02, 0.019, 0.03, M['steel'], origin=b, axis=d, seg=28)                # scupper
     K.cyl('ot', b + d * 0.03, b + d * 0.042, 0.025, 0.022, M['gold'], seg=24)                   # cap

@@ -16,10 +16,17 @@ OUT = os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'models')
 CUT_A, CUT_B = math.radians(-8), math.radians(112)  # must match scene3d.js
 
 # section profiles [x, r] - keep in step with app/cutaway.js
+# Nacelle from the Airbus A320 Aircraft Characteristics (AC), figure 2-12-0-991-032 (IAE V2500): 5.25 m long;
+# width W, height above the engine centreline U and below it V at the inlet attach flange (x 0), thrust
+# reverser torque box (1.18), combustion chamber entry and exit flanges (1.85, 2.22), turbine exhaust case
+# flange (3.19) and nozzle exit (4.30). Not round: deeper underneath for the gearbox (V - U = 0.11 m).
+# 'nacelle' is the side profile (W / 2); nacelleTop (U) and nacelleBot (V) shape it by angle (egg_deform).
 P = {
-    'inletInner': [[-0.78, 0.8], [-0.62, 0.765], [-0.3, 0.79], [0, 0.81]],
-    'nacelle': [[-0.78, 0.8], [-0.74, 0.9], [-0.45, 1.0], [-0.1, 1.07], [0.3, 1.11], [1.0, 1.12], [2.0, 1.03], [3.55, 0.635]],
-    'bypOuter': [[0, 0.81], [0.35, 0.81], [1.2, 0.8], [2.4, 0.74], [3.2, 0.66], [3.55, 0.61]],
+    'inletInner': [[-0.95, 0.8], [-0.76, 0.765], [-0.37, 0.79], [0, 0.81]],
+    'nacelle':    [[-0.95, 0.8], [-0.91, 0.9], [-0.84, 0.93], [-0.6, 0.975], [-0.3, 0.998], [0, 1.005], [1.18, 1.005], [1.85, 0.99], [2.22, 0.965], [3.19, 0.82], [4.3, 0.62]],
+    'nacelleTop': [[-0.95, 0.8], [-0.91, 0.9], [-0.84, 0.93], [-0.6, 0.975], [-0.3, 0.995], [0, 0.99], [1.18, 1.0], [1.85, 0.97], [2.22, 0.93], [3.19, 0.78], [4.3, 0.6]],
+    'nacelleBot': [[-0.95, 0.8], [-0.91, 0.9], [-0.84, 0.93], [-0.6, 0.99], [-0.3, 1.05], [0, 1.1], [1.18, 1.11], [1.85, 1.07], [2.22, 1.03], [3.19, 0.86], [4.3, 0.64]],
+    'bypOuter': [[0, 0.81], [0.35, 0.81], [1.2, 0.8], [2.4, 0.74], [3.2, 0.66], [3.6, 0.63], [4.3, 0.595]],
     'bypInner': [[0.4, 0.47], [0.7, 0.54], [1.3, 0.56], [2.4, 0.54], [3.0, 0.52], [3.12, 0.46]],
     'coreOuter': [[0.4, 0.47], [0.85, 0.44], [1.15, 0.3], [1.85, 0.25], [1.92, 0.33], [2.18, 0.33], [2.22, 0.3], [2.42, 0.33], [3.0, 0.48], [3.12, 0.44]],
 }
@@ -32,10 +39,29 @@ def r_at(prof, x):
             return r0 + (r1 - r0) * (x - x0) / (x1 - x0)
     return prof[-1][1]
 
-def smooth_nacelle(x):
-    """Outer mould line: the piecewise profile, rounded so highlights run cleanly."""
-    pts = P['nacelle']; d = 0.12
+def smooth_nacelle(x, key='nacelle'):
+    """Outer mould line (side profile unless key says top or bottom), rounded so highlights run cleanly."""
+    pts = P[key]; d = 0.12 * min(1.0, max(0.3, (x + 0.95) / 0.35))   # less rounding at the lip, so the cowl meets it flush
     return (r_at(pts, x - d) + 2 * r_at(pts, x) + r_at(pts, x + d)) / 4
+
+def oml(x, th_deg):
+    """Outer mould line at angle th (0 = top): side profile, pulled in on top, pushed out underneath (egg section)."""
+    c = math.cos(math.radians(th_deg)); side = smooth_nacelle(x)
+    return side + (smooth_nacelle(x, 'nacelleTop') - side) * max(0.0, c) ** 2 + (smooth_nacelle(x, 'nacelleBot') - side) * max(0.0, -c) ** 2
+
+def egg_deform(obj):
+    """Reshape a nacelle part built round on the side profile into the egg section. The outer skin moves fully,
+    the inner flow surface stays, solids in between stretch."""
+    from mathutils import Vector
+    mw = obj.matrix_world; inv = mw.inverted()
+    for v in obj.data.vertices:
+        p = mw @ v.co; x = p.x; r = math.hypot(p.y, p.z)
+        if r < 1e-6: continue
+        th = math.degrees(math.atan2(-p.y, p.z)) % 360
+        r_in = (r_at(P['inletInner'], x) if x < 0 else r_at(P['bypOuter'], x)) + 0.013
+        side = smooth_nacelle(x); w = max(0.0, min(1.0, (r - r_in) / max(0.01, side - 0.03 - r_in)))
+        k = (r + (oml(x, th) - side) * w) / r
+        v.co = inv @ Vector((p.x, p.y * k, p.z * k))
 
 def sample(fn, x0, x1, n):
     return [[x0 + (x1 - x0) * i / n, fn(x0 + (x1 - x0) * i / n)] for i in range(n + 1)]
@@ -289,7 +315,7 @@ def build():
         made.extend([finish(o), finish(c)])
 
     G = 0.004  # half panel gap
-    cowl('inlet_cowl', -0.655, -G, paint, 14, zones=lambda o: zone_mats(o, smooth_nacelle, skin_in, primer))
+    cowl('inlet_cowl', -0.836, -G, paint, 16, zones=lambda o: zone_mats(o, smooth_nacelle, skin_in, primer))
     # Fan cowl doors: a thin skin. The bare fan case and its accessories sit in the gap underneath.
     # Cowls that open (fan cowl doors, thrust reverser C-ducts) are built as left and right halves, each
     # running from a hinge beside the pylon to the latch line at the bottom. Only the left half meets the
@@ -348,7 +374,7 @@ def build():
     acc += [
         # de-oiler and its breather out through the cowl, drain to the mast
         cylinder('deoiler', th_pos(0.57, gt1 + 1, 0.975), th_pos(0.57, gt1 + 7, 0.975), 0.055, 0.05, cast, seg=20),
-        tube('breather', [(0.6, gt1 + 7, 0.975), (0.8, gt1 + 5, 1.01), (1.0, gt1 + 2.5, 1.07), (1.03, gt1, 1.098)], 0.011, steel),
+        tube('breather', [(0.6, gt1 + 7, 0.975), (0.8, gt1 + 5, 1.0), (0.98, gt1 + 2.5, oml(0.98, gt1 + 2.5) - 0.045), (1.03, gt1, oml(1.03, gt1) - 0.016)], 0.011, steel),   # ends at the cowl outlet
         tube('drain', [(0.6, 180, rt), (0.7, 180, rt + 0.035), (0.92, 180, rt + 0.035), (0.95, 180, smooth_nacelle(0.95) - 0.01)], 0.006, steel),
     ]
     # oil supply and return between the gearbox and the tank's lower-end ports
@@ -463,9 +489,9 @@ def build():
         door = link(bpy.data.objects.new(nm, me))
         door.matrix_world = Matrix.Translation(th_pos(xh, th, rh)) @ Matrix.Rotation(math.radians(th), 4, 'X')   # local +Z = radial at th (see box())
         made.append(door)
-    cowl('cna_nozzle', 2.86 + G, 3.55, bare, 12, inset=0.008)
-    lip = [[-0.655, 0.781], [-0.7, 0.774], [-0.745, 0.783], [-0.778, 0.806], [-0.79, 0.84], [-0.778, 0.878], [-0.745, 0.905], [-0.7, 0.922], [-0.663, 0.932],
-           [-0.663, 0.905], [-0.7, 0.895], [-0.735, 0.875], [-0.752, 0.84], [-0.742, 0.812], [-0.71, 0.798], [-0.663, 0.796]]
+    cowl('cna_nozzle', 2.86 + G, 4.3, bare, 20, inset=0.008)
+    lip = [[x - 0.17, r] for x, r in [[-0.655, 0.781], [-0.7, 0.774], [-0.745, 0.783], [-0.778, 0.806], [-0.79, 0.84], [-0.778, 0.878], [-0.745, 0.905], [-0.7, 0.922], [-0.663, 0.932],
+           [-0.663, 0.905], [-0.7, 0.895], [-0.735, 0.875], [-0.752, 0.84], [-0.742, 0.812], [-0.71, 0.798], [-0.663, 0.796]]]   # 0.17 m further forward (inlet 0.95 m long, AC fig.)
     o = revolve('lip_ring', lip, lipm); c = duplicate(o, 'lip_ring__cut'); boolean(c, wedge); made.extend([finish(o, 0), finish(c, 0)])
 
     # strake high on the cowl side (kept side of the cutaway)
@@ -484,7 +510,7 @@ def build():
 
     # ---- pylon fairing
     # Narrow leading-edge fairing rising off the fan cowl, deep box under the wing, aft fairing tapering to a point.
-    pyl = loft('pylon_fairing', [(0.02, 0.012, 1.07, 1.09), (0.1, 0.05, 1.065, 1.13), (0.25, 0.09, 1.06, 1.2), (0.5, 0.125, 1.05, 1.29), (0.9, 0.15, 1.035, 1.39), (1.5, 0.16, 1.0, 1.47), (2.2, 0.16, 0.93, 1.5),
+    pyl = loft('pylon_fairing', [(0.02, 0.012, 0.975, 0.99), (0.1, 0.05, 0.975, 1.04), (0.25, 0.09, 0.975, 1.12), (0.5, 0.125, 0.975, 1.23), (0.9, 0.15, 0.97, 1.35), (1.5, 0.16, 0.955, 1.46), (2.2, 0.16, 0.9, 1.5),
                                  (2.9, 0.145, 0.86, 1.5), (3.4, 0.115, 0.86, 1.46), (3.8, 0.075, 0.93, 1.4), (4.15, 0.035, 1.05, 1.34), (4.4, 0.008, 1.18, 1.28)], paint, n=28)
     pc = duplicate(pyl, 'pylon_fairing__cut'); boolean(pc, wedge); made.extend([finish(pyl, 0), finish(pc, 0)])
     # pylon panel lines, access panels and the lower aft fairing in bare metal (far side, so they survive the cutaway)
@@ -554,6 +580,9 @@ def build():
     join_sides('cna_latches', [box('latch', th_pos(x, 180, OML(x) + 0.001), (0.09, 0.032, 0.007), 180, bare) for x in (1.28, 1.6, 1.85, 2.1, 2.5, 2.62)], made)
     dm = smooth_nacelle(0.95) - 1.02   # the mast hangs from the cowl bottom
     made.append(finish(loft('fancowl_drainmast', [(0.84, 0.004, -1.06 - dm, -1.03 - dm), (0.9, 0.012, -1.16 - dm, -1.0 - dm), (0.98, 0.012, -1.17 - dm, -1.0 - dm), (1.06, 0.004, -1.12 - dm, -1.0 - dm)], bare, n=12), 0))
+
+    for o in made:
+        if o.type == 'MESH' and o.name.startswith(('inlet_cowl', 'inlet_markings', 'fancowl_', 'cna_', 'lip_')): egg_deform(o)
 
     # ---- routed dressing: tubes, harnesses, ducts and hoses (tools/blender/dressing.py)
     import sys; sys.path.insert(0, os.path.dirname(__file__))

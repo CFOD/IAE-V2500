@@ -33,8 +33,8 @@ const inDeep = (th) => { const t = ((th % TAU) + TAU) % TAU; return t > DEEP_A &
 // side and stand open on hold-open struts; each thrust reverser C-duct (outer cowl, inner barrel and
 // bifurcation walls together) hinges on the pylon and opens to 45 deg on two hold-open rods.
 const HINGES = {
-  fan: { L: { th: 9 * DEG, r: 1.125 }, R: { th: -9 * DEG, r: 1.125 }, open: 62 * DEG },
-  cd: { L: { th: 7 * DEG, r: 1.07 }, R: { th: -7 * DEG, r: 1.07 }, open: 45 * DEG },
+  fan: { L: { th: 9 * DEG, r: 1.0 }, R: { th: -9 * DEG, r: 1.0 }, open: 50 * DEG },     // fan cowls open 50 deg, reverser halves 45 (Airbus AC fig. 2-12-0-991-033/034)
+  cd: { L: { th: 7 * DEG, r: 0.985 }, R: { th: -7 * DEG, r: 0.985 }, open: 45 * DEG },
 };
 const inCut = (th) => { const t = ((th % TAU) + TAU) % TAU; return t > TAU + CUT_A || t < CUT_B; };
 
@@ -217,7 +217,7 @@ export class Scene3D {
     scene.environment = new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(), 0.03).texture;
     scene.environmentIntensity = 0.5;
     this.camera = new THREE.PerspectiveCamera(30, 2, 0.05, 90);
-    this.orbit = { az: -0.72, el: 0.2, dist: 9.6, target: new THREE.Vector3(1.45, -0.05, 0) };
+    this.orbit = { az: -0.72, el: 0.2, dist: 10.4, target: new THREE.Vector3(1.65, -0.05, 0) };
     this.offsetX = 0; this.offsetY = 0;
     const key = (this.key = new THREE.DirectionalLight(0xfff4e6, 2.0)); key.position.set(-2.5, 7, 6); key.castShadow = true;
     key.shadow.mapSize.set(4096, 4096); key.shadow.bias = -0.0003; key.shadow.normalBias = 0.02; key.shadow.radius = 2.5;
@@ -375,10 +375,10 @@ export class Scene3D {
 
     // ---------------- nacelle
     const inlet = A({ id: 'inlet', name: 'Inlet cowl', ex: -1.5, mat: paint, desc: 'Slows and straightens the incoming air for the fan. The inner barrel is a perforated acoustic liner that absorbs fan noise.', live: (o) => `Airflow ${o.W2.toFixed(0)} kg/s · inlet ${C(o.T2)}, ${B(o.P2)}` });
-    this._solid(inlet, [...sample(P.nacelle, -0.69, 0.0, 12), ...sample(offset(P.inletInner, 0.012), -0.69, 0.0, 12).reverse()], { tag: 'skin' });
+    this._solid(inlet, [...sample(P.nacelle, -0.86, 0.0, 14), ...sample(offset(P.inletInner, 0.012), -0.86, 0.0, 14).reverse()], { tag: 'skin' });
     this._solid(inlet, [...sample(offset(P.inletInner, 0.012), -0.66, 0.0, 10), ...sample(P.inletInner, -0.66, 0.0, 10).reverse()], { mat: linerM });
     const lip = A({ id: 'lip', name: 'Inlet lip', ex: -1.7, mat: polished, desc: 'Polished aluminium leading edge, heated with engine bleed air so ice cannot build up and break off into the fan.', live: () => '' });
-    this._solid(lip, [[-0.66, 0.768], [-0.7, 0.772], [-0.745, 0.782], [-0.778, 0.805], [-0.79, 0.84], [-0.778, 0.885], [-0.74, 0.918], [-0.69, 0.93], [-0.69, 0.9], [-0.72, 0.89], [-0.75, 0.862], [-0.757, 0.84], [-0.748, 0.815], [-0.72, 0.798], [-0.66, 0.79]], { tag: 'skin' });
+    this._solid(lip, [[-0.830, 0.768], [-0.870, 0.772], [-0.915, 0.782], [-0.948, 0.805], [-0.960, 0.84], [-0.948, 0.885], [-0.910, 0.918], [-0.860, 0.93], [-0.860, 0.9], [-0.890, 0.89], [-0.920, 0.862], [-0.927, 0.84], [-0.918, 0.815], [-0.890, 0.798], [-0.830, 0.79]], { tag: 'skin' });
     const fanCase = A({ id: 'fancase', name: 'Fan case and outlet guide vanes', ex: -0.55, mat: paint, desc: 'Contains the fan, and a released blade if one ever fails. The outlet guide vanes take the swirl out of the bypass air.', live: (o) => `Bypass ${o.Wbypass.toFixed(0)} kg/s · fan pressure ratio ${o.fan.PR.toFixed(2)} · ${C(o.T13)}` });
     const fanCowl = A({ id: 'fancowl', name: 'Fan cowl doors', ex: -0.55, mat: paint, desc: 'Two hinged doors that close around the fan case. Remove them to see the bare fan case with the oil tank, the accessory gearbox and the pipework that normally hide underneath.', live: () => '' });
     this._solid(fanCowl, band(offset(P.bypOuter, 0.014), P.nacelle, 0.0, 1.2, 14), { tag: 'skin' });
@@ -388,12 +388,12 @@ export class Scene3D {
     const cna = A({ id: 'cna', name: 'Thrust reverser cowls and common nozzle', ex: 0.2, mat: paint, desc: 'The long duct carries bypass air aft, where it mixes with the core exhaust and leaves through one common nozzle.', live: (o) => `Mixed jet ${o.V9.toFixed(0)} m/s (Mach ${o.M9.toFixed(2)}) · ${C(o.T7)} · ${o.W9.toFixed(0)} kg/s` });
     this._solid(cna, band(offset(P.bypOuter, 0.012), P.nacelle, 1.2, 2.86, 20), { tag: 'skin' });
     // unpainted common nozzle at the rear, with a visible step from the painted cowl
-    this._solid(cna, band(offset(P.bypOuter, 0.012), offset(P.nacelle, -0.008), 2.86, 3.55, 10), { tag: 'skin', mat: (this.shared.bare = heatTint(new THREE.MeshPhysicalMaterial({ color: 0xa2a7ab, metalness: 1, roughness: 0.34, side: THREE.DoubleSide }), 2.75, 3.6, 0.8)) });
+    this._solid(cna, band(offset(P.bypOuter, 0.012), offset(P.nacelle, -0.008), 2.86, P.X_EXIT, 16), { tag: 'skin', mat: (this.shared.bare = heatTint(new THREE.MeshPhysicalMaterial({ color: 0xa2a7ab, metalness: 1, roughness: 0.34, side: THREE.DoubleSide }), 2.75, 3.6, 0.8)) });
     // nacelle strake, high on the side
     const stS = new THREE.Shape(); stS.moveTo(0, 0); stS.lineTo(0.62, 0); stS.lineTo(0.56, 0.1); stS.lineTo(0.2, 0.035); stS.lineTo(0, 0);
-    const strake = new THREE.Mesh(new THREE.ExtrudeGeometry(stS, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 2 }).translate(0.25, 1.1, -0.006), fanCowl.mat);
+    const strake = new THREE.Mesh(new THREE.ExtrudeGeometry(stS, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 2 }).translate(0.25, 1.0, -0.006), fanCowl.mat);
     strake.rotation.x = -0.42; strake.userData.tag = 'skin'; this._reg(fanCowl, strake);
-    this._solid(cna, band(P.bypOuter, offset(P.bypOuter, 0.012), 1.2, 3.5, 20), { tag: 'liner', mat: new THREE.MeshPhysicalMaterial({ ...composite, side: THREE.DoubleSide }) });
+    this._solid(cna, band(P.bypOuter, offset(P.bypOuter, 0.012), 1.2, P.X_EXIT - 0.05, 26), { tag: 'liner', mat: new THREE.MeshPhysicalMaterial({ ...composite, side: THREE.DoubleSide }) });
 
     // ---------------- fan
     // Spinner per reference photos: a long straight cone in two pieces. Dark nose cone with a
@@ -544,7 +544,7 @@ export class Scene3D {
       this._halfLathe(cowl, 'cd', 'L', barrel, 8 * DEG, 179.75 * DEG, m); this._halfLathe(cowl, 'cd', 'R', barrel, 180.25 * DEG, 352 * DEG, m); }
     const tec = A({ id: 'tec', name: 'Turbine exhaust case and plug', ex: 1.35, mat: { ...hotM, color: 0x9c8263 }, glow: (o) => o.T5 - 170, desc: 'Carries the rear bearing. The EGT thermocouples and the P4.9 pressure probes used for EPR sit in its struts.', live: (o) => `EGT ${C(o.egt)} · EPR ${o.epr.toFixed(3)} · core jet Mach ${o.M8.toFixed(2)}` });
     this._solid(tec, [[3.0, rAt(P.coreInner, 3.0)], [3.12, 0.262], [3.12, 0.1], [3.0, 0.1]]);                                 // inner hub of the exhaust case
-    this._solid(tec, [[3.12, 0.262], [3.16, 0.258], [3.56, 0.115], [3.57, 0.105], [3.56, 0.098], [3.16, 0.246], [3.12, 0.25]], { seg: 96 }); // exhaust cone: thin perforated shell, open at the rear
+    this._solid(tec, [[3.12, 0.262], [3.16, 0.258], [3.5, 0.17], [3.93, 0.055], [3.95, 0.045], [3.93, 0.04], [3.5, 0.158], [3.16, 0.246], [3.12, 0.25]], { seg: 96 }); // exhaust cone: thin perforated shell, open at the rear
     this._ring(tec, new THREE.BoxGeometry(0.05, 0.004, 0.02), 13, (m, th) => { m.makeRotationX(th); m.setPosition(3.21, 0.243 * Math.cos(th), 0.243 * Math.sin(th)); }, { mat: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 }) }); // slots round the mounting flange
     // four struts inside the common nozzle (upper, lower and two side) carrying its inner duct
     { const st = bladeGeo({ span: 0.2, chord: [0.26, 0.2], stagger: [0, 0], camber: [0, 0], thick: [0.12, 0.12], nSpan: 2 });
@@ -574,9 +574,9 @@ export class Scene3D {
     const starter = A({ id: 'starter', name: 'Air turbine starter', ex: -0.85, mat: castM, desc: 'Air from the APU, a ground cart or the other engine spins a small turbine at high speed; a reduction gear and an overrunning clutch turn the HP spool through the gearbox. The start valve closes at about 43 % N2 and the clutch freewheels from then on.', live: (o) => (o.starterAir ? (o.tStart > 1 ? `Driving: ${o.tStart.toFixed(0)} N·m at the spool · duct ${(o.starterPsi || 0).toFixed(0)} psi` : `Air on, starter run out: no torque left at N2 ${o.N2pct.toFixed(1)} %`) : 'Freewheeling (no air)') });
     along(starter, 0.087, 0.36, 196, 0.975, 0.085);
     const sav = A({ id: 'sav', name: 'Starter air valve', ex: -0.55, mat: castM, desc: 'Butterfly valve in the starter duct. The EEC energises its solenoid and duct pressure opens it. If it will not open, a mechanic can turn it with a wrench through an access panel in the right fan cowl while the crew runs the start.', live: (o, f) => `${f && f.valveOpen ? 'OPEN' : 'CLOSED'} · duct ${(o.starterPsi || 0).toFixed(0)} psi` });
-    along(sav, 0.42, 0.568, 222, 0.975, 0.065);
+    along(sav, 0.42, 0.568, 222, 0.955, 0.065);
     const idg = A({ id: 'idg', name: 'Integrated drive generator (IDG)', ex: -0.3, mat: castM, desc: 'A constant-speed drive and a generator in one oil-filled case: the drive turns the varying gearbox speed into a steady 12,000 rpm, so the aircraft gets 115 V at 400 Hz. Rated 90 kVA. The crew can disconnect it from the gearbox if it overheats; it can only be reconnected on the ground.', live: (o) => (o.N2pct > 55 ? `On line: 115 V · 400 Hz · drive input N2 ${o.N2pct.toFixed(1)} %` : `Off line: below idle (N2 ${o.N2pct.toFixed(1)} %)`) });
-    along(idg, 0.78, 1.165, 198, 0.985, 0.09);
+    along(idg, 0.78, 1.14, 198, 0.978, 0.085);
     const hydpump = A({ id: 'hydpump', name: 'Engine-driven hydraulic pump', ex: -0.85, mat: castM, desc: 'Variable-displacement piston pump that holds an aircraft hydraulic system at 3,000 psi (green on engine 1, yellow on engine 2); the thrust reverser runs on it. The crew can depressurise it from the cockpit. Its load and the generator\'s are the power off-take below.', live: (o) => (o.N2pct > 20 ? `About 3,000 psi · driven at N2 ${o.N2pct.toFixed(1)} %` : `Building pressure · N2 ${o.N2pct.toFixed(1)} %`) });
     along(hydpump, 0.15, 0.36, 172, 0.975, 0.065);
     const fuelpump = A({ id: 'fuelpump', name: 'Fuel pump', ex: -0.3, mat: chromM, desc: 'Two stages on one shaft. A centrifugal low-pressure stage lifts fuel from the aircraft tanks and sends it through the fuel-cooled oil cooler and the LP filter; a gear high-pressure stage then delivers more than the engine can use to the metering unit, which spills the surplus back. Delivery shown is an estimate (flow in proportion to N2).', live: (o) => { const d = 9000 * o.N2pct / 100, wf = o.wf * 3600; return `Delivery ≈ ${d.toFixed(0)} kg/h · burned ${wf.toFixed(0)} · spilled back ≈ ${Math.max(0, d - wf).toFixed(0)} kg/h`; } });
@@ -588,7 +588,7 @@ export class Scene3D {
     const pma = A({ id: 'pma', name: 'Dedicated alternator', ex: -0.85, mat: castM, desc: 'Permanent-magnet alternator that powers the EEC by itself once the core turns above about 10 % N2, so engine control does not depend on the aircraft electrical system. Below that the aircraft supplies the EEC.', live: (o) => (o.N2pct > 10 ? `Powering the EEC (N2 ${o.N2pct.toFixed(1)} %)` : 'EEC on aircraft power') });
     along(pma, 0.255, 0.36, 183, 0.99, 0.045);
     const oiltank = A({ id: 'oiltank', name: 'Oil tank', ex: -0.55, mat: castM, desc: 'Holds 25 US quarts usable. Oil coming back from the scavenge pumps passes a de-aerator inside the tank. The level shows on the sight glass and on the ECAM through a quantity transmitter. Several quarts are always out round the system while the engine runs, so the level drops after start and recovers after shutdown.', live: (o) => `Quantity ${(o.oilQ || 0).toFixed(1)} qt · ${(o.oilT || 0).toFixed(0)} °C` });
-    { const t = new THREE.Mesh(new THREE.CylinderGeometry(0.098, 0.098, 0.44, 24), oiltank.mat); t.position.set(0.52, 0.975 * Math.cos(133.5 * DEG), 0.975 * Math.sin(133.5 * DEG)); t.rotation.x = 133.5 * DEG + Math.PI / 2; this._reg(oiltank, t); }
+    { const t = new THREE.Mesh(new THREE.CylinderGeometry(0.081, 0.081, 0.36, 24), oiltank.mat); t.position.set(0.52, 0.925 * Math.cos(133.5 * DEG), 0.925 * Math.sin(133.5 * DEG)); t.rotation.x = 133.5 * DEG + Math.PI / 2; this._reg(oiltank, t); }
     const eec = A({ id: 'eec', name: 'Electronic engine control (FADEC)', ex: -0.55, mat: { color: 0x15181b, metalness: 0.3, roughness: 0.5 }, desc: 'Dual-channel computer on the fan case. Sets fuel flow, stator angle and bleed valves, and protects the engine limits.', live: () => '' });
     const eb = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.09, 0.3), eec.mat); eb.position.set(0.55, -0.62, -0.84); eb.rotation.x = 0.94; this._reg(eec, eb);
     const ext = A({ id: 'ext', name: 'External pipework and harnesses', ex: 0.1, mat: pipeSteel, desc: 'Fuel, oil, bleed-air and cooling pipes and the electrical harnesses that dress the core. Visible with the core cowl removed.', live: (o) => `Turbine cooling ${o.Wcool.toFixed(1)} kg/s · handling bleed ${(o.Wb7 + o.Wb10).toFixed(1)} kg/s · clearance control ${(100 * (o.accH || 0)).toFixed(0)} / ${(100 * (o.accL || 0)).toFixed(0)} % (+${(100 * ((o.accEff || [0])[0])).toFixed(1)} pt HPT)` });
@@ -649,7 +649,7 @@ export class Scene3D {
       const fdv = A({ id: 'fdv', name: 'Fuel distribution valve', ex: 0.3, mat: chromM, desc: 'Takes the metered fuel from the FMU and shares it between the ten pigtails that feed the fuel manifold and its twenty nozzles. It closes when the pressure falls, so the manifold does not drain through the nozzles after shutdown.', live: (o) => `${(o.wf * 3600).toFixed(0)} kg/h in · ${(o.wf * 360).toFixed(0)} kg/h per outlet` });
       unit(fdv, new THREE.CylinderGeometry(0.05, 0.05, 0.085, 16).rotateZ(Math.PI / 2), fdv.mat, 1.82, 318, co(1.86) + 0.13);
       const accvalves = A({ id: 'accvalves', name: 'Clearance control valves', ex: 0.1, mat: castM, desc: 'Two butterfly valves let fan air through to the spray rings on the HP and LP turbine cases, worked by a fuel-pressure actuator on the EEC\'s command. Opened in climb and cruise, they cool the cases so they shrink onto the blade tips and less gas leaks past.', live: (o) => `HPT ${(100 * (o.accH || 0)).toFixed(0)} % · LPT ${(100 * (o.accL || 0)).toFixed(0)} % open` });
-      for (const [th, rr] of [[236, 0.045], [250, 0.05]]) unit(accvalves, new THREE.CylinderGeometry(rr, rr, 0.24, 18).rotateZ(Math.PI / 2), accvalves.mat, 2.2, th, 0.475);
+      for (const [th, rr] of [[236, 0.045], [250, 0.05]]) unit(accvalves, new THREE.CylinderGeometry(rr, rr, 0.24, 18).rotateZ(Math.PI / 2), accvalves.mat, 2.2, th, 0.465);
       unit(accvalves, new THREE.BoxGeometry(0.12, 0.06, 0.076), pipeGold, 2.12, 286, co(2.12) + 0.14);
       const acac = A({ id: 'acac', name: 'Buffer air cooler', ex: 0.15, mat: castM, desc: 'Air-to-air heat exchanger: fan air from a scoop in the core cowl cools air taken from the HP compressor before it pressurises the seals of the No. 4 bearing chamber, so the hot air does not cook the oil there.', live: (o) => `Compressor air in at ${(o.T3 - 273.15).toFixed(0)} °C` });
       unit(acac, new THREE.BoxGeometry(0.24, 0.07, 0.14), acac.mat, 2.34, 152, 0.465);
@@ -702,7 +702,7 @@ export class Scene3D {
         spinner: { ...FINISH.darkBox, bottom: 0, grime: 0.08 }, fan: FINISH.titanium, lpc: FINISH.compressorBlade, hpc: FINISH.compressorBlade,
         hpt: H(FINISH.turbineBlade, [2.0, 2.45, 0.8]), lpt: H(FINISH.turbineBlade, [2.3, 3.05, 0.7]),
         hptcase: H(FINISH.hotCase, [2.0, 2.5, 0.9]), lptcase: H(FINISH.hotCase, [2.3, 3.1, 0.9]), combcase: H(FINISH.hotCase, [1.75, 2.6, 0.5]),
-        liner: H(FINISH.hotCase, [1.9, 2.25, 0.9]), tec: H(FINISH.hotCase, [2.7, 3.5, 1.0], [3.15, 3.6, 0.7]),
+        liner: H(FINISH.hotCase, [1.9, 2.25, 0.9]), tec: H(FINISH.hotCase, [2.7, 3.5, 1.0], [3.15, 3.95, 0.7]),
         lpshaft: { ...FINISH.bareSteel, bottom: 0 }, hpshaft: { ...FINISH.bareSteel, bottom: 0 }, bearings: FINISH.bareSteel,
         corecowl: FINISH.acoustic, fuel: FINISH.stainlessTube, ign: FINISH.darkBox, ext: FINISH.stainlessTube,
       };
@@ -712,7 +712,7 @@ export class Scene3D {
         [this.boltMat, FINISH.bareSteel], [linerM, FINISH.acoustic], [white, { ...FINISH.nacellePaint, bottom: 0 }], [fairing, { ...FINISH.titanium, bottom: 0 }],
         [vsvMat, FINISH.titanium], [orange, FINISH.rubber], [perf, FINISH.castBare], [race, { ...FINISH.bareSteel, bottom: 0, grime: 0.05 }], [duct, FINISH.stainlessTube],
         [this.shared.paint, FINISH.nacellePaint], [this.shared.lip, FINISH.polished], [this.shared.loom, FINISH.braid],
-        [this.shared.bare, { ...FINISH.nozzle, heat: [2.9, 3.7, 0.45], soot: [3.3, 3.62, 0.4] }],  // common nozzle: bare metal, light heat tint, soot only near the exit
+        [this.shared.bare, { ...FINISH.nozzle, heat: [2.9, 4.45, 0.45], soot: [3.95, 4.37, 0.4] }],  // common nozzle: bare metal, light heat tint, soot only near the exit
       ]);
       const done = new Set([this.capMat]);
       const guess = (m) => {
@@ -789,14 +789,14 @@ export class Scene3D {
     this.dust = new Puffs(this.scene, 160, { ground: true, origin: [-1.25, FLOOR_Y + 0.06, 0], dir: [0, 1, 0], speed: 0.2, radius: 0.34, ring: 0.6, spread: -0.14, swirl: 6, buoy: [0.12, 0.12, 0], life: 0.9, size0: 0.14, size1: 0.45, turb: 0.05, drag: 0.2,
       colA: [0.62, 0.6, 0.56], colB: [0.7, 0.69, 0.66], colC: [0.78, 0.78, 0.77], alpha: 0.16, lit: 0.3, seed: 41 });
     // exhaust: almost invisible in reality. A faint glow of hot gas close to the nozzle, the rest is heat shimmer.
-    this.jetGlow = new Puffs(this.scene, 200, { origin: [3.5, 0, 0], dir: [1, 0, 0], speed: 12, radius: 0.36, spread: 0.1, life: 0.45, size0: 0.5, size1: 1.5, turb: 0.08, drag: 0.4,
+    this.jetGlow = new Puffs(this.scene, 200, { origin: [3.5 + (P.X_EXIT - 3.55), 0, 0], dir: [1, 0, 0], speed: 12, radius: 0.36, spread: 0.1, life: 0.45, size0: 0.5, size1: 1.5, turb: 0.08, drag: 0.4,
       colA: [0.3, 0.22, 0.16], colB: [0.12, 0.11, 0.11], colC: [0.03, 0.03, 0.04], alpha: 0.07, soft: 1.1, additive: true, seed: 47, order: 4 });
     this.bang = puffs(160, 0.75, THREE.AdditiveBlending);
     // failure effects: glowing fragments and molten metal from the tailpipe, black smoke, fire round the core
     const S = this.scene;
     this.sparks = new Sparks(S, 420);
     // black smoke trailing from the tailpipe of a damaged or torching engine
-    this.smokeTail = new Puffs(S, 300, { origin: [3.5, 0, 0], dir: [1, 0, 0], speed: 2.4, radius: 0.34, spread: 0.12, buoy: [0, 0.5, 0], life: 4.5, size0: 0.5, size1: 3.4, turb: 0.3, drag: 0.5,
+    this.smokeTail = new Puffs(S, 300, { origin: [3.5 + (P.X_EXIT - 3.55), 0, 0], dir: [1, 0, 0], speed: 2.4, radius: 0.34, spread: 0.12, buoy: [0, 0.5, 0], life: 4.5, size0: 0.5, size1: 3.4, turb: 0.3, drag: 0.5,
       colA: [0.1, 0.085, 0.07], colB: [0.035, 0.033, 0.032], colC: [0.07, 0.07, 0.072], alpha: 0.75, lit: 0.55, seed: 11 });
     // nacelle fire: flames from the core and the thick black smoke column above them
     this.smokeFire = new Puffs(S, 260, { origin: [2.05, 0.5, 0.15], box: [0.9, 0.1, 0.5], dir: [0.25, 1, 0], speed: 1.3, radius: 0.15, spread: 0.1, buoy: [0.15, 0.35, 0], life: 5, size0: 0.45, size1: 3.2, turb: 0.3, drag: 0.3,
@@ -804,7 +804,7 @@ export class Scene3D {
     this.flames = new Puffs(S, 200, { origin: [2.0, 0.2, 0.12], box: [0.85, 0.1, 0.1], dir: [0.1, 1, 0], speed: 1.5, radius: 0.36, ring: 0.6, spread: 0.02, buoy: [0, 1.2, 0], life: 0.85, size0: 0.32, size1: 0.8, turb: 0.1, drag: 0.2,
       colA: [3.2, 2.4, 1.2], colB: [2.6, 0.9, 0.12], colC: [0.5, 0.06, 0.0], alpha: 0.55, soft: 1.25, additive: true, seed: 23, order: 6 });
     // torching: fuel still burning as it leaves the nozzle
-    this.torch = new Puffs(S, 220, { origin: [3.3, 0, 0], dir: [1, 0, 0], speed: 7, radius: 0.26, spread: 0.12, buoy: [0, 1.0, 0], life: 0.6, size0: 0.4, size1: 1.3, turb: 0.12, drag: 0.45,
+    this.torch = new Puffs(S, 220, { origin: [3.3 + (P.X_EXIT - 3.55), 0, 0], dir: [1, 0, 0], speed: 7, radius: 0.26, spread: 0.12, buoy: [0, 1.0, 0], life: 0.6, size0: 0.4, size1: 1.3, turb: 0.12, drag: 0.45,
       colA: [3.0, 2.6, 1.6], colB: [2.8, 1.0, 0.15], colC: [0.4, 0.05, 0.0], alpha: 0.5, soft: 1.2, additive: true, seed: 29, order: 6 });
     this.fail = { sparks: 0, smoke: 0, fire: 0 };
     this.fireLight = new THREE.PointLight(0xff6a20, 0, 6, 1.4); this.fireLight.position.set(2.0, 0.5, 0.4); this.scene.add(this.fireLight);
@@ -849,10 +849,11 @@ export class Scene3D {
           gl_FragColor=vec4(uC*(0.5+1.1*nz), clamp(uA*body*rimF*breakup,0.0,1.0)); }`,
     });
     const cone = (r0, r1, rgb, x) => { const g = new THREE.CylinderGeometry(r1, r0, 1, 56, 40, true); g.translate(0, 0.5, 0); g.rotateZ(-Math.PI / 2); const m = add(new THREE.Mesh(g, plumeMat(rgb))); m.position.x = x; return m; };
-    this.plumeOuter = cone(0.6, 0.86, [0.5, 0.7, 1.0], 3.55);
-    this.plumeMid = cone(0.5, 0.68, [0.85, 0.75, 0.7], 3.4);
-    this.plumeCore = cone(0.4, 0.5, [1.0, 0.55, 0.2], 3.2);
-    this.plumeHot = cone(0.26, 0.2, [1.0, 0.85, 0.6], 3.15);
+    const dX = (P.X_EXIT - 3.55);
+    this.plumeOuter = cone(0.6, 0.86, [0.5, 0.7, 1.0], 3.55 + dX);
+    this.plumeMid = cone(0.5, 0.68, [0.85, 0.75, 0.7], 3.4 + dX);
+    this.plumeCore = cone(0.4, 0.5, [1.0, 0.55, 0.2], 3.2 + dX);
+    this.plumeHot = cone(0.26, 0.2, [1.0, 0.85, 0.6], 3.15 + dX);
     const blur = new THREE.Mesh(new THREE.RingGeometry(0.25, 0.8, 64), new THREE.MeshBasicMaterial({ color: 0xb8c0c8, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
     blur.rotation.y = Math.PI / 2; blur.position.x = 0.16; this.fanBlur = blur; this.scene.add(blur);
   }
@@ -948,7 +949,7 @@ export class Scene3D {
   }
 
   view(name) {
-    const v = { hero: [-0.72, 0.2, 9.6, 1.45], front: [-1.3, 0.1, 7.6, 0.3], rear: [0.95, 0.14, 10.5, 3.6], side: [0, 0.03, 9.4, 1.45], core: [-0.2, 0.22, 4.4, 1.95] }[name];
+    const v = { hero: [-0.72, 0.2, 10.4, 1.65], front: [-1.3, 0.1, 7.8, 0.2], rear: [0.95, 0.14, 11.2, 4.3], side: [0, 0.03, 10.4, 1.65], core: [-0.2, 0.22, 4.4, 1.95] }[name];
     if (v) Object.assign(this.orbit, { az: v[0], el: v[1], dist: v[2] }), this.orbit.target.set(v[3], -0.05, 0);
   }
   /** Open or close the cowls: fan cowl doors first, then the C-ducts (which need the reverser stowed). */
@@ -1146,15 +1147,15 @@ export class Scene3D {
       const vB = Math.sign(o.Wbypass) * (0.12 + 3.2 * Math.sqrt(Math.abs(o.Wbypass) / 315)) * (Math.abs(o.Wbypass) > 0.5 ? 1 : 0);
       const vC = Math.sign(o.Wcore) * (0.12 + 3.2 * Math.sqrt(Math.abs(o.Wcore) / 70)) * (Math.abs(o.Wcore) > 0.05 ? 1 : 0);
       const cB = tempRGB(o.T13 + 120), c2 = tempRGB(o.T2 + 120), c25 = tempRGB(o.T25 + 150), c3 = tempRGB(o.T3 + 150), c4 = tempRGB(o.T4 + 150), c5 = tempRGB(o.T5 + 150);
-      const ex = this.explode, x0 = -1.9, span = 6.4, swirl1 = 0.5 * p1, swirl2 = 0.4 * p2;
+      const ex = this.explode, x0 = P.X_IN - 1.1, span = P.X_EXIT + 1.6 - (P.X_IN - 1.1), swirl1 = 0.5 * p1, swirl2 = 0.4 * p2;
       const pos = this.air.geometry.attributes.position.array, col = this.air.geometry.attributes.color.array;
       // where a particle sits for a given progress u along its path
       const at = (p, u, out) => {
         const x = x0 + u * span; let lo, hi, c, a = 1;
-        if (x < 0) { const far = x < -0.78 ? 1 + (-0.78 - x) * 0.8 : 1; hi = rAt(P.inletInner, Math.max(x, -0.78)) * far; lo = 0; c = c2; if (p.core) hi *= 0.42; else lo = hi * 0.42; a = x < -0.78 ? 0.35 : 0.75; }
+        if (x < 0) { const XI = P.X_IN, far = x < XI ? 1 + (XI - x) * 0.8 : 1; hi = rAt(P.inletInner, Math.max(x, XI)) * far; lo = 0; c = c2; if (p.core) hi *= 0.42; else lo = hi * 0.42; a = x < XI ? 0.35 : 0.75; }
         else if (x < 0.4) { lo = rAt(P.spinner, x); hi = 0.8; c = c2; const m = lerp(lo, hi, 0.36); if (p.core) hi = m; else lo = m; }
-        else if (p.core) { lo = rAt(P.coreInner, Math.min(x, 3.44)); hi = x > 3.12 ? lerp(0.44, 0.3, clamp((x - 3.12) / 1.3, 0, 1)) : rAt(P.coreOuter, x); c = x < 1.0 ? c25 : x < 1.9 ? c3 : x < 2.3 ? c4 : c5; a = x > 3.3 ? clamp(1 - (x - 3.3) / 1.1, 0, 1) : 1; }
-        else { lo = x > 3.12 ? lerp(0.46, 0.3, clamp((x - 3.12) / 1.3, 0, 1)) : rAt(P.bypInner, x); hi = rAt(P.bypOuter, Math.min(x, 3.55)); c = cB; a = x > 3.55 ? clamp(1 - (x - 3.55) / 0.9, 0, 1) : 1; }
+        else if (p.core) { lo = rAt(P.coreInner, Math.min(x, 3.95)); hi = x > 3.12 ? lerp(0.44, 0.3, clamp((x - 3.12) / 2.0, 0, 1)) : rAt(P.coreOuter, x); c = x < 1.0 ? c25 : x < 1.9 ? c3 : x < 2.3 ? c4 : c5; a = x > P.X_EXIT - 0.2 ? clamp(1 - (x - P.X_EXIT + 0.2) / 1.1, 0, 1) : 1; }
+        else { lo = x > 3.12 ? lerp(0.46, 0.3, clamp((x - 3.12) / 2.0, 0, 1)) : rAt(P.bypInner, x); hi = rAt(P.bypOuter, Math.min(x, P.X_EXIT)); c = cB; a = x > P.X_EXIT ? clamp(1 - (x - P.X_EXIT) / 0.9, 0, 1) : 1; }
         const rr = lerp(lo, hi, 0.06 + 0.88 * p.v);
         // swirl picked up from the rotating blade rows, taken out again by the stators behind them
         const sw = p.core ? swirl2 * (bell(x, 1.5, 0.35) + bell(x, 2.32, 0.1)) + swirl1 * (bell(x, 0.65, 0.2) + bell(x, 2.72, 0.25)) : swirl1 * bell(x, 0.35, 0.3);
@@ -1201,12 +1202,12 @@ export class Scene3D {
     const endOn = clamp((Math.abs(fwd.x) - 0.7) / 0.25, 0, 1), pk = 1 - endOn * endOn * (3 - 2 * endOn);
     for (const m of [this.plumeOuter, this.plumeMid, this.plumeCore, this.plumeHot]) m.visible = false; // the nested shells read as tubes; replaced by the glow below
     this.jetGlow.u.uSpeed.value = 4 + 22 * thr; this.jetGlow.set(t, clamp(hotK * (0.25 + 0.75 * thr) * (o.W9 > 5 ? 1 : 0.3), 0, 1) * pk);
-    const hz = this.haze.uniforms, a = new THREE.Vector3(3.3, 0, 0).project(this.camera), b = new THREE.Vector3(3.6 + L * 1.1, 0.25, 0).project(this.camera);
-    const edge = new THREE.Vector3(3.3, 0.62, 0).project(this.camera);
+    const XE = P.X_EXIT, hz = this.haze.uniforms, a = new THREE.Vector3(XE - 0.25, 0, 0).project(this.camera), b = new THREE.Vector3(XE + 0.05 + L * 1.1, 0.25, 0).project(this.camera);
+    const edge = new THREE.Vector3(XE - 0.25, 0.6, 0).project(this.camera);
     hz.uA.value.set(a.x * 0.5 + 0.5, a.y * 0.5 + 0.5); hz.uB.value.set(b.x * 0.5 + 0.5, b.y * 0.5 + 0.5);
     hz.uR.value = Math.max(0.02, Math.hypot((edge.x - a.x) * 0.5 * this.camera.aspect, (edge.y - a.y) * 0.5)) * 1.3;
     // only when the whole plume axis is in front of the camera (projection is meaningless behind it)
-    const va = new THREE.Vector3(3.3, 0, 0).applyMatrix4(this.camera.matrixWorldInverse), vb = new THREE.Vector3(3.6 + L * 1.1, 0.25, 0).applyMatrix4(this.camera.matrixWorldInverse);
+    const va = new THREE.Vector3(XE - 0.25, 0, 0).applyMatrix4(this.camera.matrixWorldInverse), vb = new THREE.Vector3(XE + 0.05 + L * 1.1, 0.25, 0).applyMatrix4(this.camera.matrixWorldInverse);
     const inFront = va.z < -0.3 && vb.z < -0.3;
     hz.uR.value = clamp(hz.uR.value, 0.01, 0.3);
     hz.uK.value = inFront && this.fx.haze && pk > 0.5 ? clamp((o.T7 - 310) / 120, 0, 1) * clamp(o.W9 / 60, 0, 1) : 0; hz.uT.value = (t * (0.6 + 2 * thr)) % 1000;

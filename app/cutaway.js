@@ -5,13 +5,19 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 
 // ---- geometry: axial station x [m] vs radius r [m] (engine is ~3.2 m long, 1.6 m fan)
+// Nacelle from the Airbus A320 Aircraft Characteristics, fig. 2-12-0-991-032 (IAE V2500): 5.25 m long, 2.01 m
+// wide, 0.99 m above and 1.10 m below the engine centreline at the inlet flange (deeper underneath for the
+// gearbox). nacelle = side profile, nacelleTop / nacelleBot = above / below the centreline.
 export const P = {
-  inletInner: [[-0.78, 0.8], [-0.62, 0.765], [-0.3, 0.79], [0, 0.81]],
-  nacelle: [[-0.78, 0.8], [-0.74, 0.9], [-0.45, 1.0], [-0.1, 1.07], [0.3, 1.11], [1.0, 1.12], [2.0, 1.03], [3.55, 0.635]],   // 2.24 m across round the fan cowl
-  bypOuter: [[0, 0.81], [0.35, 0.81], [1.2, 0.8], [2.4, 0.74], [3.2, 0.66], [3.55, 0.61]],
+  X_IN: -0.95, X_EXIT: 4.3,   // inlet lip, nozzle exit
+  inletInner: [[-0.95, 0.8], [-0.76, 0.765], [-0.37, 0.79], [0, 0.81]],
+  nacelle:    [[-0.95, 0.8], [-0.91, 0.9], [-0.84, 0.93], [-0.6, 0.975], [-0.3, 0.998], [0, 1.005], [1.18, 1.005], [1.85, 0.99], [2.22, 0.965], [3.19, 0.82], [4.3, 0.62]],
+  nacelleTop: [[-0.95, 0.8], [-0.91, 0.9], [-0.84, 0.93], [-0.6, 0.975], [-0.3, 0.995], [0, 0.99], [1.18, 1.0], [1.85, 0.97], [2.22, 0.93], [3.19, 0.78], [4.3, 0.6]],
+  nacelleBot: [[-0.95, 0.8], [-0.91, 0.9], [-0.84, 0.93], [-0.6, 0.99], [-0.3, 1.05], [0, 1.1], [1.18, 1.11], [1.85, 1.07], [2.22, 1.03], [3.19, 0.86], [4.3, 0.64]],
+  bypOuter: [[0, 0.81], [0.35, 0.81], [1.2, 0.8], [2.4, 0.74], [3.2, 0.66], [3.6, 0.63], [4.3, 0.595]],
   bypInner: [[0.4, 0.47], [0.7, 0.54], [1.3, 0.56], [2.4, 0.54], [3.0, 0.52], [3.12, 0.46]],
   coreOuter: [[0.4, 0.47], [0.85, 0.44], [1.15, 0.3], [1.85, 0.25], [1.92, 0.33], [2.18, 0.33], [2.22, 0.3], [2.42, 0.33], [3.0, 0.48], [3.12, 0.44]],
-  coreInner: [[0.3, 0.27], [0.45, 0.33], [0.85, 0.36], [1.15, 0.17], [1.85, 0.215], [1.92, 0.17], [2.18, 0.2], [2.22, 0.235], [2.42, 0.25], [3.0, 0.28], [3.12, 0.262], [3.3, 0.15], [3.41, 0.05], [3.44, 0]], // short blunt centre-body
+  coreInner: [[0.3, 0.27], [0.45, 0.33], [0.85, 0.36], [1.15, 0.17], [1.85, 0.215], [1.92, 0.17], [2.18, 0.2], [2.22, 0.235], [2.42, 0.25], [3.0, 0.28], [3.12, 0.262], [3.5, 0.17], [3.85, 0.06], [3.95, 0]], // exhaust plug, tip about 3.95 (AC fig.)
   spinner: [[-0.56, 0], [0.02, 0.245], [0.3, 0.27]], // long straight cone, per reference photos
 };
 export function rAt(prof, x) {
@@ -93,7 +99,7 @@ export class Cutaway {
     const w = this.w, h = this.h;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    const X0 = -1.0, X1 = 5.3;
+    const X0 = -1.15, X1 = 6.1;
     const sc = Math.min(w / (X1 - X0), (h - 70) / 2.3);
     const ox = (w - sc * (X1 - X0)) / 2 - X0 * sc, oy = h / 2 + 6;
     let sx = 0, sy = 0;
@@ -121,14 +127,14 @@ export class Cutaway {
     const thr = clamp(o.Fg / 150e3, 0, 1);
     if (o.W8 > 0.5) {
       const len = 0.5 + 1.5 * Math.sqrt(thr);
-      const g = ctx.createLinearGradient(tx(3.1), 0, tx(3.6 + len), 0);
+      const XE = P.X_EXIT; const g = ctx.createLinearGradient(tx(3.1), 0, tx(XE + 0.05 + len), 0);
       g.addColorStop(0, tempColor(o.T5, 0.55)); g.addColorStop(1, tempColor(o.T5, 0));
       ctx.fillStyle = g;
-      ctx.beginPath(); ctx.moveTo(tx(3.12), ty(0.44)); ctx.lineTo(tx(3.6 + len), ty(0.3)); ctx.lineTo(tx(3.6 + len), ty(-0.3)); ctx.lineTo(tx(3.12), ty(-0.44)); ctx.fill();
-      const g2 = ctx.createLinearGradient(tx(3.5), 0, tx(3.6 + len * 1.1), 0);
+      ctx.beginPath(); ctx.moveTo(tx(3.12), ty(0.44)); ctx.lineTo(tx(XE + 0.05 + len), ty(0.3)); ctx.lineTo(tx(XE + 0.05 + len), ty(-0.3)); ctx.lineTo(tx(3.12), ty(-0.44)); ctx.fill();
+      const g2 = ctx.createLinearGradient(tx(XE - 0.05), 0, tx(XE + 0.05 + len * 1.1), 0);
       g2.addColorStop(0, tempColor(o.T13, 0.22 + 0.2 * thr)); g2.addColorStop(1, tempColor(o.T13, 0));
       ctx.fillStyle = g2;
-      for (const s of [1, -1]) { ctx.beginPath(); ctx.moveTo(tx(3.55), ty(s * 0.61)); ctx.lineTo(tx(3.6 + len * 1.1), ty(s * 0.58)); ctx.lineTo(tx(3.6 + len * 1.1), ty(s * 0.32)); ctx.lineTo(tx(3.2), ty(s * 0.46)); ctx.fill(); }
+      for (const s of [1, -1]) { ctx.beginPath(); ctx.moveTo(tx(XE), ty(s * 0.595)); ctx.lineTo(tx(XE + 0.05 + len * 1.1), ty(s * 0.57)); ctx.lineTo(tx(XE + 0.05 + len * 1.1), ty(s * 0.32)); ctx.lineTo(tx(3.2), ty(s * 0.46)); ctx.fill(); }
     }
     // torching: unburnt fuel burning in the tailpipe
     if (o.wfUnburnt > 0.01 || (o.lit && o.pool > 0.02)) {
@@ -140,14 +146,15 @@ export class Cutaway {
     }
 
     // ---- gas paths coloured by temperature
-    const grad = (stops) => { const g = ctx.createLinearGradient(tx(-0.8), 0, tx(3.6), 0); for (const [x, T] of stops) g.addColorStop(clamp((x + 0.8) / 4.4, 0, 1), tempColor(T, 0.5)); return g; };
-    const gB = grad([[-0.8, o.T2], [0.05, o.T2], [0.32, o.T13], [3.6, o.T13]]);
-    const gC = grad([[0.3, o.T2], [0.45, o.T2], [0.85, o.T25], [1.15, o.T25], [1.85, o.T3], [1.95, o.T3], [2.02, o.lit ? Math.max(o.T4, 1500) : o.T4], [2.2, o.T4], [2.42, o.T45], [3.0, o.T5], [3.6, o.T5]]);
+    const G0 = P.X_IN - 0.02, G1 = P.X_EXIT + 0.05;
+    const grad = (stops) => { const g = ctx.createLinearGradient(tx(G0), 0, tx(G1), 0); for (const [x, T] of stops) g.addColorStop(clamp((x - G0) / (G1 - G0), 0, 1), tempColor(T, 0.5)); return g; };
+    const gB = grad([[G0, o.T2], [0.05, o.T2], [0.32, o.T13], [G1, o.T13]]);
+    const gC = grad([[0.3, o.T2], [0.45, o.T2], [0.85, o.T25], [1.15, o.T25], [1.85, o.T3], [1.95, o.T3], [2.02, o.lit ? Math.max(o.T4, 1500) : o.T4], [2.2, o.T4], [2.42, o.T45], [3.0, o.T5], [G1, o.T5]]);
     for (const s of [1, -1]) {
       ctx.fillStyle = gB;
-      ctx.fill(band(s > 0 ? ZERO : ZERO, P.inletInner, -0.78, 0, s));
+      ctx.fill(band(s > 0 ? ZERO : ZERO, P.inletInner, P.X_IN, 0, s));
       ctx.fill(band(P.spinner, P.bypOuter, 0, 0.4, s));
-      ctx.fill(band(P.bypInner, P.bypOuter, 0.4, 3.55, s));
+      ctx.fill(band(P.bypInner, P.bypOuter, 0.4, P.X_EXIT, s));
       ctx.fillStyle = gC;
       ctx.fill(band(P.coreInner, P.coreOuter, 0.4, 3.12, s));
     }
@@ -173,15 +180,15 @@ export class Cutaway {
     for (const p of this.parts) {
       const isC = p.path === 'core';
       const v = isC ? vC : vB;
-      const span = isC ? 4.3 : 4.6;
+      const x0 = P.X_IN - 0.12, span = (isC ? 3.95 : P.X_EXIT + 0.4) - x0;
       p.u += (v * dt) / span;
       if (p.u > 1) { p.u -= 1; p.v = Math.random(); } else if (p.u < 0) { p.u += 1; p.v = Math.random(); }
-      const x = -0.9 + p.u * span;
+      const x = x0 + p.u * span;
       let lo, hi, T;
-      if (x < 0) { lo = 0; hi = rAt(P.inletInner, Math.max(x, -0.78)) * (x < -0.78 ? 1 + (-0.78 - x) * 0.5 : 1); T = o.T2; if (isC) hi *= 0.42; else lo = hi * 0.42; }
+      if (x < 0) { lo = 0; hi = rAt(P.inletInner, Math.max(x, P.X_IN)) * (x < P.X_IN ? 1 + (P.X_IN - x) * 0.5 : 1); T = o.T2; if (isC) hi *= 0.42; else lo = hi * 0.42; }
       else if (x < 0.4) { lo = rAt(P.spinner, x); hi = 0.81; T = o.T2; if (isC) hi = lerp(lo, hi, 0.36); else lo = lerp(lo, hi, 0.36); }
-      else if (isC) { if (x > 3.4) continue; lo = rAt(P.coreInner, x); hi = x > 3.12 ? 0.44 : rAt(P.coreOuter, x); T = x < 1.0 ? o.T25 : x < 1.9 ? o.T3 : x < 2.3 ? o.T4 : x < 2.45 ? o.T45 : o.T5; }
-      else { if (x > 3.7) continue; lo = x > 3.12 ? 0.46 : rAt(P.bypInner, x); hi = rAt(P.bypOuter, Math.min(x, 3.55)); T = o.T13; }
+      else if (isC) { if (x > 3.9) continue; lo = rAt(P.coreInner, x); hi = x > 3.12 ? 0.44 : rAt(P.coreOuter, x); T = x < 1.0 ? o.T25 : x < 1.9 ? o.T3 : x < 2.3 ? o.T4 : x < 2.45 ? o.T45 : o.T5; }
+      else { if (x > P.X_EXIT + 0.15) continue; lo = x > 3.12 ? 0.46 : rAt(P.bypInner, x); hi = rAt(P.bypOuter, Math.min(x, P.X_EXIT)); T = o.T13; }
       const s = p.v < 0.5 ? 1 : -1;
       const r = s * lerp(lo, hi, 0.08 + 0.84 * ((p.v * 2) % 1));
       ctx.strokeStyle = tempColor(T + 150, 0.75);
@@ -195,7 +202,7 @@ export class Cutaway {
       const nac = new Path2D();
       const pts = [...P.inletInner.map(([x, r]) => [x, r]), ...P.bypOuter.slice(1)];
       pts.forEach(([x, r], i) => (i ? nac.lineTo(tx(x), ty(s * r)) : nac.moveTo(tx(x), ty(s * r))));
-      [...P.nacelle].reverse().forEach(([x, r]) => nac.lineTo(tx(x), ty(s * r)));
+      [...(s > 0 ? P.nacelleTop : P.nacelleBot)].reverse().forEach(([x, r]) => nac.lineTo(tx(x), ty(s * r)));
       nac.closePath();
       solid(nac, '#1c2530');
       solid(band(P.coreOuter, P.bypInner, 0.4, 3.12, s), '#222d3a');

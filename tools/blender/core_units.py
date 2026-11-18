@@ -87,7 +87,7 @@ def build_core_units(H, made, P, r_at, bevel=0.001):
     # ---------------------------------------------------------------- clearance-control valves and actuator
     av = []
     for th, rr in ((236, 0.045), (250, 0.05)):
-        V = Kit(H, frame(H, 2.08, th, 0.475))
+        V = Kit(H, frame(H, 2.08, th, 0.465))
         k = rr / 0.05
         V.rev('ac', [(0.0, rr + 0.01), (0.012, rr + 0.01), (0.012, rr), (0.06, rr + 0.004), (0.18, rr + 0.004), (0.228, rr), (0.228, rr + 0.01), (0.24, rr + 0.01)], M['cast'], seg=36)
         V.cyl('ac', (0.12, -rr - 0.004, 0), (0.12, -rr - 0.03, 0), 0.016, 0.016, M['cast'], seg=18)   # butterfly shaft boss

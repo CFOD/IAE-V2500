@@ -15,8 +15,9 @@ The test website at iae.cfod.co.uk deploys from this branch automatically (see d
 - Browser version (`npm run build:web`) with the recordings, versioned so new deploys always load.
 - Gearbox accessories modelled and made separate parts: starter, starter air valve, IDG, hydraulic
   pump, fuel pump, fuel metering unit, oil pump and filter, dedicated alternator, oil tank; each card has
-  a live readout and its controls and faults (docs/MODEL.md). Nacelle widened to the real 2.24 m so
-  they are full size.
+  a live readout and its controls and faults (docs/MODEL.md), sized to fit inside the real cowl.
+- Nacelle matched to the Airbus A320 planning document: 5.25 m long, egg-shaped section (2.01 m wide,
+  deeper underneath), longer inlet and common nozzle, longer exhaust plug.
 - Core units modelled as parts: ignition exciters and their leads, VSV actuator and crank shaft, fuel
   distribution valve, clearance-control valves, buffer air cooler.
 - Colours fixed: authored materials were one gamma step too light (near-white cases and tubes).

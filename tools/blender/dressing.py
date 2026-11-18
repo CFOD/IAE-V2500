@@ -89,7 +89,8 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     idg_s = AC.LAYOUT['idg'][3]
     idg_ports = [on('idg', (a, -0.114 - 0.012 / idg_s, -0.012)) for a in AC.IDG_COOLER]
     sav_plug = on('sav', (0.004, -0.09, 0.02), x_off=-0.012)
-    duct_h = lambda x: AC.LAYOUT['sav'][2] - fan_base(x)       # starter duct centreline height above the case
+    duct_h = lambda x, r=AC.LAYOUT['sav'][2]: r - fan_base(x)   # starter duct centreline height above the case (at the valve's radius)
+    st_r = AC.LAYOUT['starter'][2]
 
     def T(dr, R, way, n=1, d=0.022, radius=0.005, mat='ss', clamp=True, nuts=True, layers=1, rb=0.04, boss=False, every=0.2):
         # boss: True (both ends), or (start, end) - the ends that go into a casing through a cast port
@@ -126,7 +127,7 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     D.duct(fan_base, [(sx, sv_th, duct_h(sx)), (1.135, sv_th, duct_h(1.135)), (1.135, 330, duct_h(1.135)), (1.19, 342, duct_h(1.19) + 0.02), (1.19, 356, duct_h(1.19) + 0.07)], AC.DUCT_R, M['duct'], M['flange'],
            rb=0.11, joints=(0.3, 0.58), bellows=((0.84, 0.9),), supports=0.28, support_mat=M['brk'])
     ix = AC.STARTER_INLET_X
-    D.duct(fan_base, [(ix, st_th, duct_h(ix)), (0.052, st_th, duct_h(0.052)), (0.052, sv_th, duct_h(0.052)), (0.42, sv_th, duct_h(0.42))], AC.DUCT_R, M['duct'], M['flange'],
+    D.duct(fan_base, [(ix, st_th, duct_h(ix, st_r)), (0.052, st_th, duct_h(0.052, st_r)), (0.052, sv_th, duct_h(0.052)), (0.42, sv_th, duct_h(0.42))], AC.DUCT_R, M['duct'], M['flange'],
            rb=0.05, bellows=((0.62, 0.72),), supports=0.25, support_mat=M['brk'])
     # fire detection loop along the right side of the fan case (double element, on red clamps)
     for dd in (0.0, 0.012):
@@ -240,8 +241,8 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
                 q = cyl_to_blender(x, th, co(x) + 0.03); r2 = cyl_to_blender(x, th, ring_r(x) + 0.026)
                 C._put(th, lambda acc, q=q, r2=r2: acc.cyl(q, r2, 0.005, M['brk'], 6))
     # supply ducts from the ACC valves (procedural units on the core at x 2.08-2.32) down to the collector rings
-    C.duct(core, [(2.32, 236, 0.076), (2.36, 236, 0.076), (2.405, 236, -0.008)], 0.028, M['acc'], M['flange'], rb=0.03)
-    C.duct(core, [(2.32, 250, 0.076), (2.38, 250, 0.076), (2.44, 250, -0.008)], 0.032, M['acc'], M['flange'], rb=0.03)
+    C.duct(core, [(2.32, 236, 0.066), (2.36, 236, 0.066), (2.405, 236, -0.008)], 0.028, M['acc'], M['flange'], rb=0.03)
+    C.duct(core, [(2.32, 250, 0.066), (2.38, 250, 0.066), (2.44, 250, -0.008)], 0.032, M['acc'], M['flange'], rb=0.03)
     # buffer air: HPC stage 12 -> air-cooled air cooler -> No. 4 compartment
     C.duct(core, [(1.84, 158, 0.04), (2.0, 158, 0.06), (2.15, 152, 0.13), (2.215, 152, 0.135)], 0.018, M['duct'], M['flange'], rb=0.06, joints=(0.5,))   # into the buffer air cooler
     # sense lines along the HPC (P3 to the EEC via the bifurcation, No. 4 bearing pressure)
