@@ -127,11 +127,18 @@ How the files were identified, since the pack's sound.xml names events but not f
 - **Jet roar**: bright broadband loops without tones, ordered by spectral centroid (jet noise moves up
   in frequency as jet velocity rises), behind the engine.
 - **Start and spool-down**: the tonal lines in the 76 s start and 35 s spool-down recordings give N2
-  against time. Short loops are cut from them at known N2 (time-warped so their pitch holds steady,
-  levelled, ends crossfaded): six while the starter motors the core (`when: starter`), five from light-off
-  to idle (`lit`), seven for the spool-down with the fuel off (`coast`). They crossfade by N2 like the fan
-  loops, so the start stays one continuous sound however fast the engine spools. (Following the whole
-  recording by N2, as a track layer, jumped and dipped when the sim spooled faster than the recording.)
+  against time. Loops are cut from them at known N2: six while the starter motors the core
+  (`when: starter`), five from light-off to idle (`lit`), seven for the spool-down with the fuel off
+  (`coast`). They crossfade by N2 like the fan loops, so the start stays one continuous sound however fast
+  the engine spools. (Following the whole recording by N2, as a track layer, jumped and dipped when the
+  sim spooled faster than the recording.) How each loop is made, so it does not pulse once per repeat:
+  - the steadiest stretch near that N2 is chosen (no light-off thump or valve step inside a loop), up to
+    about 4.5 s long, covering at most 35 % change in N2 (shorter where N2 moves fast, at the low end);
+  - it is time-warped so its pitch holds at that N2;
+  - every third-octave band is held at its own average level through the cut. Levelling the whole sound
+    at once followed the loud hiss and left the body of the sound (150-2500 Hz) swelling by up to 11 dB
+    inside a 1.9 s loop, heard as a wave; now under about 2 dB;
+  - loop lengths differ slightly, so the two loops sounding together never repeat in step.
 - All crossfades are equal-power (sine-shaped), so loudness does not dip where two recordings overlap.
 - Cockpit versions (heavily low-passed), cockpit chimes and switch clicks are not used.
 
