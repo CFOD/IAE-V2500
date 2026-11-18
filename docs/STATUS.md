@@ -13,6 +13,8 @@ The test website at iae.cfod.co.uk deploys from this branch automatically (see d
 - Sound: the owner's FTSiM+ A320 IAE pack mapped to the engine (fan loops placed by blade-passing
   tone, jet roar, rumble, a start and a spool-down that follow N2); tools in tools/sound-analysis.
 - Browser version (`npm run build:web`) with the recordings, versioned so new deploys always load.
+- Phones: touch controls and phone layout on the website; an Android app (Capacitor) that packs the
+  same page for offline use, sideloaded as a debug APK for now (docs/ANDROID.md).
 
 ## Open
 - Physics: design airflow 385 kg/s against the manual's 396 for the V2533; approach fuel flow 4.8 %
@@ -20,8 +22,9 @@ The test website at iae.cfod.co.uk deploys from this branch automatically (see d
 - Gearbox accessories and some core units are still simple boxes in the model.
 - Sound mapping was judged from spectrograms and an offline mix, not by ear: adjust layers in
   app/sounds/sounds.json (via tools/sound-packs/ftsim-a320-iae.py) if any sound wrong.
-- Ideas raised: ECAM-style display pages, a flight profile (altitude and Mach changing over time),
-  touch controls for tablets.
+- Google Play release: needs a developer account, an upload key, a closed test (12 testers, 14
+  days for a new personal account), a privacy policy and listing, and sound we may redistribute.
+- Ideas raised: ECAM-style display pages, a flight profile (altitude and Mach changing over time).
 
 ## Not in the repository
 - The other 84 files of the sound pack (unused by the mapping) are only on the owner's PC.

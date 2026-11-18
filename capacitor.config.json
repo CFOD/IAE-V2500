@@ -1,0 +1,12 @@
+{
+  "appId": "uk.co.cfod.v2500",
+  "appName": "V2500 Engine Simulator",
+  "webDir": "dist-web",
+  "android": {
+    "backgroundColor": "#0b0f14",
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

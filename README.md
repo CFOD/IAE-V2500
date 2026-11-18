@@ -60,6 +60,13 @@ gives an icon that opens full screen. Phones start on Low quality; the top bar s
 `npm run build:web:nosound` leaves the recordings out (players can then load their own with **Sound >
 Load recordings from a folder**, read on their computer and not uploaded).
 
+### Android app
+
+`npm run android:debug` builds an APK (`android/app/build/outputs/apk/debug/app-debug.apk`) that installs
+on a phone by opening the file. It is the same page inside the app, works offline and runs landscape and
+full screen. Building needs Java 21 and the Android SDK. See docs/ANDROID.md, including what a Google Play
+release needs (the store build leaves the sound pack out).
+
 ### Sound
 
 Out of the box the engine sound is synthesised. For real recordings, drop a flight-simulator V2500
