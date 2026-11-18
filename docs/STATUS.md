@@ -19,7 +19,9 @@ The test website at iae.cfod.co.uk deploys from this branch automatically (see d
 - Nacelle matched to the Airbus A320 planning document: 5.25 m long, egg-shaped section (2.01 m wide,
   deeper underneath), longer inlet and common nozzle, longer exhaust plug; drooped inlet (face tilted 6 deg, 1.50 m highlight).
 - Core units modelled as parts: ignition exciters and their leads, VSV actuator and crank shaft, fuel
-  distribution valve, clearance-control valves, buffer air cooler.
+  distribution valve, clearance-control valves, buffer air cooler, EGT junction box; engine mounts.
+- Core services run down a lower fan-frame strut from a bulkhead panel, instead of fanning across the
+  bypass duct from one point.
 - Colours fixed: authored materials were one gamma step too light (near-white cases and tubes).
 - Phones: touch controls and phone layout on the website; an Android app (Capacitor) that packs the
   same page for offline use, sideloaded as a debug APK for now (docs/ANDROID.md).
@@ -27,8 +29,6 @@ The test website at iae.cfod.co.uk deploys from this branch automatically (see d
 ## Open
 - Physics: design airflow 385 kg/s against the manual's 396 for the V2533; approach fuel flow 4.8 %
   low. Re-tuning needs every map rescaled and all ICAO points re-matched.
-- Still simple shapes: a few boxes on the upper half of the core (only seen with the cutaway closed), the
-  EGT junction box, the engine mounts.
 - Sound mapping was judged from spectrograms and an offline mix, not by ear: adjust layers in
   app/sounds/sounds.json (via tools/sound-packs/ftsim-a320-iae.py) if any sound wrong.
 - Google Play release: needs a developer account, an upload key, a closed test (12 testers, 14

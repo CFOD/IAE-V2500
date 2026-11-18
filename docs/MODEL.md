@@ -43,8 +43,11 @@ wrapped back onto the casing, so groups of tubes run parallel and joggle over th
 Block clamps on brackets, B-nuts, braided looms with red identification sleeves, cushioned
 P-clamps and connectors are added along the way. Lines inside the cutaway sector are split at its
 edge and go to `...B__full` objects; the cut ends get the section material. Dense service lines are
-packed into the bays between ribs by a small occupancy map so they do not overlap. Everything that
-reaches the core crosses the bypass duct inside the lower bifurcation.
+packed into the bays between ribs by a small occupancy map so they do not overlap. Lines for the
+core (fuel, servo fuel and air, No. 4 bearing oil, harnesses) end on a bulkhead panel at 6 o'clock beside
+the angle gearbox, drop down inside the lower strut of the fan frame (a streamlined fairing behind the
+outlet guide vanes that also carries the tower shaft), each at its own station along the chord, then run
+aft along the bottom of the core in lanes on two levels and step down to where their core routes begin.
 
 Large ducts get V-band joints with T-bolt latches, bellows convolutions, inline valve bodies with
 actuators, band-clamp stand-offs and bolted ports where they leave a casing:
@@ -87,7 +90,10 @@ simulation, and its controls and faults.
 Units on the core, under the core cowl, are built the same way by `tools/blender/core_units.py`: the two
 ignition exciters (with high-tension leads to the igniter plugs), the VSV actuator with its crank shaft and
 the links to the four unison rings, the fuel distribution valve feeding the manifold pigtails, the two
-clearance-control valves with their fan-air inlets and fuel-pressure actuator, and the buffer air cooler.
+clearance-control valves with their fan-air inlets and fuel-pressure actuator, the buffer air cooler and
+the EGT junction box. `build_mounts` adds the engine mounts: the front mount on the fan frame (fitting,
+two links with spherical bearings, shear pin, pylon beam) and the rear mount on the turbine case (beam and
+two links up through the upper bifurcation); they lie in the cutaway sector, so they show with it closed.
 
 ## Nacelle shape
 
@@ -160,7 +166,7 @@ Conventions the loader understands:
 
 Component ids: `inlet lip fancase fancowl cna spinner fan lpc lpccase hpc hpccase hpt hptcase lpt lptcase
 lpshaft hpshaft bearings combcase liner fuel ign corecowl tec agb starter sav idg hydpump fuelpump fmu oilpump
-pma oiltank exciters vsvact fdv accvalves acac eec ext pylon`.
+pma oiltank exciters vsvact fdv accvalves acac egtbox mounts eec ext pylon`.
 
 The cutaway wedge applies only to generated geometry. An authored casing is shown whole; split it
 in the model (or hide it with Remove part) to see inside.
