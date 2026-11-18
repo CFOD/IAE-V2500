@@ -167,7 +167,9 @@ export class SamplePlayer {
     for (const L of this.layers) {
       const v = x[L.driver || 'n1'] ?? 0;
       let gate = 1;
-      if (L.when === 'lit') gate = o.lit ? 1 : 0; else if (L.when === 'unlit') gate = o.lit ? 0 : 1; else if (L.when === 'starter') gate = o.tStart > 0 ? 1 : 0; else if (L.when === 'reverse') gate = o.rev || 0;
+      if (L.when === 'lit') gate = o.lit ? 1 : 0; else if (L.when === 'unlit') gate = o.lit ? 0 : 1; else if (L.when === 'starter') gate = o.tStart > 0 ? 1 : 0;
+      else if (L.when === 'coast') gate = !o.lit && !(o.tStart > 0) ? 1 : 0;   // spooling down: no flame, no starter
+      else if (L.when === 'reverse') gate = o.rev || 0;
       const dir = L.pos === 'front' ? 0.4 + 0.9 * listener.front : L.pos === 'rear' ? 0.4 + 0.9 * (1 - listener.front) : 1;
       const ducked = L.duck === false ? 1 : 1 - duck;   // loops step back while a start or spool-down recording plays
       L.g.gain.setTargetAtTime(clamp(curve(L.volume, v) * (L.gain ?? 1) * gate * dir * ducked * listener.near, 0, 4), t, L.when ? 0.25 : 0.08);

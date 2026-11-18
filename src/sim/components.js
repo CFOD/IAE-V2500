@@ -13,6 +13,11 @@ const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 function softRoot(x) {
   return x / Math.sqrt(x + 0.004);
 }
+/** Exact slope of softRoot. The plenum update divides by these slopes, so they must not be underestimated:
+ * a floored estimate near zero made the volumes overshoot and chatter at the sub-step rate. */
+function softRootSlope(x) {
+  return (x + 0.008) / (2 * Math.pow(x + 0.004, 1.5));
+}
 
 // ---------------------------------------------------------------- compressor
 
@@ -141,9 +146,9 @@ export function compressor(m, st, N, Tin, Pin, Pout, mod, dt, out) {
       // rotor too slow to stall "properly": it simply cannot hold the back
       // pressure and air leaks backwards through the blading
       const e = PR - 1 - xs * dpRef;
-      const leak = (m.Awm * Pout) / Math.sqrt(R_GAS * Tin) * softRoot(2 * e);
+      const C = (m.Awm * Pout) / Math.sqrt(R_GAS * Tin), leak = C * softRoot(2 * e);
       W -= leak;
-      leakSens = leak / (Pin * Math.max(e, 2e-3));
+      leakSens = (C * softRootSlope(2 * e) * 2) / Pin;
     }
     eff = clamp((m.effD + mod.eff) * LINE.e, 0.2, 0.95);
   } else {
@@ -158,9 +163,9 @@ export function compressor(m, st, N, Tin, Pin, Pout, mod, dt, out) {
   // flow through a slow / stopped rotor driven by ram pressure (windmilling)
   if (PR < 1) {
     const e = 1 - PR;
-    const wm = ((m.Awm * Pin) / Math.sqrt(R_GAS * Tin)) * softRoot(2 * e);
+    const C = (m.Awm * Pin) / Math.sqrt(R_GAS * Tin), wm = C * softRoot(2 * e);
     W += wm;
-    leakSens += wm / (Pin * Math.max(e, 2e-3));
+    leakSens += (C * softRootSlope(2 * e) * 2) / Pin;
   }
 
   // thermodynamics
@@ -314,6 +319,18 @@ export function turbineExpand(t, W, Tin, far, PR, N, effDelta, out) {
 /** Convergent nozzle. Returns mass flow, gross thrust, exit velocity & sensitivity. */
 export function nozzle(A, Pt, Tt, far, P0, out) {
   if (A <= 0) { out.W = 0; out.Fg = 0; out.V = 0; out.M = 0; out.Ts = Tt; out.dWdP = 0; return out; }
+  const dP0 = Pt - P0;
+  if (Math.abs(dP0) < 1000) {
+    // Within 1 kPa of ambient (motoring, windmilling, an engine at rest): incompressible orifice law,
+    // regularised over 5 Pa so the flow and its slope stay finite through zero. The plenum update uses
+    // this exact slope; the plain square root has an infinite slope at zero and made the volumes chatter.
+    const rho = Math.max(Pt, P0) / (R_GAS * Tt), K = A * Math.sqrt(2 * rho), a = Math.abs(dP0), d = 5;
+    out.W = (K * dP0) / Math.sqrt(a + d);
+    out.dWdP = (K * (0.5 * a + d)) / Math.pow(a + d, 1.5);
+    const V = Math.abs(out.W) / (rho * A);
+    out.V = dP0 > 0 ? V : 0; out.Fg = dP0 > 0 ? out.W * V : 0; out.M = V / Math.sqrt(1.4 * R_GAS * Tt); out.Ts = Tt;
+    return out;
+  }
   if (Pt <= P0) {
     // slight reverse flow, no thrust
     const rho = P0 / (R_GAS * Tt);

@@ -83,7 +83,7 @@ If you have individual recordings, describe them in `app/sounds/sounds.json`. It
 - **layers** are loops. `driver` is what the curves are plotted against: `n1` or `n2` (percent),
   `thrust` (kN), `epr`, or `fuel` (kg/h). `pitch` is playback speed; `volume` is 0 to 1.
   Record or pick a loop at a known engine speed and give it pitch 1.0 at that speed.
-- **when**: `lit` (only with flame), `unlit`, `starter` (start valve open), `reverse`, or omitted.
+- **when**: `lit` (only with flame), `unlit`, `starter` (start valve open), `coast` (no flame and no starter: spooling down), `reverse`, or omitted.
 - **pos**: `front` (louder from in front of the intake), `rear` (louder from behind), or omitted.
 - **shots** are played once when the event happens.
 - **synth**: `events` keeps only the synthesised one-shots that have no recording (default),
@@ -127,7 +127,12 @@ How the files were identified, since the pack's sound.xml names events but not f
 - **Jet roar**: bright broadband loops without tones, ordered by spectral centroid (jet noise moves up
   in frequency as jet velocity rises), behind the engine.
 - **Start and spool-down**: the tonal lines in the 76 s start and 35 s spool-down recordings give N2
-  against time for the track maps.
+  against time. Short loops are cut from them at known N2 (time-warped so their pitch holds steady,
+  levelled, ends crossfaded): six while the starter motors the core (`when: starter`), five from light-off
+  to idle (`lit`), seven for the spool-down with the fuel off (`coast`). They crossfade by N2 like the fan
+  loops, so the start stays one continuous sound however fast the engine spools. (Following the whole
+  recording by N2, as a track layer, jumped and dipped when the sim spooled faster than the recording.)
+- All crossfades are equal-power (sine-shaped), so loudness does not dip where two recordings overlap.
 - Cockpit versions (heavily low-passed), cockpit chimes and switch clicks are not used.
 
 ## The synthesiser

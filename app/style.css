@@ -219,3 +219,13 @@ button, input, select, label { touch-action: manipulation; }
   .lever, body:not(.nodrawer) .lever { flex: 1 1 100%; padding-left: 0; border-left: 0; }
   #ecam, body:not(.nodrawer) #ecam { flex: 1 1 100%; height: 86px; border-left: 0; border-top: 1px solid var(--line); padding-top: 6px; }
 }
+
+/* component card: click its header to collapse it to one line (remembered while nothing is selected) */
+#pcHead { position: relative; cursor: pointer; padding-right: 22px; outline: none; }
+#pcHead .chev { position: absolute; right: 0; top: 50%; width: 8px; height: 8px; margin-top: -6px; border-right: 1.6px solid var(--ink3); border-bottom: 1.6px solid var(--ink3); transform: rotate(45deg); transition: transform .15s; }
+#pcHead:hover .chev, #pcHead:focus-visible .chev { border-color: var(--ink); }
+#partcard.collapsed { width: auto; max-width: 300px; padding: 9px 14px; }
+#partcard.collapsed .pc-body { display: none; }
+#partcard.collapsed #pcHead { display: flex; align-items: baseline; gap: 8px; }
+#partcard.collapsed h2 { margin: 0; font-size: 13px; }
+#partcard.collapsed #pcHead .chev { transform: rotate(-45deg); margin-top: -4px; }

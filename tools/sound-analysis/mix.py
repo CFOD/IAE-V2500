@@ -51,7 +51,7 @@ for i, (t, n1, n2, lit, st, fuel) in enumerate(tr):
         L['voices'] = keep
     for L in [l for l in layers if 'track' not in l]:
         v = x[L.get('driver', 'n1')]; w = L.get('when')
-        gate = (1 if lit else 0) if w == 'lit' else (0 if lit else 1) if w == 'unlit' else (1 if st else 0) if w == 'starter' else 1
+        gate = (1 if lit else 0) if w == 'lit' else (0 if lit else 1) if w == 'unlit' else (1 if st else 0) if w == 'starter' else (1 if not lit and not st else 0) if w == 'coast' else 1
         d = 0.4 + 0.9 * FRONT if L.get('pos') == 'front' else 0.4 + 0.9 * (1 - FRONT) if L.get('pos') == 'rear' else 1
         gt = min(4, curve(L['volume'], v) * L.get('gain', 1) * gate * d * (1 - duck))
         L['g'] += (gt - L['g']) * k(0.25 if w else 0.08); L['r'] += (min(4, max(0.05, curve(L['pitch'], v))) - L['r']) * k(0.05)

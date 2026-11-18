@@ -41,12 +41,13 @@
 </header>
 
 <aside id="partcard" class="glass empty">
-  <div class="eyebrow">Component</div>
-  <h2 id="pcName">Nothing selected</h2>
+  <div id="pcHead" role="button" tabindex="0" aria-expanded="true" title="Collapse or expand"><div class="eyebrow">Component</div><h2 id="pcName">Nothing selected</h2><i class="chev" aria-hidden="true"></i></div>
+  <div class="pc-body">
   <p id="pcDesc"></p>
   <div id="pcLive"></div>
   <div id="pcCtl"></div>
   <button id="pcRemove" class="btn" hidden>Remove part</button>
+  </div>
   <div id="removedWrap" hidden><div class="eyebrow">Removed</div><div id="removed"></div><button id="restoreAll" class="btn ghost">Refit all</button></div>
 </aside>
 

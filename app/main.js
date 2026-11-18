@@ -340,8 +340,18 @@ const PART_CTL = {
   eec: ['n1mode', 'pEgt', 'pAccel', 'pDecel'], combcase: ['cust'], fan: ['Fan efficiency'], lpc: ['LPC efficiency'], hpc: ['HPC efficiency', 'HPC flow capacity'],
   hpt: ['HPT efficiency', 'Turbine cooling air'], hptcase: ['HPT nozzle area', 'accH'], lpt: ['LPT efficiency'], lptcase: ['LPT nozzle area', 'accL'], ext: ['accH', 'accL'], cna: ['Final nozzle area', 'Bypass mixer area'], tec: ['Core mixer area'],
 };
+// The card collapses to one line when its header is clicked. With nothing selected that choice is
+// remembered (the help text only needs reading once); picking a part opens it to show the details.
+let hintCollapsed = false; try { hintCollapsed = localStorage.getItem('v2500.cardCollapsed') === '1'; } catch (e) { /* ignore */ }
+const setCardCollapsed = (on) => { $('partcard').classList.toggle('collapsed', on); $('pcHead').setAttribute('aria-expanded', !on); };
+const toggleCard = () => {
+  const on = !$('partcard').classList.contains('collapsed'); setCardCollapsed(on);
+  if (!selPart) { hintCollapsed = on; try { localStorage.setItem('v2500.cardCollapsed', on ? '1' : '0'); } catch (e) { /* ignore */ } }
+};
+$('pcHead').onclick = toggleCard;
+$('pcHead').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCard(); } };
 function showPart(p) {
-  selPart = p; $('partcard').classList.toggle('empty', !p);
+  selPart = p; $('partcard').classList.toggle('empty', !p); setCardCollapsed(p ? false : hintCollapsed);
   $('pcCtl').replaceChildren();
   if (p) for (const k of PART_CTL[p.id] || []) if (D[k]) addRow($('pcCtl'), D[k]);
   $('pcName').textContent = p ? p.name : 'Nothing selected';

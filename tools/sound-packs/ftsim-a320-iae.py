@@ -1,7 +1,7 @@
 """Builds app/sounds/sounds.json for the FTSiM+ A320 IAE pack (Wwise media named by hex id).
 Reference N1 of each fan loop comes from its blade-passing tone (22 blades) and buzz-saw comb;
-track maps from the tonal lines in the start and spool-down recordings. See docs/SOUND.md."""
-import json, sys, os, numpy as np
+start and spool-down loops cut from the long recordings at N2 read from their tonal lines. See docs/SOUND.md."""
+import json, sys, os, math, numpy as np
 from scipy.io import wavfile
 SND, AN = sys.argv[1], sys.argv[2]
 A = {r['f'][:8]: r for r in json.load(open(AN))}
@@ -17,12 +17,15 @@ def seamless(f, fade=0.35):
     y = x[F:].copy(); y[-F:] = x[-F:] * fo + x[:F] * fi
     out = f + '_loop.wav'; wavfile.write(os.path.join(SND, out), sr, np.clip(y, -32768, 32767).astype(np.int16)); return out
 
+def ramp(a, b, up):
+    """Equal-power crossfade from a to b (sine shape): two different recordings crossfaded linearly drop
+    3 dB at the crossover; with sine / cosine gains their powers always add up to the same total."""
+    fs = [0, 0.25, 0.5, 0.75, 1]
+    return [[a + (b - a) * f, math.sin(math.pi / 2 * (f if up else 1 - f))] for f in fs]
+
 def tri(prev, ref, nxt, law):
-    pts = []
-    if prev is None: pts += [[max(ref * 0.45, 6), 0], [ref, 1]]
-    else: pts += [[prev, 0], [ref, 1]]
-    if nxt is None: pts += [[112, 1]]
-    else: pts += [[nxt, 0]]
+    pts = ramp(max(ref * 0.45, 6) if prev is None else prev, ref, True)
+    pts += [[112, 1]] if nxt is None else ramp(ref, nxt, False)[1:]
     return [[round(x, 2), round(v * law(x), 3)] for x, v in pts]
 
 fan_law = lambda n1: 0.22 + 0.78 * max(0, min(1.15, (n1 - 20) / 80)) ** 1.25
@@ -44,14 +47,45 @@ for i, (ref, f) in enumerate(JET):
                    'gain': norm(f), 'pitch': [[ref * 0.5, 0.75], [ref * 1.5, 1.25]], 'volume': tri(prev, ref, nxt, jet_law)})
 layers.append({'file': '390F2A05.wav', 'driver': 'fuel', 'when': 'lit', 'note': 'combustion rumble, follows fuel flow',
                'gain': round(norm('390F2A05') * 0.55, 3), 'pitch': [[300, 0.92], [5000, 1.12]], 'volume': [[0, 0], [250, 0.45], [1500, 0.75], [5000, 1.0]]})
-# whole start and spool-down recordings, kept in step with N2 (track layers)
-layers.append({'file': '0229841B.wav', 'driver': 'n2', 'when': 'start', 'until': 60, 'note': 'complete outside start: motoring, light-off, spool-up',
-               'gain': 0.75, 'track': [[0, 0.5], [5, 6], [15, 14], [25, 22], [28.5, 26], [29.8, 29.5], [33, 32], [46, 52], [56, 61], [60, 64]],
-               'volume': [[0, 1], [53, 1], [60, 0]]})
-layers.append({'file': '11998CFB.wav', 'driver': 'n2', 'when': 'shutdown', 'note': 'outside spool-down after the fuel is shut off',
-               'gain': 0.6, 'track': [[0, 34], [5, 32], [12, 29], [24, 24], [38, 16], [50, 8], [58, 0.6], [70, 0]], 'volume': [[0, 1], [70, 1]]})
+# ---- start and spool-down: short loops cut from the two long recordings at known N2, crossfaded by N2.
+# (Following one long recording by N2 jumped and dipped whenever the sim spooled faster than the recording.)
+START_MAP = [[0, 0.5], [5, 6], [15, 14], [25, 22], [28.5, 26], [29.8, 29.5], [33, 32], [46, 52], [56, 61], [60, 64]]   # N2 %, seconds
+SHUT_MAP = [[0, 34], [5, 32], [12, 29], [24, 24], [38, 16], [50, 8], [58, 0.6], [70, 0]]
+def seg(src, out, n2map, n2ref, half=1.1, fade=0.3):
+    """Loop of the recording around N2 = n2ref: time-warped so its pitch holds at n2ref (frequency follows N2),
+    loudness levelled across the cut, ends crossfaded. Returns (file, rms dBFS of the cut before levelling)."""
+    sr, x = wavfile.read(os.path.join(SND, src)); x = x.astype(np.float64) / 32768
+    if x.ndim == 1: x = x[:, None]
+    ns, ts = [p[0] for p in n2map], [p[1] for p in n2map]
+    order = np.argsort(ts); t_of = lambda n: float(np.interp(n, ns, ts)); n_of = lambda t: float(np.interp(t, np.array(ts)[order], np.array(ns)[order]))
+    tc = t_of(n2ref); t, tb = max(0.05, tc - half), min(len(x) / sr - 0.05, tc + half)
+    pos = []
+    while t < tb:                                      # play faster where N2 was lower, slower where higher
+        pos.append(t); t += max(0.3, min(3.0, n2ref / max(n_of(t), 0.5))) / sr
+    pos = np.array(pos) * sr; j = pos.astype(int); fr = (pos - j)[:, None]
+    y = x[j] * (1 - fr) + x[np.minimum(j + 1, len(x) - 1)] * fr
+    rms0 = float(np.sqrt(np.mean(y ** 2)) + 1e-9)
+    w = int(0.25 * sr); env = np.sqrt(np.convolve((y ** 2).mean(1), np.ones(w) / w, mode='same')) + 1e-6
+    y = y * (rms0 / env)[:, None]                      # flatten the swell inside the cut
+    F = int(fade * sr); a = np.linspace(0, np.pi / 2, F)[:, None]
+    z = y[F:].copy(); z[-F:] = y[-F:] * np.cos(a) + y[:F] * np.sin(a)
+    z = z / max(1.0, np.abs(z).max() / 0.98)
+    wavfile.write(os.path.join(SND, out), sr, (z * 32767).astype(np.int16))
+    return out, 20 * np.log10(rms0)
+def n2set(group, src, n2map, refs, when, lo, hi, gain, note):
+    made = [seg(src, f'{group}_{int(round(r)):02d}.wav', n2map, r, half=0.7 if r < 12 else 1.1) for r in refs]
+    top = max(d for _, d in made)
+    for i, (r, (f, d)) in enumerate(zip(refs, made)):
+        prev = refs[i - 1] if i else lo; nxt = refs[i + 1] if i + 1 < len(refs) else None
+        vol = ramp(prev, r, True) + (ramp(r, nxt, False)[1:] if nxt is not None else [[hi[0], 1]] + ramp(hi[0], hi[1], False)[1:])
+        vol = [[round(x, 2), round(v, 3)] for x, v in vol]
+        layers.append({'file': f, 'driver': 'n2', 'when': when, 'note': f'{note} at {r} % N2',
+                       'gain': round(gain * 10 ** ((d - top) / 20), 3), 'pitch': [[r * 0.3, 0.3], [r * 2.0, 2.0]], 'volume': vol})
+n2set('start', '0229841B.wav', START_MAP, [4, 9, 15, 21, 26, 29.5], 'starter', 0.5, (34, 40), 0.75, 'starter motoring the core (start recording)')
+n2set('light', '0229841B.wav', START_MAP, [34, 40, 46, 52, 56], 'lit', 28, (56.5, 57.5), 0.75, 'light-off and spool-up to idle (start recording)')
+n2set('coast', '11998CFB.wav', SHUT_MAP, [6, 12, 20, 30, 40, 48, 56], 'coast', 0.8, (120, 121), 0.6, 'spool-down with the fuel off (spool-down recording)')
 manifest = {
-    'name': 'FTSiM+ A320 IAE sound pack', 'synth': 'events', 'mute': ['lightoff'],
+    'name': 'FTSiM+ A320 IAE sound pack', 'synth': 'events',
     'comment': 'Outside-view recordings only. Mapping built by analysing the files: see docs/SOUND.md.',
     'layers': layers,
     'shots': {'surge': {'file': '2D43C434.wav', 'gain': 1.1}},

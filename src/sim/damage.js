@@ -91,7 +91,9 @@ export class Damage {
     // ---- bowed rotor: a hot core left standing cools unevenly (hot air rises inside it) and the HP rotor bends
     const hot = clamp(((o.Tm || T0) - T0 - 150) / 350, 0, 1);
     if (o.N2pct < 2) d.bow += (hot - d.bow) * dt / (hot > d.bow ? 600 : 5400);
-    else if (o.N2pct > 6) d.bow -= d.bow * dt / 60; // turning it evens the temperature out
+    // turning it evens the temperature out. Time constant chosen so the automatic start's 30 s of motoring (IAE's
+    // reason for it) straightens the worst bow this model builds up (about 0.66) below the rub threshold
+    else if (o.N2pct > 6) d.bow -= d.bow * dt / 25;
     if (d.bow > 0.25 && o.N2pct > 34 && o.N2pct < 70 && d.bowRub < d.bow) { d.bowRub = d.bow; this._event('bowed-rotor-rub'); }
 
     // ---- what the damage does to the engine
