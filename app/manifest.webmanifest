@@ -1,0 +1,15 @@
+{
+  "name": "V2500 Engine Simulator",
+  "short_name": "V2500",
+  "description": "Physics-based IAE V2500 turbofan simulator with an interactive 3D cutaway",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -857,19 +857,40 @@ export class Scene3D {
 
   // ---------------------------------------------------------------- controls
   _controls() {
-    const el = this.canvas, o = this.orbit;
-    let drag = null, moved = 0;
+    // Mouse: drag to orbit, right-drag or shift-drag to pan, wheel to zoom, hover highlights, click selects.
+    // Touch: one finger orbits, two fingers pinch to zoom and move together to pan, a tap selects.
+    const el = this.canvas, o = this.orbit, pts = new Map();
+    let drag = null, moved = 0, multi = false, pinch = null;
+    const camAxis = (i) => new THREE.Vector3().setFromMatrixColumn(this.camera.matrix, i);
+    const pan = (dx, dy) => { const k = o.dist * 0.0012; o.target.addScaledVector(camAxis(0), -dx * k).addScaledVector(camAxis(1), dy * k); };
+    const two = () => { const [a, b] = [...pts.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
     el.addEventListener('contextmenu', (e) => e.preventDefault());
-    el.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, pan: e.button !== 0 || e.shiftKey }; moved = 0; el.setPointerCapture(e.pointerId); });
-    el.addEventListener('pointermove', (e) => {
-      if (drag) {
-        const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
-        if (drag.pan) { const k = o.dist * 0.0012; o.target.addScaledVector(new THREE.Vector3().setFromMatrixColumn(this.camera.matrix, 0), -dx * k).addScaledVector(new THREE.Vector3().setFromMatrixColumn(this.camera.matrix, 1), dy * k); }
-        else { o.az -= dx * 0.006; o.el = clamp(o.el + dy * 0.006, -0.3, 1.45); }
-      } else this._pick(e, false);
+    el.addEventListener('pointerdown', (e) => {
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); el.setPointerCapture(e.pointerId);
+      if (pts.size === 1) { drag = { x: e.clientX, y: e.clientY, pan: e.pointerType === 'mouse' && (e.button !== 0 || e.shiftKey) }; moved = 0; multi = false; }
+      else if (pts.size === 2) { multi = true; drag = null; pinch = two(); }
     });
-    el.addEventListener('pointerup', (e) => { if (drag && moved < 5 && e.button === 0) this._pick(e, true); drag = null; });
-    el.addEventListener('pointerleave', () => { this.hover = null; this.onHover && this.onHover(null); });
+    el.addEventListener('pointermove', (e) => {
+      const p = pts.get(e.pointerId);
+      if (!p) { if (e.pointerType === 'mouse') this._pick(e, false); return; }
+      p.x = e.clientX; p.y = e.clientY;
+      if (pts.size >= 2 && pinch) {
+        const n = two();
+        if (n.d > 1 && pinch.d > 1) o.dist = clamp(o.dist * (pinch.d / n.d), 1.4, 22);
+        pan(n.x - pinch.x, n.y - pinch.y); pinch = n;
+      } else if (drag) {
+        const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
+        if (drag.pan) pan(dx, dy); else { o.az -= dx * 0.006; o.el = clamp(o.el + dy * 0.006, -0.3, 1.45); }
+      }
+    });
+    const end = (e) => {
+      const had = pts.delete(e.pointerId);
+      if (had && drag && !multi && e.type === 'pointerup' && moved < (e.pointerType === 'mouse' ? 5 : 10) && (e.pointerType !== 'mouse' || e.button === 0)) this._pick(e, true);
+      if (pts.size === 1) { const [q] = [...pts.values()]; drag = { x: q.x, y: q.y, pan: false }; pinch = null; } // carry on orbiting with the finger left
+      else if (pts.size === 0) { drag = null; pinch = null; }
+    };
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+    el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { this.hover = null; this.onHover && this.onHover(null); } });
     el.addEventListener('wheel', (e) => { e.preventDefault(); o.dist = clamp(o.dist * Math.exp(e.deltaY * 0.0011), 1.4, 22); }, { passive: false });
     this.ray = new THREE.Raycaster();
   }
@@ -1032,11 +1053,15 @@ export class Scene3D {
     const r = this.canvas.getBoundingClientRect();
     if (r.width < 2 || r.height < 2) return;
     this.renderer.setSize(r.width, r.height, false);
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, this.maxDpr || 2);   // phones: capped lower to spare the GPU
     const pr = this.quality === 'ultra' ? Math.max(dpr, 1.5) : dpr;
     this.renderer.setPixelRatio(pr); this.renderer.setSize(r.width, r.height, false);
     this.composer.setPixelRatio(pr); this.composer.setSize(r.width, r.height);
     this.camera.aspect = r.width / r.height;
+    // The 30 deg field of view is vertical. On a screen narrower than 1.5:1 (a phone held upright) keep the
+    // horizontal field instead, so the whole engine still fits across.
+    const REF = 1.5, a = this.camera.aspect;
+    this.camera.fov = a >= REF ? 30 : Math.min(80, (2 * Math.atan(Math.tan((30 * Math.PI) / 360) * (REF / a)) * 180) / Math.PI);
     if (this.offsetX || this.offsetY) this.camera.setViewOffset(r.width, r.height, this.offsetX, this.offsetY, r.width, r.height); else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
     this.haze.uniforms.uAspect.value = r.width / r.height;

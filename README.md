@@ -53,6 +53,10 @@ The game is plain web code, so it also runs in a browser (Chrome or Edge recomme
 `dist-web/`, a static site you can upload to any web host (Cloudflare Pages, Netlify, your own server).
 This repository is private and carries the owner's sound recordings, so the build includes them; the
 site is the owner's test site at iae.cfod.co.uk (see docs/WEB.md) and is marked noindex.
+On a phone or tablet: drag with one finger to orbit, pinch to zoom, drag with two fingers to pan, tap a
+part to inspect it (tap empty space to close the card). Sideways works best. **Full screen** in the top
+bar hides the browser (and turns a phone sideways where it can), and Chrome's **Add to Home screen**
+gives an icon that opens full screen. Phones start on Low quality; the top bar scrolls sideways.
 `npm run build:web:nosound` leaves the recordings out (players can then load their own with **Sound >
 Load recordings from a folder**, read on their computer and not uploaded).
 

@@ -174,3 +174,48 @@ body.hud-off #camsPill, body.mode2d #camsPill { display: none; }
 @keyframes ld { from { transform: translateX(-100%); } to { transform: translateX(330%); } }
 body.hud-off #loading { display: none; }
 .menu .pop small#sndState { color: var(--ink2); }
+
+/* ------------------------------------------------------------------ touch screens and phones */
+#stage3d, #cutaway { touch-action: none; }            /* the 3D view handles its own pinch and drag */
+button, input, select, label { touch-action: manipulation; }
+/* phones: the top bar scrolls sideways, the panel slides over the view, the part card shows only when a part is picked */
+@media (max-height: 560px), (max-width: 760px) {
+  :root { --drawer: min(404px, 86vw); }
+  #top { top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); right: max(8px, env(safe-area-inset-right)); flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; gap: 6px; }
+  #top::-webkit-scrollbar { display: none; }
+  #top { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); padding-right: 24px; }   /* the fade says there is more to scroll */
+  #top > * { flex: 0 0 auto; }
+  #top > .pill:last-child { margin-left: 0; }
+  .brand { margin-right: 2px; padding-left: 2px; } .brand b { font-size: 15px; } .brand i { display: none; }
+  .pill { padding: 3px; } .chip, .seg button { height: 30px; padding: 0 10px; }
+  .inline input { width: 70px; }
+  #camsPill { display: none; }
+  #partcard { top: calc(var(--top-h, 40px) + 16px); left: max(8px, env(safe-area-inset-left)); width: min(280px, 58vw); padding: 12px 14px; max-height: 46vh; overflow: auto; }
+  #partcard.empty { display: none; }
+  #drawer { top: calc(var(--top-h, 40px) + 16px); right: max(8px, env(safe-area-inset-right)); bottom: 8px; z-index: 6; }
+  #dock, body.nodrawer #dock { left: max(8px, env(safe-area-inset-left)); right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); }
+  #status { min-height: 0; max-height: 26px; overflow: hidden; }
+  .dockrow { padding: 8px 12px; gap: 12px; }
+  #loading { top: calc(var(--top-h, 40px) + 20px); }
+}
+/* phone held sideways: one compact row of pedestal, lever and gauges */
+@media (max-height: 560px) {
+  .dockrow, body:not(.nodrawer) .dockrow { flex-wrap: nowrap; height: 106px; row-gap: 0; padding: 6px 12px; }
+  .eyebrow, .cap { font-size: 10.5px; }
+  .chip#agent { height: 26px; }
+  .lever, body:not(.nodrawer) .lever { flex: 0 1 170px; min-width: 140px; padding-left: 12px; }
+  #ecam, body:not(.nodrawer) #ecam { flex: 1 1 auto; height: 100%; border-top: 0; border-left: 1px solid var(--line); padding-top: 0; min-width: 120px; }
+  .ctrl { gap: 6px 10px; } .field { gap: 3px; }
+  .switch { width: 44px; height: 26px; } .switch i { width: 20px; height: 20px; } .switch[aria-pressed=true] i { transform: translateX(18px); }
+  #engMode button { padding: 0 7px; font-size: 12px; height: 26px; }
+  .field.grow select { height: 28px; font-size: 11.5px; }
+  .lever .ticks .mct { opacity: 0; }
+  #status span:nth-child(n+4) { display: none; }
+}
+/* phone held upright: the pedestal, the lever and the gauges stack */
+@media (max-width: 760px) and (min-height: 561px) {
+  .dockrow, body:not(.nodrawer) .dockrow { flex-wrap: wrap; height: auto; row-gap: 10px; }
+  .ctrl { flex: 1 1 100%; }
+  .lever, body:not(.nodrawer) .lever { flex: 1 1 100%; padding-left: 0; border-left: 0; }
+  #ecam, body:not(.nodrawer) #ecam { flex: 1 1 100%; height: 86px; border-left: 0; border-top: 1px solid var(--line); padding-top: 6px; }
+}

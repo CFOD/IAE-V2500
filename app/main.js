@@ -219,7 +219,7 @@ $('btnPause').onclick = () => { paused = !paused; $('btnPause').classList.toggle
 const QUAL = ['medium', 'high', 'ultra', 'low']; let qi = 0;
 const qLabel = () => { $('btnQ').textContent = `Quality: ${QUAL[qi][0].toUpperCase()}${QUAL[qi].slice(1)}`; };
 $('btnQ').onclick = () => { qi = (qi + 1) % QUAL.length; view3d && view3d.setQuality(QUAL[qi]); qLabel(); try { localStorage.setItem('v2500.quality', QUAL[qi]); } catch (e) { /* ignore */ } };
-try { const saved = localStorage.getItem('v2500.quality'); if (saved && QUAL.includes(saved)) { qi = QUAL.indexOf(saved); view3d && view3d.setQuality(saved); } } catch (e) { /* ignore */ }
+try { const saved = localStorage.getItem('v2500.quality'); if (saved && QUAL.includes(saved)) { qi = QUAL.indexOf(saved); view3d && view3d.setQuality(saved); } else if (matchMedia('(pointer: coarse)').matches) { qi = QUAL.indexOf('low'); view3d && view3d.setQuality('low'); } } catch (e) { /* ignore */ }
 qLabel();
 for (const b of $('speed').children) b.onclick = () => { speed = +b.dataset.v; for (const c of $('speed').children) c.classList.toggle('on', c === b); };
 // Sound menu: on / off, and recordings read from a folder on the player's own computer (browser builds
@@ -265,7 +265,16 @@ $('btnCut').onclick = () => { const on = !$('btnCut').classList.contains('on'); 
 $('btnFlow').onclick = () => { const on = !$('btnFlow').classList.contains('on'); $('btnFlow').classList.toggle('on', on); if (view3d) view3d.showFlow = on; };
 $('explode').oninput = () => view3d && view3d.setExplode(+$('explode').value);
 for (const b of $('cams').children) b.onclick = () => view3d && view3d.view(b.dataset.v);
-const frame3d = () => { if (!view3d) return; const hud = !document.body.classList.contains('hud-off'), shut = $('drawer').classList.contains('shut'); document.body.classList.toggle('nodrawer', shut); view3d.offsetX = hud && !shut ? 210 : 0; view3d.offsetY = hud ? $('top').offsetHeight + 16 : 0; view3d.resize(); };
+const PHONE = matchMedia('(max-height: 560px), (max-width: 760px)'), TOUCH = matchMedia('(pointer: coarse)').matches;
+const frame3d = () => {
+  if (!view3d) return; const hud = !document.body.classList.contains('hud-off'), shut = $('drawer').classList.contains('shut'); document.body.classList.toggle('nodrawer', shut);
+  if (PHONE.matches) {
+    // the panel slides over the view, so the engine stays centred between the top bar and the dock
+    const dockTop = $('dock').getBoundingClientRect().top, topH = $('top').getBoundingClientRect().bottom;
+    view3d.offsetX = 0; view3d.offsetY = hud ? Math.round((window.innerHeight - dockTop - topH) / 2) : 0;
+  } else { view3d.offsetX = hud && !shut ? 210 : 0; view3d.offsetY = hud ? $('top').offsetHeight + 16 : 0; }
+  view3d.resize();
+};
 // the top bar wraps to two rows on narrow windows; the panels below it follow its height
 new ResizeObserver(() => { document.documentElement.style.setProperty('--top-h', `${$('top').offsetHeight}px`); frame3d(); }).observe($('top'));
 // HUD toggle: hide all overlays for a clear view (button, H key); the engine re-centres in the window
@@ -304,6 +313,23 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'Escape') openReset(false);
 });
 window.addEventListener('resize', () => { view2d.resize(); frame3d(); });
+// phones and tablets: the panel starts shut on small screens, rendering is lighter, and a Full screen button
+// (which also turns a phone sideways where the browser allows it) replaces F11
+if (PHONE.matches && !$('drawer').classList.contains('shut')) { $('drawer').classList.add('shut'); $('btnDrawer').classList.remove('on'); }
+if (TOUCH && view3d) view3d.maxDpr = 1.5;
+new ResizeObserver(() => frame3d()).observe($('dock'));
+PHONE.addEventListener('change', () => requestAnimationFrame(frame3d));
+if (document.fullscreenEnabled) {
+  const fb = $('btnFull'); fb.hidden = false;
+  const label = () => { fb.textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen'; fb.classList.toggle('on', !!document.fullscreenElement); };
+  fb.onclick = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else { await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); if (PHONE.matches && screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape').catch(() => {}); }
+    } catch (e) { /* refused */ }
+  };
+  document.addEventListener('fullscreenchange', () => { label(); requestAnimationFrame(frame3d); });
+}
 
 // ------------------------------------------------------------ component inspector
 let selPart = null, hist = 0;
@@ -315,7 +341,7 @@ const PART_CTL = {
   hpt: ['HPT efficiency', 'Turbine cooling air'], hptcase: ['HPT nozzle area', 'accH'], lpt: ['LPT efficiency'], lptcase: ['LPT nozzle area', 'accL'], ext: ['accH', 'accL'], cna: ['Final nozzle area', 'Bypass mixer area'], tec: ['Core mixer area'],
 };
 function showPart(p) {
-  selPart = p;
+  selPart = p; $('partcard').classList.toggle('empty', !p);
   $('pcCtl').replaceChildren();
   if (p) for (const k of PART_CTL[p.id] || []) if (D[k]) addRow($('pcCtl'), D[k]);
   $('pcName').textContent = p ? p.name : 'Nothing selected';

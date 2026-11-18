@@ -15,6 +15,10 @@ Every push to the production branch builds and deploys automatically. The build 
 recordings `app/sounds/sounds.json` uses. `functions/_middleware.js` sends the `*.pages.dev` addresses
 to `iae.cfod.co.uk`. The site is marked noindex (robots.txt and an X-Robots-Tag header).
 
+**Phones:** touch controls (one finger orbit, pinch zoom, two-finger pan, tap to inspect), a phone
+layout below 760 px wide or 560 px tall, Low quality and a 1.5x pixel-ratio cap on touch screens, a Full
+screen button, and `manifest.webmanifest` so Add to Home screen opens it full screen in landscape.
+
 **Which version is live:** the Sound menu ends in "build" and the commit (from `build.json`), and the log
 (Panel > Monitor) has the same line.
 
