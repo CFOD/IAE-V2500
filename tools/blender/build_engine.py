@@ -22,10 +22,10 @@ CUT_A, CUT_B = math.radians(-8), math.radians(112)  # must match scene3d.js
 # flange (3.19) and nozzle exit (4.30). Not round: deeper underneath for the gearbox (V - U = 0.11 m).
 # 'nacelle' is the side profile (W / 2); nacelleTop (U) and nacelleBot (V) shape it by angle (egg_deform).
 P = {
-    'inletInner': [[-0.95, 0.8], [-0.76, 0.765], [-0.37, 0.79], [0, 0.81]],
-    'nacelle':    [[-0.95, 0.8], [-0.91, 0.9], [-0.84, 0.93], [-0.6, 0.975], [-0.3, 0.998], [0, 1.005], [1.18, 1.005], [1.85, 0.99], [2.22, 0.965], [3.19, 0.82], [4.3, 0.62]],
-    'nacelleTop': [[-0.95, 0.8], [-0.91, 0.9], [-0.84, 0.93], [-0.6, 0.975], [-0.3, 0.995], [0, 0.99], [1.18, 1.0], [1.85, 0.97], [2.22, 0.93], [3.19, 0.78], [4.3, 0.6]],
-    'nacelleBot': [[-0.95, 0.8], [-0.91, 0.9], [-0.84, 0.93], [-0.6, 0.99], [-0.3, 1.05], [0, 1.1], [1.18, 1.11], [1.85, 1.07], [2.22, 1.03], [3.19, 0.86], [4.3, 0.64]],
+    'inletInner': [[-0.955, 0.75], [-0.92, 0.722], [-0.86, 0.706], [-0.78, 0.705], [-0.5, 0.735], [-0.2, 0.785], [0, 0.81]],   # 1.50 m highlight (AC fig.)
+    'nacelle':    [[-0.955, 0.75], [-0.93, 0.84], [-0.88, 0.9], [-0.835, 0.93], [-0.6, 0.975], [-0.3, 0.998], [0, 1.005], [1.18, 1.005], [1.85, 0.99], [2.22, 0.965], [3.19, 0.82], [4.3, 0.62]],
+    'nacelleTop': [[-0.955, 0.75], [-0.93, 0.84], [-0.88, 0.9], [-0.835, 0.93], [-0.6, 0.975], [-0.3, 0.995], [0, 0.99], [1.18, 1.0], [1.85, 0.97], [2.22, 0.93], [3.19, 0.78], [4.3, 0.6]],
+    'nacelleBot': [[-0.955, 0.75], [-0.93, 0.84], [-0.88, 0.9], [-0.835, 0.93], [-0.6, 0.99], [-0.3, 1.05], [0, 1.1], [1.18, 1.11], [1.85, 1.07], [2.22, 1.03], [3.19, 0.86], [4.3, 0.64]],
     'bypOuter': [[0, 0.81], [0.35, 0.81], [1.2, 0.8], [2.4, 0.74], [3.2, 0.66], [3.6, 0.63], [4.3, 0.595]],
     'bypInner': [[0.4, 0.47], [0.7, 0.54], [1.3, 0.56], [2.4, 0.54], [3.0, 0.52], [3.12, 0.46]],
     'coreOuter': [[0.4, 0.47], [0.85, 0.44], [1.15, 0.3], [1.85, 0.25], [1.92, 0.33], [2.18, 0.33], [2.22, 0.3], [2.42, 0.33], [3.0, 0.48], [3.12, 0.44]],
@@ -48,6 +48,31 @@ def oml(x, th_deg):
     """Outer mould line at angle th (0 = top): side profile, pulled in on top, pushed out underneath (egg section)."""
     c = math.cos(math.radians(th_deg)); side = smooth_nacelle(x)
     return side + (smooth_nacelle(x, 'nacelleTop') - side) * max(0.0, c) ** 2 + (smooth_nacelle(x, 'nacelleBot') - side) * max(0.0, -c) ** 2
+
+SCARF_DEG = 6.0   # inlet face tilted 6 deg, top lip forward (AC fig. 2-12-0-991-032)
+
+def lip_loop(xj=-0.835, xh=-0.955, rh=0.75, r_out=0.93, r_in=0.705, t=0.022, n=16):
+    """Inlet lip (anti-iced D-duct skin): from the throat over the highlight to the outer cowl, as a shell."""
+    ax = xj - xh; ph = [math.pi / 2 * i / n for i in range(n + 1)]
+    outer = [(xj - ax * math.cos(p), rh + (r_out - rh) * math.sin(p)) for p in ph]
+    inner = [(xj - ax * math.cos(p), rh - (rh - r_in) * math.sin(p)) for p in ph]
+    surf = list(reversed(inner)) + outer[1:]
+    c = (xj, rh)
+    def shrink(q):
+        dx, dr = q[0] - c[0], q[1] - c[1]; d = math.hypot(dx, dr) or 1.0; k = max(0.1, (d - t) / d)
+        return (c[0] + dx * k, c[1] + dr * k)
+    return [list(q) for q in surf] + [list(shrink(q)) for q in reversed(surf)]
+
+def scarf_deform(obj):
+    """Tilt the inlet face: shear the inlet forward on top and back underneath, blending from the full 6 deg at
+    the lip to nothing at the inlet attach flange (x 0), and droop it 35 mm at the lip."""
+    from mathutils import Vector
+    mw = obj.matrix_world; inv = mw.inverted(); k = math.tan(math.radians(SCARF_DEG))
+    for v in obj.data.vertices:
+        p = mw @ v.co
+        if p.x >= 0: continue
+        u = min(1.0, -p.x / 0.955); f = u * u * (3 - 2 * u)
+        v.co = inv @ Vector((p.x - p.z * k * f, p.y, p.z - 0.035 * f))
 
 def egg_deform(obj):
     """Reshape a nacelle part built round on the side profile into the egg section. The outer skin moves fully,
@@ -490,8 +515,7 @@ def build():
         door.matrix_world = Matrix.Translation(th_pos(xh, th, rh)) @ Matrix.Rotation(math.radians(th), 4, 'X')   # local +Z = radial at th (see box())
         made.append(door)
     cowl('cna_nozzle', 2.86 + G, 4.3, bare, 20, inset=0.008)
-    lip = [[x - 0.17, r] for x, r in [[-0.655, 0.781], [-0.7, 0.774], [-0.745, 0.783], [-0.778, 0.806], [-0.79, 0.84], [-0.778, 0.878], [-0.745, 0.905], [-0.7, 0.922], [-0.663, 0.932],
-           [-0.663, 0.905], [-0.7, 0.895], [-0.735, 0.875], [-0.752, 0.84], [-0.742, 0.812], [-0.71, 0.798], [-0.663, 0.796]]]   # 0.17 m further forward (inlet 0.95 m long, AC fig.)
+    lip = lip_loop()
     o = revolve('lip_ring', lip, lipm); c = duplicate(o, 'lip_ring__cut'); boolean(c, wedge); made.extend([finish(o, 0), finish(c, 0)])
 
     # strake high on the cowl side (kept side of the cutaway)
@@ -583,6 +607,7 @@ def build():
 
     for o in made:
         if o.type == 'MESH' and o.name.startswith(('inlet_cowl', 'inlet_markings', 'fancowl_', 'cna_', 'lip_')): egg_deform(o)
+        if o.type == 'MESH' and o.name.startswith(('inlet_', 'lip_')): scarf_deform(o)
 
     # ---- routed dressing: tubes, harnesses, ducts and hoses (tools/blender/dressing.py)
     import sys; sys.path.insert(0, os.path.dirname(__file__))

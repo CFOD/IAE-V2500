@@ -17,7 +17,7 @@ The test website at iae.cfod.co.uk deploys from this branch automatically (see d
   pump, fuel pump, fuel metering unit, oil pump and filter, dedicated alternator, oil tank; each card has
   a live readout and its controls and faults (docs/MODEL.md), sized to fit inside the real cowl.
 - Nacelle matched to the Airbus A320 planning document: 5.25 m long, egg-shaped section (2.01 m wide,
-  deeper underneath), longer inlet and common nozzle, longer exhaust plug.
+  deeper underneath), longer inlet and common nozzle, longer exhaust plug; drooped inlet (face tilted 6 deg, 1.50 m highlight).
 - Core units modelled as parts: ignition exciters and their leads, VSV actuator and crank shaft, fuel
   distribution valve, clearance-control valves, buffer air cooler.
 - Colours fixed: authored materials were one gamma step too light (near-white cases and tubes).

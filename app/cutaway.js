@@ -9,17 +9,35 @@ const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 // wide, 0.99 m above and 1.10 m below the engine centreline at the inlet flange (deeper underneath for the
 // gearbox). nacelle = side profile, nacelleTop / nacelleBot = above / below the centreline.
 export const P = {
-  X_IN: -0.95, X_EXIT: 4.3,   // inlet lip, nozzle exit
-  inletInner: [[-0.95, 0.8], [-0.76, 0.765], [-0.37, 0.79], [0, 0.81]],
-  nacelle:    [[-0.95, 0.8], [-0.91, 0.9], [-0.84, 0.93], [-0.6, 0.975], [-0.3, 0.998], [0, 1.005], [1.18, 1.005], [1.85, 0.99], [2.22, 0.965], [3.19, 0.82], [4.3, 0.62]],
-  nacelleTop: [[-0.95, 0.8], [-0.91, 0.9], [-0.84, 0.93], [-0.6, 0.975], [-0.3, 0.995], [0, 0.99], [1.18, 1.0], [1.85, 0.97], [2.22, 0.93], [3.19, 0.78], [4.3, 0.6]],
-  nacelleBot: [[-0.95, 0.8], [-0.91, 0.9], [-0.84, 0.93], [-0.6, 0.99], [-0.3, 1.05], [0, 1.1], [1.18, 1.11], [1.85, 1.07], [2.22, 1.03], [3.19, 0.86], [4.3, 0.64]],
+  X_IN: -0.955, X_EXIT: 4.3,   // inlet highlight, nozzle exit
+  SCARF: 6,                     // inlet face tilted 6 deg, top lip forward (AC fig.)
+  inletInner: [[-0.955, 0.75], [-0.92, 0.722], [-0.86, 0.706], [-0.78, 0.705], [-0.5, 0.735], [-0.2, 0.785], [0, 0.81]],   // 1.50 m highlight
+  nacelle:    [[-0.955, 0.75], [-0.93, 0.84], [-0.88, 0.9], [-0.835, 0.93], [-0.6, 0.975], [-0.3, 0.998], [0, 1.005], [1.18, 1.005], [1.85, 0.99], [2.22, 0.965], [3.19, 0.82], [4.3, 0.62]],
+  nacelleTop: [[-0.955, 0.75], [-0.93, 0.84], [-0.88, 0.9], [-0.835, 0.93], [-0.6, 0.975], [-0.3, 0.995], [0, 0.99], [1.18, 1.0], [1.85, 0.97], [2.22, 0.93], [3.19, 0.78], [4.3, 0.6]],
+  nacelleBot: [[-0.955, 0.75], [-0.93, 0.84], [-0.88, 0.9], [-0.835, 0.93], [-0.6, 0.99], [-0.3, 1.05], [0, 1.1], [1.18, 1.11], [1.85, 1.07], [2.22, 1.03], [3.19, 0.86], [4.3, 0.64]],
   bypOuter: [[0, 0.81], [0.35, 0.81], [1.2, 0.8], [2.4, 0.74], [3.2, 0.66], [3.6, 0.63], [4.3, 0.595]],
   bypInner: [[0.4, 0.47], [0.7, 0.54], [1.3, 0.56], [2.4, 0.54], [3.0, 0.52], [3.12, 0.46]],
   coreOuter: [[0.4, 0.47], [0.85, 0.44], [1.15, 0.3], [1.85, 0.25], [1.92, 0.33], [2.18, 0.33], [2.22, 0.3], [2.42, 0.33], [3.0, 0.48], [3.12, 0.44]],
   coreInner: [[0.3, 0.27], [0.45, 0.33], [0.85, 0.36], [1.15, 0.17], [1.85, 0.215], [1.92, 0.17], [2.18, 0.2], [2.22, 0.235], [2.42, 0.25], [3.0, 0.28], [3.12, 0.262], [3.5, 0.17], [3.85, 0.06], [3.95, 0]], // exhaust plug, tip about 3.95 (AC fig.)
   spinner: [[-0.56, 0], [0.02, 0.245], [0.3, 0.27]], // long straight cone, per reference photos
 };
+/** The inlet is drooped: its face tilts SCARF deg (top lip forward), blending to nothing at the attach flange (x 0).
+ *  Axial position of a point of the axisymmetric inlet at height y (+ up). */
+export function scarfX(x, y) {
+  if (x >= 0) return x;
+  const u = Math.min(1, -x / 0.955), f = u * u * (3 - 2 * u);
+  return x - y * Math.tan((P.SCARF * Math.PI) / 180) * f;
+}
+export const scarfDroop = (x) => { if (x >= 0) return 0; const u = Math.min(1, -x / 0.955); return 0.035 * u * u * (3 - 2 * u); };
+/** Inlet lip outline (anti-iced D-duct skin) from the throat over the highlight to the outer cowl, as a closed shell. */
+export function lipLoop(xj = -0.835, xh = -0.955, rh = 0.75, rOut = 0.93, rIn = 0.705, t = 0.022, n = 16) {
+  const ax = xj - xh, ph = Array.from({ length: n + 1 }, (_, i) => (Math.PI / 2) * (i / n));
+  const outer = ph.map((p) => [xj - ax * Math.cos(p), rh + (rOut - rh) * Math.sin(p)]);
+  const inner = ph.map((p) => [xj - ax * Math.cos(p), rh - (rh - rIn) * Math.sin(p)]);
+  const surf = [...inner.reverse(), ...outer.slice(1)];
+  const shrink = ([x, r]) => { const dx = x - xj, dr = r - rh, d = Math.hypot(dx, dr) || 1, k = Math.max(0.1, (d - t) / d); return [xj + dx * k, rh + dr * k]; };
+  return [...surf, ...[...surf].reverse().map(shrink)];
+}
 export function rAt(prof, x) {
   if (x <= prof[0][0]) return prof[0][1];
   for (let i = 1; i < prof.length; i++) {
@@ -116,8 +134,8 @@ export class Cutaway {
     const band = (lo, hi, xa, xb, sign) => {
       const p = new Path2D();
       const n = 40;
-      for (let i = 0; i <= n; i++) { const x = lerp(xa, xb, i / n); const y = ty(sign * rAt(hi, x)); i ? p.lineTo(tx(x), y) : p.moveTo(tx(x), y); }
-      for (let i = n; i >= 0; i--) { const x = lerp(xa, xb, i / n); p.lineTo(tx(x), ty(sign * rAt(lo, x))); }
+      for (let i = 0; i <= n; i++) { const x = lerp(xa, xb, i / n), r = sign * rAt(hi, x), y = ty(r - scarfDroop(x)); i ? p.lineTo(tx(scarfX(x, r)), y) : p.moveTo(tx(scarfX(x, r)), y); }
+      for (let i = n; i >= 0; i--) { const x = lerp(xa, xb, i / n), r = sign * rAt(lo, x); p.lineTo(tx(scarfX(x, r)), ty(r - scarfDroop(x))); }
       p.closePath();
       return p;
     };
@@ -193,7 +211,8 @@ export class Cutaway {
       const r = s * lerp(lo, hi, 0.08 + 0.84 * ((p.v * 2) % 1));
       ctx.strokeStyle = tempColor(T + 150, 0.75);
       const l = clamp(Math.abs(v) * 0.03, 0.004, 0.09) * Math.sign(v || 1);
-      ctx.beginPath(); ctx.moveTo(tx(x), ty(r)); ctx.lineTo(tx(x - l), ty(r)); ctx.stroke();
+      const xs = scarfX(x, r), ys = r - scarfDroop(x);
+      ctx.beginPath(); ctx.moveTo(tx(xs), ty(ys)); ctx.lineTo(tx(xs - l), ty(ys)); ctx.stroke();
     }
 
     // ---- structure
@@ -201,8 +220,9 @@ export class Cutaway {
     for (const s of [1, -1]) {
       const nac = new Path2D();
       const pts = [...P.inletInner.map(([x, r]) => [x, r]), ...P.bypOuter.slice(1)];
-      pts.forEach(([x, r], i) => (i ? nac.lineTo(tx(x), ty(s * r)) : nac.moveTo(tx(x), ty(s * r))));
-      [...(s > 0 ? P.nacelleTop : P.nacelleBot)].reverse().forEach(([x, r]) => nac.lineTo(tx(x), ty(s * r)));
+      const pt = (x, r) => [tx(scarfX(x, s * r)), ty(s * r - scarfDroop(x))];
+      pts.forEach(([x, r], i) => (i ? nac.lineTo(...pt(x, r)) : nac.moveTo(...pt(x, r))));
+      [...(s > 0 ? P.nacelleTop : P.nacelleBot)].reverse().forEach(([x, r]) => nac.lineTo(...pt(x, r)));
       nac.closePath();
       solid(nac, '#1c2530');
       solid(band(P.coreOuter, P.bypInner, 0.4, 3.12, s), '#222d3a');

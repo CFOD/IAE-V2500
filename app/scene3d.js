@@ -13,7 +13,7 @@ import { GTAOPass } from './vendor/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from './vendor/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from './vendor/jsm/postprocessing/SMAAPass.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
-import { P, ROWS, rAt, tempRGB } from './cutaway.js';
+import { P, ROWS, rAt, tempRGB, lipLoop, scarfX, scarfDroop } from './cutaway.js';
 import { Puffs, Sparks } from './fx.js';
 import { setSurfaceQuality, finish, FINISH } from './surfaces.js';
 
@@ -375,10 +375,10 @@ export class Scene3D {
 
     // ---------------- nacelle
     const inlet = A({ id: 'inlet', name: 'Inlet cowl', ex: -1.5, mat: paint, desc: 'Slows and straightens the incoming air for the fan. The inner barrel is a perforated acoustic liner that absorbs fan noise.', live: (o) => `Airflow ${o.W2.toFixed(0)} kg/s · inlet ${C(o.T2)}, ${B(o.P2)}` });
-    this._solid(inlet, [...sample(P.nacelle, -0.86, 0.0, 14), ...sample(offset(P.inletInner, 0.012), -0.86, 0.0, 14).reverse()], { tag: 'skin' });
-    this._solid(inlet, [...sample(offset(P.inletInner, 0.012), -0.66, 0.0, 10), ...sample(P.inletInner, -0.66, 0.0, 10).reverse()], { mat: linerM });
+    this._solid(inlet, [...sample(P.nacelle, -0.836, 0.0, 14), ...sample(offset(P.inletInner, 0.012), -0.836, 0.0, 14).reverse()], { tag: 'skin' });
+    this._solid(inlet, [...sample(offset(P.inletInner, 0.012), -0.8, 0.0, 12), ...sample(P.inletInner, -0.8, 0.0, 12).reverse()], { mat: linerM });
     const lip = A({ id: 'lip', name: 'Inlet lip', ex: -1.7, mat: polished, desc: 'Polished aluminium leading edge, heated with engine bleed air so ice cannot build up and break off into the fan.', live: () => '' });
-    this._solid(lip, [[-0.830, 0.768], [-0.870, 0.772], [-0.915, 0.782], [-0.948, 0.805], [-0.960, 0.84], [-0.948, 0.885], [-0.910, 0.918], [-0.860, 0.93], [-0.860, 0.9], [-0.890, 0.89], [-0.920, 0.862], [-0.927, 0.84], [-0.918, 0.815], [-0.890, 0.798], [-0.830, 0.79]], { tag: 'skin' });
+    this._solid(lip, lipLoop(), { tag: 'skin' });
     const fanCase = A({ id: 'fancase', name: 'Fan case and outlet guide vanes', ex: -0.55, mat: paint, desc: 'Contains the fan, and a released blade if one ever fails. The outlet guide vanes take the swirl out of the bypass air.', live: (o) => `Bypass ${o.Wbypass.toFixed(0)} kg/s · fan pressure ratio ${o.fan.PR.toFixed(2)} · ${C(o.T13)}` });
     const fanCowl = A({ id: 'fancowl', name: 'Fan cowl doors', ex: -0.55, mat: paint, desc: 'Two hinged doors that close around the fan case. Remove them to see the bare fan case with the oil tank, the accessory gearbox and the pipework that normally hide underneath.', live: () => '' });
     this._solid(fanCowl, band(offset(P.bypOuter, 0.014), P.nacelle, 0.0, 1.2, 14), { tag: 'skin' });
@@ -782,7 +782,7 @@ export class Scene3D {
     // mist, smoke and fire use lumpy puffs
     const puffs = (n, size, blending) => { const p = this._points(n, size, blending); p.material.map = this.puff; return p; };
     // intake condensation: thin mist that forms just inside the lip, hugs the wall and is drawn into the fan
-    this.fog = new Puffs(this.scene, 420, { origin: [-0.82, 0, 0], dir: [1, 0, 0], speed: 1.6, radius: 0.74, ring: 0.75, spread: -0.05, life: 0.55, size0: 0.22, size1: 0.6, turb: 0.05, drag: 0, swirl: 0.6,
+    this.fog = new Puffs(this.scene, 420, { origin: [-0.9, -0.03, 0], dir: [1, 0, 0], speed: 1.6, radius: 0.68, ring: 0.75, spread: -0.05, life: 0.55, size0: 0.22, size1: 0.6, turb: 0.05, drag: 0, swirl: 0.6,
       colA: [0.86, 0.9, 0.95], colB: [0.92, 0.95, 1.0], colC: [0.95, 0.97, 1.0], alpha: 0.2, lit: 0.25, soft: 0.8, seed: 3 });
     this.fogK = 0;
     // dust and spray spun up where the ground vortex touches down
@@ -812,7 +812,7 @@ export class Scene3D {
     // ground vortex: a twisting rope of condensed air, bent in the vertex shader from the floor into the intake
     const rope = (layer) => new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, side: THREE.DoubleSide,
-      uniforms: { uT: { value: 0 }, uK: { value: 0 }, uFoot: { value: new THREE.Vector3(-1.25, FLOOR_Y, 0) }, uTop: { value: new THREE.Vector3(-0.42, -0.5, 0) }, uFat: { value: 1 + layer * 0.9 }, uPhase: { value: layer * 2.1 } },
+      uniforms: { uT: { value: 0 }, uK: { value: 0 }, uFoot: { value: new THREE.Vector3(-1.42, FLOOR_Y, 0) }, uTop: { value: new THREE.Vector3(-0.42, -0.5, 0) }, uFat: { value: 1 + layer * 0.9 }, uPhase: { value: layer * 2.1 } },
       vertexShader: `uniform float uT,uFat,uPhase; uniform vec3 uFoot,uTop; varying float vT; varying float vA; varying float vFacing;
         void main(){ float t=clamp(position.y+0.5,0.0,1.0); vT=t; float a=atan(position.z,position.x); vA=a;
           float e=t*t*(3.0-2.0*t);
@@ -1160,7 +1160,8 @@ export class Scene3D {
         // swirl picked up from the rotating blade rows, taken out again by the stators behind them
         const sw = p.core ? swirl2 * (bell(x, 1.5, 0.35) + bell(x, 2.32, 0.1)) + swirl1 * (bell(x, 0.65, 0.2) + bell(x, 2.72, 0.25)) : swirl1 * bell(x, 0.35, 0.3);
         const th = p.th + sw * 2.2;
-        out[0] = x + ex * 0.2 * (x - 1.5); out[1] = rr * Math.cos(th); out[2] = rr * Math.sin(th); out[3] = c; out[4] = a;
+        const yy = rr * Math.cos(th);
+        out[0] = scarfX(x, yy) + ex * 0.2 * (x - 1.5); out[1] = yy - scarfDroop(x); out[2] = rr * Math.sin(th); out[3] = c; out[4] = a;
       };
       const h = [0, 0, 0, null, 0], tl = [0, 0, 0, null, 0];
       for (let i = 0; i < this.nAir; i++) {
@@ -1219,7 +1220,7 @@ export class Scene3D {
     this.fog.u.uSpeed.value = 0.6 + 2.6 * p1; this.fog.u.uSwirl.value = 0.3 + 0.9 * p1;
     this.fog.set(t, this.fogK);
     const vk = (this._vk = (this._vk || 0) + (vx - (this._vk || 0)) * Math.min(1, dt * 1.5));
-    const foot = [-1.25 + 0.14 * Math.sin(t * 0.7) + 0.05 * Math.sin(t * 2.3), 0.28 * Math.sin(t * 0.43)];
+    const foot = [-1.42 + 0.14 * Math.sin(t * 0.7) + 0.05 * Math.sin(t * 2.3), 0.28 * Math.sin(t * 0.43)];
     this.vortexRopes.forEach((m, k) => { const u = m.material.uniforms; m.visible = vk > 0.01; u.uT.value = t % 1000; u.uK.value = vk * (k === 0 ? 0.3 + 0.4 * fogA : 0.1 + 0.15 * fogA); u.uFoot.value.set(foot[0], FLOOR_Y, foot[1]); });
     // dust and spray kicked up where the vortex touches the ground
     this.dust.u.uOrigin.value.set(foot[0], FLOOR_Y + 0.06, foot[1]); this.dust.set(t, vk);

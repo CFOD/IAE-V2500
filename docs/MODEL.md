@@ -97,7 +97,11 @@ the engine centreline and 1.10 m below it, so the section is egg-shaped, deeper 
 is; 1.98 / 1.93 m wide at the combustion chamber flanges, 1.64 m at the turbine exhaust case flange and 1.24 m
 at the nozzle exit. In the model the inlet lip is at x -0.95 and the nozzle exit at x 4.30 (the fan face is
 x 0). `P['nacelle']` is the side profile and `nacelleTop` / `nacelleBot` the top and bottom; the cowls are
-built round on the side profile and `egg_deform` reshapes them by angle. Fan cowls open 50 deg and the
+built round on the side profile and `egg_deform` reshapes them by angle. The inlet is drooped as in the
+figure: its face is tilted 6 deg with the top lip forward (`scarf_deform` shears the lip and inlet cowl,
+fading to nothing at the attach flange, and lowers the lip 35 mm), and its highlight is 1.50 m across, with
+the throat behind it at 1.41 m opening out to the fan. The lip is a hollow D-section skin (the anti-iced
+duct) generated from those radii (`lip_loop`, mirrored by `lipLoop` in app/cutaway.js). Fan cowls open 50 deg and the
 reverser halves 45 deg (figures 033 and 034). The bare engine (fig. 031: 3.10 m long, 1.715 m across the fan
 case) matches the generated engine.
 
