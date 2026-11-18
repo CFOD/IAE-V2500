@@ -79,6 +79,12 @@
     "acac": {
       "match": "^acac_"
     },
+    "egtbox": {
+      "match": "^egtbox_"
+    },
+    "mounts": {
+      "match": "^mounts_"
+    },
     "pylon": {
       "match": "^pylon_"
     },

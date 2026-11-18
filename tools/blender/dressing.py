@@ -111,8 +111,9 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
         H(D, fan, [(0.765, a, 0.045), (0.785, a, 0.035), (0.785, 286 - 2 * k, 0.035), (0.69, 286 - 2 * k, 0.03), (0.6 + 0.06 * k, 283.5, 0.06)], radius=0.007)
     for k in range(4):  # relay box -> bleed solenoids
         H(D, fan, [(0.56 + 0.04 * k, 281, 0.06), (0.56 + 0.04 * k, 276, 0.035), (0.57 + 0.085 * k, 273, 0.05)], radius=0.0045, conn=(False, True), rb=0.02)
-    # P3 servo air from the solenoids down the right side to the lower bifurcation (they feed the HPC bleed valves)
-    T(D, fan, [(0.585, 266, 0.05), (0.62, 262, 0.03), (0.9, 262, 0.015), (0.9, 214, 0.015), (1.12, 214, 0.015), (1.12, 190, 0.015), (1.16, 186, 0.015)], n=4, d=0.016, radius=0.0035, mat='ss', rb=0.045)
+    panel_h = lambda x: 0.903 - fan(x)   # top of the bulkhead panel, as a height above the fan case
+    # P3 servo air from the solenoids down the right side, behind the IDG and angle gearbox, to the bulkhead panel
+    T(D, fan, [(0.585, 266, 0.05), (0.62, 262, 0.03), (0.9, 262, 0.015), (0.9, 214, 0.015), (1.12, 214, 0.015), (1.205, 205, 0.03), (1.205, 182, 0.03), (1.19, 177.5, panel_h(1.19))], n=4, d=0.016, radius=0.0035, mat='ss', rb=0.045)
     # air-cooled oil cooler <-> gearbox
     T(D, fan, [(0.74, 236, 0.07), (0.71, 232, 0.02), (0.71, 216, 0.02), (0.71, 212.4, 0.11)], n=2, d=0.032, radius=0.011, mat='ss', rb=0.05)
     # pressure sense lines from the EEC forward over the top (P2, P12.5)
@@ -161,26 +162,36 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     for dd in (0.0, 0.012):
         D.loom(fan, [(0.36 + dd, 8, 0.012), (0.36 + dd, 148, 0.012)], radius=0.0028, mat=M['cad'], clamp_mat=M['red'], clamp_every=0.18, rb=0.03)
 
-    # ================================================================== BOTTOM: everything for the core gathers at the lower bifurcation
-    # servo fuel from the metering unit (VSV, booster bleed, clearance control actuators)
-    T(D, fan, [servo_port, (1.15, 171, 0.015), (1.15, 178, 0.015), (1.16, 180, 0.015)], n=6, d=0.011, radius=0.003, mat='cad', rb=0.03)
-    # metered fuel to the core
-    T(D, fan, [metered_port, (1.165, 164, 0.02), (1.165, 176, 0.02), (1.175, 178, 0.02)], n=1, radius=0.009, mat='ss', rb=0.04)
+    # ================================================================== BOTTOM: services to the core
+    # Fan-case lines end on the bulkhead panel at 6 o'clock; the core lines leave it underneath, drop down
+    # inside the lower strut of the fan frame and run aft along the bottom of the core (services() below).
+    T(D, fan, [servo_port, (1.16, 170, 0.03), (1.15, 174.5, panel_h(1.15))], n=6, d=0.011, radius=0.003, mat='cad', rb=0.03)    # servo fuel from the FMU
+    T(D, fan, [metered_port, (1.165, 164, 0.04), (1.08, 176.5, panel_h(1.08))], n=1, radius=0.009, mat='ss', rb=0.04)            # metered fuel from the FMU
 
-    # crossing the bypass duct inside the lower bifurcation (absolute radius); each group stacks along x
-    def cross(th, x, r0, r1, n, d, radius, mat, loom=False):
-        # from a bulkhead fitting on the fan case rear flange, diagonally down inside the bifurcation to the core.
-        # Groups are stacked radially (layers) so they stay within the thin bifurcation wall.
-        x0 = 1.165 + (th - 180) * 0.004
-        way = [(x0 - 0.05, th - 9, 0.85), (x0, th, 0.85), (x - 0.04, th, r1 + 0.05), (x, th, r1)]
-        if loom: H(C, absr, way, radius=radius, conn=(False, False), rb=0.05)
-        else: T(C, absr, way, n=1, d=d, radius=radius, mat=mat, rb=0.06, clamp=False, layers=n)
-    cross(180.0, 1.3, 0.85, 0.42, 6, 0.011, 0.003, 'cad')       # servo fuel
-    cross(179.3, 1.4, 0.85, 0.43, 4, 0.016, 0.0035, 'ss')       # P3 servo air
-    cross(180.6, 1.47, 0.85, 0.44, 1, 0.02, 0.009, 'ss')        # metered fuel
-    cross(179.6, 1.56, 0.85, 0.44, 2, 0.026, 0.008, 'ss')       # No. 4 bearing oil feed and scavenge
-    cross(180.2, 1.66, 0.86, 0.45, 1, 0.02, 0.013, 'ss', loom=True)   # core harness A
-    cross(179.8, 1.74, 0.86, 0.45, 1, 0.02, 0.011, 'ss', loom=True)   # core harness B
+    # Each group: from the underside of the panel down inside the strut (its own station along the chord, widest
+    # groups where the strut is thickest), aft along the bottom of the core in its own lane on one of two levels,
+    # then straight down to the core and across to where its core route begins. Groups that end soonest run on
+    # the lower level, so nothing they do crosses a lane that carries on aft.
+    def services():
+        lo_r, up_r, th_s = 0.48, 0.515, 181.0
+        G = [  # (x station in the strut, x on the core, angle there, lane angle, level, n, d, radius, material or None = harness)
+            (1.05, 1.3, 180.0, 170.5, lo_r, 6, 0.011, 0.003, 'cad'),     # servo fuel
+            (1.075, 1.4, 180.0, 178.0, lo_r, 4, 0.016, 0.0035, 'ss'),    # P3 servo air to the handling bleed valves
+            (1.2, 1.47, 180.0, 183.5, lo_r, 1, 0.02, 0.009, 'ss'),       # metered fuel
+            (1.15, 1.56, 181.0, 188.0, lo_r, 2, 0.026, 0.008, 'ss'),     # No. 4 bearing oil feed and scavenge
+            (1.175, 1.66, 182.0, 170.5, up_r, 1, 0.02, 0.013, None),     # core harness A
+            (1.025, 1.74, 178.0, 174.5, up_r, 1, 0.02, 0.011, None),     # core harness B
+            (1.125, 1.84, 180.4, 179.5, up_r, 3, 0.012, 0.004, 'ti'),
+            (1.1, 1.92, 179.6, 185.5, up_r, 4, 0.01, 0.003, 'ss'),
+            (1.005, 2.0, 180.0, 190.5, up_r, 1, 0.02, 0.01, None),
+        ]
+        for xs, xd, thd, lane, lev, n, d, radius, mat in G:
+            low = core(xd) + 0.022
+            way = [(xs, 177.5, 0.884), (xs + 0.004, th_s, 0.8), (xs + 0.02, th_s, 0.56), (xs + 0.075, lane, lev),
+                   (xd - 0.075, lane, lev), (xd - 0.035, lane, low + 0.01), (xd, thd, low)]
+            if mat is None: H(C, absr, way, radius=radius, conn=(False, False), rb=0.04)
+            else: T(C, absr, way, n=n, d=d, radius=radius, mat=mat, rb=0.04, clamp=True, every=0.22)
+    services()
 
     # ================================================================== CORE
     hc = 0.022  # standard height above the core envelope
@@ -205,7 +216,7 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     # high-tension leads (metal braid) from each exciter to its igniter plug on the diffuser case (igniters at 227.6 and 47.5 deg)
     C.loom(core, [(1.67, 222, 0.057), (1.8, 224, 0.075), (1.95, 227.6, 0.11), (2.01, 227.6, 0.088)], radius=0.0075, mat=M['ti'], clamp_mat=M['red'], bracket_mat=M['brk'], conn_mat=M['nut'], connectors=(True, True), rb=0.04)
     C.loom(core, [(1.67, 240, 0.057), (1.73, 244, 0.1), (1.73, 400, 0.1), (1.95, 405, 0.11), (2.01, 407.5, 0.088)], radius=0.0075, mat=M['ti'], clamp_mat=M['red'], bracket_mat=M['brk'], conn_mat=M['nut'], connectors=(True, True), rb=0.04)
-    H(C, core, [(2.1, 196, 0.05), (2.6, 196, hc), (2.84, 190, 0.05)], radius=0.008, conn=(False, True))            # EGT junction box
+    H(C, core, [(2.1, 196, 0.05), (2.42, 194, hc), (2.55, 187, hc), (2.57, 186, 0.487 - core(2.57))], radius=0.008, conn=(False, True))   # EGT junction box (core_units.py)
     H(C, core, [(2.1, 150, 0.05), (2.3, 152, 0.05)], radius=0.006, conn=(False, True), rb=0.03)                    # buffer air cooler sensor
     # turbine cooling air (stage 10) from the HPC to the HP turbine case, both sides
     for th in (215, 145):
@@ -330,7 +341,7 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
              lambda x, lo, hi: 2.2 < x < 2.47 and lo < 162 and hi > 142]       # buffer air cooler
     route_core = packer(CORE_BAYS, (0.02, 0.034, 0.048, 0.062), 0.075, [vsv] + units)
     CA = [(1.55, 254, 0.05), (1.55, 296, 0.05), (1.75, 280, 0.05), (1.55, 132, 0.05), (1.36, 140, 0.07), (1.8, 141, 0.06), (1.76, 312, 0.06), (2.08, 284, 0.06),
-          (2.2, 236, 0.07), (2.2, 250, 0.07), (2.3, 152, 0.06), (2.84, 190, 0.05), (1.45, 222, 0.04), (1.45, 240, 0.04), (2.0, 232, 0.05), (2.0, 166, 0.03),
+          (2.2, 236, 0.07), (2.2, 250, 0.07), (2.3, 152, 0.06), (2.6, 190, 0.02), (1.45, 222, 0.04), (1.45, 240, 0.04), (2.0, 232, 0.05), (2.0, 166, 0.03),
           (1.45, 180, 0.03), (1.6, 180, 0.03), (1.75, 180, 0.03), (1.9, 182, 0.04), (2.02, 200, 0.04), (2.02, 140, 0.04), (2.25, 210, 0.05), (2.25, 120, 0.05),
           (2.5, 220, 0.03), (2.5, 140, 0.03), (1.6, 220, 0.04), (1.6, 300, 0.04), (1.95, 260, 0.05), (1.95, 300, 0.05)]
     made_n = 0; tries = 0
@@ -350,10 +361,6 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
         way = route_core(A, B, 2 * r)
         if way: H(C, core, way, radius=r, conn=(False, True))
 
-    # more groups through the lower bifurcation, matching the extra lines gathering at the bottom
-    cross(180.4, 1.84, 0.85, 0.44, 3, 0.012, 0.004, 'ti')
-    cross(179.6, 1.92, 0.85, 0.44, 4, 0.01, 0.003, 'ss')
-    cross(180.0, 2.0, 0.85, 0.45, 1, 0.02, 0.01, 'ss', loom=True)
 
     # ================================================================== flexible hoses
     D.hose([(1.13, 352, 0.92), (1.1, 346, 0.98), (1.14, 340, 1.0)], 0.011, M['fire'], M['nut'])   # HCU pressure hose to the pylon

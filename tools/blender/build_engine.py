@@ -414,7 +414,7 @@ def build():
     made.append(finish(join('agb_gearbox', [gb] + acc), 0.003))
     accessories.build_accessories(H, made)
     import core_units
-    CORE_UNITS = core_units.build_core_units(H, made, P, r_at)
+    CORE_UNITS = core_units.build_core_units(H, made, P, r_at) + core_units.build_mounts(H, made, P, r_at, in_cut)
     # ---- EEC: flat finned box on the upper side of the fan case, on four feet, with its connectors and looms
     eec = [box('eec', th_pos(0.5, 305, 0.895), (0.42, 0.3, 0.05), 305, gold), box('eeccover', th_pos(0.5, 305, 0.93), (0.4, 0.28, 0.025), 305, dark)]
     eec += [box('fin', th_pos(0.31 + 0.038 * k, 305, 0.947), (0.012, 0.28, 0.012), 305, dark) for k in range(11)]
@@ -456,9 +456,32 @@ def build():
     put(40, box('box', th_pos(0.4, 40, 0.905), (0.16, 0.12, 0.05), 40, dark))
     put(74, box('box', th_pos(0.3, 74, 0.905), (0.14, 0.12, 0.06), 74, cast))
     put(60, stack('valve', 0.8, 60, 0.92, [(0.012, 0.04, 0.04), (0.1, 0.034, 0.034), (0.012, 0.04, 0.04)], steel))
-    # forward engine mount: yoke on the fan frame at the top, two links up to the pylon
-    put(0, box('mount', th_pos(1.12, 0, 0.93), (0.12, 0.3, 0.07), 0, cast))
-    for dth in (-9, 9): put(dth % 360, cylinder('link', th_pos(1.12, dth, 0.93), th_pos(1.12, dth * 0.45, 1.03), 0.022, 0.022, steel, seg=12))
+    # Lower (6 o'clock) strut of the fan frame: a streamlined fairing across the bypass duct, behind the outlet
+    # guide vanes, leading into the lower bifurcation (x 1.22). The tower shaft and the services to the core
+    # (fuel, servo air, oil, harnesses) pass down inside it from the bulkhead panel on the fan case.
+    def strut(name, x0, x1, th_c, r0, r1, t_max, mat, n=28):
+        c = x1 - x0; bm = bmesh.new(); rings = []
+        pts = []
+        for i in range(n + 1):                                  # NACA 00xx thickness, round nose, sharp tail
+            xc = 0.5 * (1 - math.cos(math.pi * i / n))
+            yt = 5 * (t_max / c) * c * (0.2969 * math.sqrt(xc) - 0.126 * xc - 0.3516 * xc ** 2 + 0.2843 * xc ** 3 - 0.1036 * xc ** 4)
+            pts.append((x0 + xc * c, yt))
+        loop = pts + [(x, -y) for x, y in reversed(pts[1:-1])]
+        for r in (r0, r1):
+            rings.append([bm.verts.new(th_pos(x, th_c + math.degrees(sv / r), r)) for x, sv in loop])
+        m = len(loop)
+        for k in range(m): bm.faces.new((rings[0][k], rings[0][(k + 1) % m], rings[1][(k + 1) % m], rings[1][k]))
+        bm.faces.new(rings[0]); bm.faces.new(list(reversed(rings[1])))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+        for f in me.polygons: f.use_smooth = True
+        o = link(bpy.data.objects.new(name, me)); me.materials.append(mat); return o
+    put(181, strut('strut6', 0.99, 1.235, 181.0, r_at(P['bypInner'], 1.1) - 0.01, r_at(P['bypOuter'], 1.1) + 0.012, 0.1, cast))
+    # bulkhead (disconnect) panel beside the angle gearbox: fan-case lines end on top, core lines leave underneath
+    put(175, box('panel', th_pos(1.1, 175.5, 0.892), (0.22, 0.09, 0.01), 175.5, cast))
+    for xx in (1.0, 1.2):
+        for dth in (-2.2, 2.2): put(175, box('pstand', th_pos(xx, 175.5 + dth, 0.872), (0.02, 0.012, 0.03), 175.5 + dth, steel))
+    # (engine mounts: core_units.build_mounts)
     made.append(box('inlet_p2t2__full', th_pos(-0.2, 4, r_at(P['inletInner'], -0.2) - 0.035), (0.06, 0.012, 0.07), 4, steel))   # belongs to the intake cowl, inside the cutaway sector
     # fire detection loops round the gearbox (two elements side by side), per the booklet diagram
     for d in (0.0, 0.012):

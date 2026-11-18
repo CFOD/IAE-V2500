@@ -122,6 +122,49 @@ def build_core_units(H, made, P, r_at, bevel=0.001):
     for a in (0.05, 0.19): B.box('ba', (a, 0, (zc - 0.03) / 2), (0.012, 0.09, -zc - 0.03), M['cast'])
     U['acac'] = B.objs
 
+    # ---------------------------------------------------------------- EGT junction box (on stand-offs above the LPT spray rings)
+    E = Kit(H, frame(H, 2.58, 186, 0.487))
+    E.loft('eg', [(0.0, 0, 0.0, 0.036, 0.012), (0.006, 0, 0.0, 0.042, 0.015), (0.114, 0, 0.0, 0.042, 0.015), (0.12, 0, 0.0, 0.036, 0.012)], M['gold'], e=0.3)
+    E.box('eg', (0.06, 0, 0.0165), (0.1, 0.07, 0.003), M['steel'])                                   # cover
+    for a in (0.02, 0.1):
+        for y in (-0.03, 0.03): E.cyl('eg', (a, y, -0.012), (a, y, case(2.62) - 0.487), 0.004, 0.004, M['steel'], seg=8)   # stand-offs
+    E.connector('eg', (0.0, 0.0, 0.0), (-1, 0, 0), M, size=0.7)                                       # signal out (to the EEC harness)
+    for k, y in enumerate((-0.024, -0.008, 0.008, 0.024)):                                           # thermocouple leads in, from the probes
+        E.hexa('eg', (0.12, y, 0.0), (0.128, y, 0.0), 0.004, M['nut'])
+        E.pipe('eg', [(0.128, y, 0.0), (0.2, y * 1.4, -0.006), (0.33, y * 2.0, -0.02)], 0.0028, M['steel'])
+    U['egtbox'] = E.objs
+
     for comp, objs in U.items():
         made.append(H.finish(H.join(comp + '_body', objs), bevel))
     return list(U)
+
+
+def build_mounts(H, made, P, r_at, in_cut, bevel=0.0015):
+    """Engine mounts. Front: a fitting on top of the fan frame, two links with spherical bearings up to the
+    pylon's front mount beam, and a shear pin. Rear: a beam on the turbine case top with two links up through
+    the upper bifurcation to the pylon's aft fitting. Both sit in the cutaway sector, so they are shown with
+    the cutaway closed (node suffix __full)."""
+    M = materials(H)
+    co = lambda x: r_at(P['coreOuter'], x)
+    F = Kit(H, frame(H, 1.12, 0, 0.88))
+    F.box('mf', (0, 0, 0), (0.15, 0.3, 0.03), M['cast'])                                  # base fitting on the fan frame
+    for bx in (-0.055, 0.055):                                                             # two rows of bolts through the base
+        for by in (-0.125, -0.07, 0.07, 0.125): F.hexa('mf', (bx, by, 0.015), (bx, by, 0.023), 0.006, M['nut'])
+    for sy in (-1, 1):
+        F.box('mf', (0, sy * 0.105, 0.04), (0.07, 0.022, 0.05), M['cast'])                # clevis lugs
+        a, b = Vector((0, sy * 0.105, 0.05)), Vector((0, sy * 0.045, 0.105))
+        F.cyl('mf', a, b, 0.014, 0.014, M['steel'], seg=14)                                # link
+        for q in (a, b): F.ring('mf', -0.012, 0.012, 0.012, 0.022, M['steel'], origin=q, axis=(1, 0, 0), seg=16)   # spherical bearings
+    F.cyl('mf', (0, 0, 0.015), (0, 0, 0.1), 0.024, 0.02, M['steel'], seg=18)              # shear pin
+    F.box('mf', (0, 0, 0.115), (0.14, 0.15, 0.03), M['steel'])                             # pylon front mount beam
+    R = Kit(H, frame(H, 2.85, 0, co(2.85) + 0.07))
+    R.box('mr', (0, 0, 0), (0.1, 0.24, 0.014), M['cast'])                                  # rear mount beam on the turbine case
+    for sy in (-1, 1):
+        R.box('mr', (0, sy * 0.04, 0.02), (0.06, 0.016, 0.03), M['cast'])
+        a, b = Vector((0, sy * 0.04, 0.03)), Vector((0, sy * 0.022, 0.17))
+        R.cyl('mr', a, b, 0.011, 0.011, M['steel'], seg=12)
+        for q in (a, b): R.ring('mr', -0.01, 0.01, 0.009, 0.017, M['steel'], origin=q, axis=(1, 0, 0), seg=14)
+    R.box('mr', (0, 0, 0.185), (0.12, 0.1, 0.03), M['steel'])                              # pylon aft fitting
+    made.append(H.finish(H.join('mounts_front__full', F.objs), bevel))
+    made.append(H.finish(H.join('mounts_rear__full', R.objs), bevel))
+    return ['mounts']

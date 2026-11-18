@@ -615,11 +615,9 @@ export class Scene3D {
       [[[1.02, 0.17, 176], [1.02, 0.3, 177], [1.0, 0.44, 178], [0.95, 0.56, 180], [0.85, 0.66, 182]], 0.009, pipeSteel], [[[1.06, 0.17, 186], [1.06, 0.3, 185], [1.05, 0.46, 184], [1.0, 0.58, 183]], 0.012, pipeGold],
       [[[2.06, 0.135, 150], [2.05, 0.2, 150], [2.03, 0.3, 151], [2.0, 0.4, 153], [1.9, 0.44, 158], [1.6, 0.42, 168]], 0.008, pipeSteel], [[[2.09, 0.135, 158], [2.09, 0.22, 158], [2.1, 0.33, 158], [2.12, 0.41, 160], [2.3, 0.44, 166]], 0.011, pipeGold],
       [[[3.06, 0.105, 180], [3.065, 0.2, 180], [3.065, 0.3, 180], [3.06, 0.47, 180], [2.9, 0.54, 180], [2.5, 0.5, 182]], 0.008, pipeSteel], [[[3.07, 0.105, 196], [3.07, 0.3, 196], [3.06, 0.47, 196], [2.85, 0.53, 194]], 0.01, pipeGold]]) this._pipe(brg, pts, rad, mt);
-    // EGT thermocouples in the exhaust case struts (about 2, 4.30, 7.30 and 9.30 o'clock) with their harness ring; rear mount at top dead centre of the LPT case
+    // EGT thermocouples in the exhaust case struts (about 2, 4.30, 7.30 and 9.30 o'clock) with their harness ring
     for (const th of [60, 135, 225, 285]) { const pr = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 10), pipeSteel), r = co(3.07) + 0.05; pr.position.set(3.07, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); pr.rotation.x = th * DEG; const o2 = this._reg(tec, pr); if (inCut(th * DEG)) o2.userData.variant = 'full'; }
     this._pipe(tec, Array.from({ length: 22 }, (_, i) => [3.1, co(3.1) + 0.085, 118 + i * 11]), 0.007, harness);
-    { const rm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.09, 0.26), new THREE.MeshStandardMaterial({ color: 0x8a9096, metalness: 1, roughness: 0.4 })); rm.position.set(3.05, co(3.05) + 0.12, 0); const o2 = this._reg(tec, rm); o2.userData.variant = 'full';
-      for (const z of [-0.1, 0.1]) { const lk = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.2, 10), pipeSteel); lk.position.set(3.05, co(3.05) + 0.06, z * 2.2); lk.rotation.x = z * 6; this._reg(tec, lk).userData.variant = 'full'; } }
     // thrust reverser drag links: one per blocker door, from the core cowl across the duct to the door. They pull the doors down as the sleeve slides aft.
     { const g = new THREE.CylinderGeometry(0.008, 0.008, 1, 8), mk = (ths) => { const im = new THREE.InstancedMesh(g, pipeSteel, ths.length); im.userData.ths = ths; return im; };
       const all = Array.from({ length: 10 }, (_, k) => (k * 36 + 18) * DEG);
@@ -653,8 +651,9 @@ export class Scene3D {
       unit(accvalves, new THREE.BoxGeometry(0.12, 0.06, 0.076), pipeGold, 2.12, 286, co(2.12) + 0.14);
       const acac = A({ id: 'acac', name: 'Buffer air cooler', ex: 0.15, mat: castM, desc: 'Air-to-air heat exchanger: fan air from a scoop in the core cowl cools air taken from the HP compressor before it pressurises the seals of the No. 4 bearing chamber, so the hot air does not cook the oil there.', live: (o) => `Compressor air in at ${(o.T3 - 273.15).toFixed(0)} °C` });
       unit(acac, new THREE.BoxGeometry(0.24, 0.07, 0.14), acac.mat, 2.34, 152, 0.465);
-      // EGT junction box underneath
-      unit(ext, new THREE.BoxGeometry(0.12, 0.03, 0.08), pipeGold, 2.86, 186, co(2.86) + 0.1);
+      const egtbox = A({ id: 'egtbox', name: 'EGT junction box', ex: 0.6, mat: chromM, desc: 'Joins the leads from the thermocouples in the exhaust case struts. Their average is the exhaust gas temperature the EEC limits and the crew watch on the ECAM.', live: (o) => `EGT ${(o.egt - 273.15).toFixed(0)} °C` });
+      unit(egtbox, new THREE.BoxGeometry(0.12, 0.03, 0.084), egtbox.mat, 2.64, 186, 0.487);
+      A({ id: 'mounts', name: 'Engine mounts', ex: 0, mat: castM, desc: 'The front mount on top of the fan frame carries most of the load, thrust included; the rear mount on the turbine case takes vertical and side loads and the engine torque. Links with spherical bearings let the engine grow with heat without straining the pylon. In the cutaway sector, so they show with the cutaway closed (remove the pylon to see them).', live: (o) => `Thrust carried ${(o.thrust / 1000).toFixed(1)} kN` });
       // high-pressure bleed valve low on the left
       unit(hpcCase, new THREE.CylinderGeometry(0.05, 0.05, 0.14, 18).rotateZ(Math.PI / 2), pipeGold, 1.86, 140, co(1.86) + 0.13);
       // fuel manifold pigtails from the distribution valve
@@ -680,9 +679,6 @@ export class Scene3D {
       const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.022, 0.07, 0.012), pipeSteel, pts.length), mm = new THREE.Matrix4();
       pts.forEach(([x, th], i) => { mm.makeRotationX(th * DEG - Math.PI / 2); const r = co(x) + 0.055; mm.setPosition(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); im.setMatrixAt(i, mm); });
       top(this._reg(ext, im)); }
-    for (const [x, th, sx, sy, sz, mt] of [[1.45, 62, 0.16, 0.05, 0.11, unitGrey], [1.75, 75, 0.12, 0.07, 0.09, pipeSteel], [2.38, 50, 0.1, 0.07, 0.08, pipeSteel], [2.2, -5, 0.14, 0.06, 0.1, unitGrey], [2.6, 96, 0.1, 0.06, 0.08, pipeSteel]]) {
-      const bx = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mt); const r = co(x) + 0.09; bx.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); bx.rotation.x = th * DEG - Math.PI / 2; top(this._reg(ext, bx));
-    }
     // pylon the engine hangs from
     const pylon = A({ id: 'pylon', name: 'Pylon', ex: 0, mat: paint, desc: 'Carries the engine under the wing and transmits its thrust to the airframe. Fuel, bleed air, electrical and hydraulic lines run through it.', live: (o) => `Thrust carried ${(o.thrust / 1000).toFixed(1)} kN` });
     { const sh = new THREE.Shape(); sh.moveTo(0.35, 0.98); sh.lineTo(0.2, 1.32); sh.lineTo(3.0, 1.32); sh.lineTo(2.8, 1.02); sh.lineTo(2.2, 0.9); sh.lineTo(0.35, 0.98);
@@ -698,7 +694,7 @@ export class Scene3D {
         inlet: FINISH.nacellePaint, fancowl: FINISH.nacellePaint, cna: FINISH.nacellePaint, pylon: FINISH.nacellePaint, lip: FINISH.polished,
         fancase: FINISH.castPaint, lpccase: FINISH.castPaint, hpccase: FINISH.castPaint, agb: FINISH.castBare, eec: FINISH.darkBox,
         starter: FINISH.castBare, sav: FINISH.castBare, idg: FINISH.castBare, hydpump: FINISH.castBare, pma: FINISH.castBare, oiltank: FINISH.castBare, fuelpump: FINISH.chromate, fmu: FINISH.chromate, oilpump: FINISH.chromate,
-        exciters: FINISH.chromate, vsvact: FINISH.chromate, fdv: FINISH.chromate, accvalves: FINISH.castBare, acac: FINISH.castBare,
+        exciters: FINISH.chromate, vsvact: FINISH.chromate, fdv: FINISH.chromate, accvalves: FINISH.castBare, acac: FINISH.castBare, egtbox: FINISH.chromate, mounts: FINISH.castBare,
         spinner: { ...FINISH.darkBox, bottom: 0, grime: 0.08 }, fan: FINISH.titanium, lpc: FINISH.compressorBlade, hpc: FINISH.compressorBlade,
         hpt: H(FINISH.turbineBlade, [2.0, 2.45, 0.8]), lpt: H(FINISH.turbineBlade, [2.3, 3.05, 0.7]),
         hptcase: H(FINISH.hotCase, [2.0, 2.5, 0.9]), lptcase: H(FINISH.hotCase, [2.3, 3.1, 0.9]), combcase: H(FINISH.hotCase, [1.75, 2.6, 0.5]),
@@ -1048,7 +1044,7 @@ export class Scene3D {
             if (/^txt:/.test(mt.name)) return (this._labels ||= {})[mt.name] ||= labelMaterial(mt.name.slice(4));
             const sh = this.shared[mt.name];
             if (mt.name === 'section') return sh || mt;
-            const casting = mt.name === 'cast' && /oiltank|gearbox|agb_|dressing|eec|starter_|sav_|idg_|hydpump_|fuelpump_|fmu_|oilpump_|pma_|exciters_|vsvact_|fdv_|accvalves_|acac_/i.test(m.name);
+            const casting = mt.name === 'cast' && /oiltank|gearbox|agb_|dressing|eec|starter_|sav_|idg_|hydpump_|fuelpump_|fmu_|oilpump_|pma_|exciters_|vsvact_|fdv_|accvalves_|acac_|egtbox_|mounts_/i.test(m.name);
             const key = mt.name + (casting ? ':bare' : '');
             return (own[key] ||= (() => {
               let c;
