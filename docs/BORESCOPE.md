@@ -130,8 +130,10 @@ one, it turns on by the difference (twice at most).
 - **Light:** the only light is the probe's. Scene lights are dimmed to 2 % and the environment to 4 %.
 - **Exposure:** like the camera in a real probe, the gain follows the scene. Five rays measure how far
   away it is, and the centre one and the median set the LED brightness (centre-weighted), so a blade 1 cm
-  away is not burnt out and the far side of the fan is not lost. The colour of the surface in the middle,
-  heat tint included, scales it too: oxidised turbine metal gets several times the light of bright titanium.
+  away is not burnt out and the far side of the fan is not lost. (three.js stops a light getting brighter
+  closer than 10 cm, so within that the gain holds steady.) The brightness of the surface in the middle
+  scales it too: its colour, its texture's average and any heat tint. Oxidised turbine metal gets several
+  times the light of bright titanium.
 - **Surfaces:** polished metal lit from the lens would show nothing but one hot spot. Real blades are matt
   enough, with coatings, erosion and deposits, that the LEDs light their whole surface, so the model's
   materials are made a little rougher and less metallic while you inspect.

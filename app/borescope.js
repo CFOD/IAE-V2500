@@ -50,13 +50,26 @@ function rowName(name) {
   if (/^fuel_injector/.test(m)) return 'Fuel injector tip';
   return null;
 }
-// how light the surface a ray hit is (its colour, times the instance's heat tint), for the gain
-const _c = new THREE.Color();
+// how light the surface a ray hit is (its colour, its texture's average and the instance's heat tint), for the gain
+const _c = new THREE.Color(), _t = new THREE.Color(), mapLum = new WeakMap();
+function texLum(tex) {   // average brightness of a texture, once (a tiny canvas copy)
+  if (mapLum.has(tex)) return mapLum.get(tex);
+  let v = 0.5;
+  try {
+    const img = tex.image, cv = document.createElement('canvas'); cv.width = cv.height = 8;
+    const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, 0, 0, 8, 8);
+    const d = cx.getImageData(0, 0, 8, 8).data; let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += 0.2126 * (d[i] / 255) ** 2.2 + 0.7152 * (d[i + 1] / 255) ** 2.2 + 0.0722 * (d[i + 2] / 255) ** 2.2;
+    v = sum / 64;
+  } catch (e) { /* not drawable: keep the guess */ }
+  mapLum.set(tex, v); return v;
+}
 function albedo(h) {
   const o = h.object, m = Array.isArray(o.material) ? o.material[(h.face && h.face.materialIndex) || 0] : o.material;
   if (!m || !m.color) return 0.5;
-  _c.copy(m.color); if (o.isInstancedMesh && o.instanceColor && h.instanceId != null) { const t = new THREE.Color(); o.getColorAt(h.instanceId, t); _c.multiply(t); }
-  return clamp(0.2126 * _c.r + 0.7152 * _c.g + 0.0722 * _c.b, 0.07, 1);
+  _c.copy(m.color); if (o.isInstancedMesh && o.instanceColor && h.instanceId != null) { o.getColorAt(h.instanceId, _t); _c.multiply(_t); }
+  const k = m.map && m.map.image ? texLum(m.map) : 1;
+  return clamp((0.2126 * _c.r + 0.7152 * _c.g + 0.0722 * _c.b) * k, 0.06, 1);
 }
 const shown = (o) => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
 // blades are numbered round the row from the first; a static ring's instances are sorted for the cutaway, so
@@ -209,7 +222,8 @@ export class Borescope {
     this.dS += (this.dist - this.dS) * Math.min(1, dt * 5);
     // and for how dark the surface is: oxidised turbine metal needs several times the light of bright titanium
     this.aS += (this.albedo - this.aS) * Math.min(1, dt * 4);
-    const g = Math.max(0.006, this.dS) ** 2 / this.aS;
+    // (three.js stops a light getting brighter closer than 10 cm, so nearer than that the gain stays put)
+    const g = Math.max(0.1, this.dS) ** 2 / this.aS;
     this.light.intensity = 1.9 * g; this.glow.intensity = 0.35 * g;
     this.light.position.copy(pos).addScaledVector(d, -0.003); this.light.target.position.copy(pos).add(d); this.light.target.updateMatrixWorld();
     this.glow.position.copy(pos).addScaledVector(d, -0.006);
