@@ -40,6 +40,7 @@ const HINGES = {
   fan: { L: { th: 9 * DEG, r: 1.0 }, R: { th: -9 * DEG, r: 1.0 }, open: 50 * DEG },     // fan cowls open 50 deg, reverser halves 45 (Airbus AC fig. 2-12-0-991-033/034)
   cd: { L: { th: 7 * DEG, r: 0.985 }, R: { th: -7 * DEG, r: 0.985 }, open: 45 * DEG },
 };
+const _spinQ = new THREE.Quaternion(), _X = new THREE.Vector3(1, 0, 0);
 const inCut = (th) => { const t = ((th % TAU) + TAU) % TAU; return t > TAU + CUT_A || t < CUT_B; };
 
 // Materials of the authored internals (tools/blender/internals.py names them i_*). Where a part has a material of
@@ -56,7 +57,7 @@ const INT_MATS = {
   i_hot: { color: 0x8a7f72, metalness: 0.9, roughness: 0.45, f: 'hotCase' }, i_lptb: { color: 0x9a8a68, metalness: 1, roughness: 0.4, f: 'turbineBlade' },
   i_tec: { color: 0x9c8263, metalness: 0.9, roughness: 0.45, f: 'hotCase' }, i_shaft: { color: 0x7a8188, metalness: 1, roughness: 0.28, f: 'bareSteel' },
   i_race: { color: 0xc4c9cd, metalness: 1, roughness: 0.18, f: 'bareSteel', bottom: 0, grime: 0.05 }, i_bronze: { color: 0xb58a4c, metalness: 1, roughness: 0.35, f: 'cadmium' },
-  i_carbon: { color: 0x1a1a1c, metalness: 0, roughness: 0.5, f: 'darkBox' }, i_hole: { color: 0x0e0b09, metalness: 0, roughness: 0.9, f: 'darkBox' },
+  i_carbon: { color: 0x1a1a1c, metalness: 0, roughness: 0.5, f: 'darkBox' }, i_gear: { color: 0x74787d, metalness: 1, roughness: 0.27, f: 'gearSteel' }, i_hole: { color: 0x0e0b09, metalness: 0, roughness: 0.9, f: 'darkBox' },
 };
 const INT_PART_MAT = { fan: ['i_tifan'], lpc: ['i_ti'], hpc: ['i_ti'], hpt: ['i_hptb'], lpt: ['i_lptb'], liner: ['i_liner'], tec: ['i_tec'], lpshaft: ['i_shaft'], hpshaft: ['i_shaft'],
   lpccase: ['i_case'], hpccase: ['i_case'], combcase: ['i_case'], hptcase: ['i_hot'], lptcase: ['i_hot'] };
@@ -614,7 +615,16 @@ export class Scene3D {
     const along = (part, x0, x1, th, r, rad, mat = part.mat) => this._reg(part, new THREE.Mesh(new THREE.CylinderGeometry(rad, rad, Math.abs(x1 - x0), 24).rotateZ(Math.PI / 2).translate((x0 + x1) / 2, r * Math.cos(th * DEG), r * Math.sin(th * DEG)), mat));
     const kw = (w) => `${((w || 0) / 1000).toFixed(0)} kW`;
     const agb = A({ id: 'agb', name: 'Accessory gearbox', ex: -0.55, mat: castM, desc: 'Hangs under the fan case. A tower shaft from the HP spool turns the angle gearbox at the fan frame, and a lay shaft carries the drive forward to this casting, whose gears turn every accessory at a fixed ratio to N2. Mechanics turn the core by hand at the cranking pad for borescope inspections.', live: (o) => `Driven at N2 ${o.N2pct.toFixed(1)} % · accessory load ${kw(o.accPower)}` });
-    { const b = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.11, 0.8), agb.mat); b.position.set(0.57, -0.975, 0); this._reg(agb, b); along(agb, 0.78, 1.06, 183, 0.93, 0.026); }
+    { const b = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.11, 0.8), agb.mat); b.position.set(0.57, -0.975, 0); this._reg(agb, b); }
+    // The accessory drive, gear by gear (tools/blender/drivetrain.py): authored only. Each gear turns from the HP
+    // spool's angle at its own ratio (manifest 'spin'), so the cards read their speeds from the same numbers.
+    const gr = (n) => (this.spinRatio && this.spinRatio[n]) || 0, rpmOf = (o, n) => `${Math.round(Math.abs(o.N2 * gr(n))).toLocaleString('en-GB')} rpm`;
+    const gearM = { color: 0x74787d, metalness: 1, roughness: 0.28 };
+    A({ id: 'igb', name: 'Internal gearbox', ex: 0, mat: gearM, desc: 'The take-off for every accessory. A spiral bevel gear splined on the front of the HP stub shaft, held by the No. 3 bearing nut, drives a 30-tooth bevel pinion at right angles, down into the 6 o\'clock strut of the intermediate case. The pinion runs in a duplex ball bearing and a roller bearing in a housing bolted to the bearing support cone, with an oil jet on the mesh. 48 teeth to 30: the tower shaft turns 1.6 times as fast as the HP spool.', live: (o) => `HP bevel gear ${rpmOf(o, 'igb_gear')} · pinion ${rpmOf(o, 'igb_pinion')}` });
+    A({ id: 'tower', name: 'Tower shaft (radial drive)', ex: 0, mat: gearM, desc: 'Hollow steel shaft from the internal gearbox out to the angle gearbox on the fan case: down the 6 o\'clock strut of the intermediate case, then across the bypass duct inside the lower strut of the fan frame. Two pieces bolted together at a flange in the intermediate case, with a steady bearing there and splined ends. Small and fast, so it carries the torque with little weight.', live: (o) => `${rpmOf(o, 'tower_shaft')} · carrying ${((o.accPower || 0) / 1000).toFixed(0)} kW to the accessories` });
+    A({ id: 'angb', name: 'Angle gearbox', ex: -0.3, mat: castM, desc: 'Small gearbox on the fan case at 6 o\'clock. A spiral bevel pair turns the drive from the tower shaft through a right angle into the lay shaft, 31 teeth to 41. For a start it works the other way, carrying the starter\'s torque back to the core. Chip detector at its low point.', live: (o) => `Tower gear ${rpmOf(o, 'angb_gear1')} · lay gear ${rpmOf(o, 'angb_gear2')}` });
+    A({ id: 'layshaft', name: 'Lay shaft (horizontal drive)', ex: -0.4, mat: castM, desc: 'Quill shaft from the angle gearbox forward into the rear face of the main gearbox, inside a flanged housing. A flexible diaphragm coupling takes up misalignment as the fan case and gearbox move. Turns at 1.21 times N2.', live: (o) => rpmOf(o, 'layshaft_shaft') });
+    A({ id: 'agbtrain', name: 'Main gearbox gear train', ex: -0.55, mat: gearM, desc: 'Two planes of spur gears inside the gearbox casting, which is split at mid-depth. The lay shaft drives a 20-tooth gear in the rear plane; idlers carry the drive round to the scavenge pumps, fuel pump, hand-cranking pad and the starter / IDG gearshaft, whose second gear drives the front plane: oil pressure pump, hydraulic pump and dedicated alternator. Each accessory turns at a fixed ratio to N2, set by tooth counts (estimated: IAE does not publish them). Open the cutaway, or take the gearbox casing off, to watch it run.', live: (o) => `IDG and starter ${rpmOf(o, 'agbtrain_si')} · hydraulic pump ${rpmOf(o, 'agbtrain_hyd')} · fuel pump ${rpmOf(o, 'agbtrain_fuel')} · alternator ${rpmOf(o, 'agbtrain_pma')} · oil pump ${rpmOf(o, 'agbtrain_oil')}` });
     const starter = A({ id: 'starter', name: 'Air turbine starter', ex: -0.85, mat: castM, desc: 'Air from the APU, a ground cart or the other engine spins a small turbine at high speed; a reduction gear and an overrunning clutch turn the HP spool through the gearbox. The start valve closes at about 43 % N2 and the clutch freewheels from then on.', live: (o) => (o.starterAir ? (o.tStart > 1 ? `Driving: ${o.tStart.toFixed(0)} N·m at the spool · duct ${(o.starterPsi || 0).toFixed(0)} psi` : `Air on, starter run out: no torque left at N2 ${o.N2pct.toFixed(1)} %`) : 'Freewheeling (no air)') });
     along(starter, 0.087, 0.36, 196, 0.975, 0.085);
     const sav = A({ id: 'sav', name: 'Starter air valve', ex: -0.55, mat: castM, desc: 'Butterfly valve in the starter duct. The EEC energises its solenoid and duct pressure opens it. If it will not open, a mechanic can turn it with a wrench through an access panel in the right fan cowl while the crew runs the start.', live: (o, f) => `${f && f.valveOpen ? 'OPEN' : 'CLOSED'} · duct ${(o.starterPsi || 0).toFixed(0)} psi` });
@@ -1297,6 +1307,7 @@ export class Scene3D {
     };
     const gltf = (await this._loadPacked(base, manifest)) || await this._loadPlain(base, manifest);
     const root = gltf.scene; root.scale.setScalar(manifest.scale || 1);
+    const spinSet = new Map((manifest.spin || []).map((e) => [e.node, e]));   // gears that turn about their own axis
     if (manifest.position) root.position.fromArray(manifest.position);
     if (manifest.rotation) root.rotation.set(...manifest.rotation.map((d) => d * DEG));
     this.scene.add(root); root.updateMatrixWorld(true);
@@ -1316,6 +1327,7 @@ export class Scene3D {
         const lvl = this._visLevel(manifest.vis, id, n.name);
         (lvl ? this._visGroup(holder, lvl) : holder).attach(n);
         n.userData.variant = /__cut$/i.test(n.name) ? 'cut' : /__full$/i.test(n.name) || nodes.some((m) => m.name === `${n.name}__cut`) ? 'full' : null;
+        if (spinSet.has(n.name)) n.userData.spin = spinSet.get(n.name);
         n.traverse((m) => {
           if (!m.isMesh) return;
           const swap = (mt) => {
@@ -1323,7 +1335,7 @@ export class Scene3D {
             if (/^txt:/.test(mt.name)) return (this._labels ||= {})[mt.name] ||= labelMaterial(mt.name.slice(4));
             const sh = this.shared[mt.name];
             if (mt.name === 'section' || mt.name === 'liner_perf' || mt.name === 'grille') return sh || mt;
-            const casting = mt.name === 'cast' && /oiltank|gearbox|agb_|dressing|eec|starter_|sav_|idg_|hydpump_|fuelpump_|fmu_|oilpump_|pma_|exciters_|vsvact_|fdv_|accvalves_|acac_|egtbox_|mounts_/i.test(m.name);
+            const casting = mt.name === 'cast' && /oiltank|gearbox|agb_|angb_|layshaft_|dressing|eec|starter_|sav_|idg_|hydpump_|fuelpump_|fmu_|oilpump_|pma_|exciters_|vsvact_|fdv_|accvalves_|acac_|egtbox_|mounts_/i.test(m.name);
             const key = mt.name + (casting ? ':bare' : '');
             return (own[key] ||= (() => {
               let c;
@@ -1345,6 +1357,14 @@ export class Scene3D {
       taken.push(id);
     }
     this.ports = manifest.ports || this.ports || []; this.ringsMeta = manifest.rings || this.ringsMeta || [];
+    // the drive train: each gearshaft keeps its rest orientation and turns about its local X
+    this.spinNodes = []; this.spinRatio = {};
+    for (const e of manifest.spin || []) {
+      this.spinRatio[e.node] = e.ratio;
+      const n = this.engine.getObjectByName(e.node); if (!n) continue;
+      this.spinNodes.push({ node: n, ratio: e.ratio, q0: n.quaternion.clone(), ang: 0 });
+    }
+    this._spinA = null;
     if (manifest.rings) this._loadRings(root, manifest);
     this.scene.remove(root);
     // generated rows and rings that were dropped no longer need updating
@@ -1394,6 +1414,7 @@ export class Scene3D {
     const buckets = new Map(), inv = new THREE.Matrix4(), m4 = new THREE.Matrix4();
     holder.traverse((m) => {
       if (!m.isMesh || m.isInstancedMesh || Array.isArray(m.material)) return;
+      for (let a = m; a && a !== holder; a = a.parent) if (a.userData.spin) return;   // gears turn on their own
       let variant = null, grp = holder;
       for (let a = m; a && a !== holder; a = a.parent) { if (variant == null && a.userData.variant) variant = a.userData.variant; if (/^vis_/.test(a.name)) { grp = a; break; } }
       const key = `${grp.uuid}|${variant}|${m.material.uuid}`;
@@ -1457,7 +1478,7 @@ export class Scene3D {
   _updateVis() {
     if (!this._visGroups) return;
     const rm = (id) => this.byId[id] && this.byId[id].removed;
-    const inner = this.cutaway || this.explode > 0.01 || this.borescope.on || ['lpccase', 'hpccase', 'combcase', 'hptcase', 'lptcase', 'tec'].some(rm);
+    const inner = this.cutaway || this.explode > 0.01 || this.borescope.on || ['lpccase', 'hpccase', 'combcase', 'hptcase', 'lptcase', 'tec', 'agb', 'angb', 'layshaft'].some(rm);
     const core = inner || rm('corecowl') || this.cowl.cd > 0.01;
     for (const g of this._visGroups.inner) g.visible = inner;
     for (const g of this._visGroups.core) g.visible = core;
@@ -1559,6 +1580,10 @@ export class Scene3D {
     const p1 = Math.abs(o.N1pct) / 100, p2 = o.N2pct / 100;
     this.g1.rotation.x += Math.sign(o.N1) * Math.pow(p1, 0.55) * 16 * dt;
     this.g2.rotation.x += Math.pow(p2, 0.55) * 26 * dt;
+    if (this.spinNodes && this.spinNodes.length) {   // the drive train follows the HP spool's angle
+      const a = this.g2.rotation.x, d = this._spinA == null ? 0 : a - this._spinA; this._spinA = a;
+      if (d) for (const s of this.spinNodes) { s.ang = (s.ang + s.ratio * d) % TAU; s.node.quaternion.copy(s.q0).multiply(_spinQ.setFromAxisAngle(_X, s.ang)); }
+    }
     this._missing(this.failState);
     const miss = this._miss, anyMiss = !!(miss && miss.size);
     if (this.cutaway || this._deepShown || anyMiss || this._missShown) {

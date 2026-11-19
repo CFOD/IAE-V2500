@@ -269,6 +269,21 @@
       "drop": [
         "internal"
       ]
+    },
+    "igb": {
+      "match": "^igb_"
+    },
+    "tower": {
+      "match": "^tower_"
+    },
+    "angb": {
+      "match": "^angb_"
+    },
+    "layshaft": {
+      "match": "^layshaft_"
+    },
+    "agbtrain": {
+      "match": "^agbtrain_"
     }
   },
   "rings": [
@@ -1184,7 +1199,7 @@
       "spool": 0,
       "phase": 0.0,
       "cut": "deep",
-      "x": 1.0
+      "x": 0.84
     },
     {
       "node": "ring_bearings_cageno2",
@@ -1194,7 +1209,7 @@
       "spool": 0,
       "phase": 7.5,
       "cut": "deep",
-      "x": 1.0
+      "x": 0.84
     },
     {
       "node": "ring_bearings_elno3",
@@ -1425,6 +1440,146 @@
       "sees": "combustor liner, dome and fuel nozzles"
     }
   ],
+  "spin": [
+    {
+      "node": "igb_gear",
+      "ratio": 1.0,
+      "part": "igb",
+      "what": "HP-shaft bevel gear"
+    },
+    {
+      "node": "igb_pinion",
+      "ratio": -1.6,
+      "part": "igb",
+      "what": "tower-shaft bevel pinion"
+    },
+    {
+      "node": "tower_shaft",
+      "ratio": -1.6,
+      "part": "tower",
+      "what": "tower shaft"
+    },
+    {
+      "node": "angb_gear1",
+      "ratio": 1.6,
+      "part": "angb",
+      "what": "tower-shaft bevel gear"
+    },
+    {
+      "node": "angb_gear2",
+      "ratio": -1.209756,
+      "part": "angb",
+      "what": "lay-shaft bevel gear"
+    },
+    {
+      "node": "layshaft_shaft",
+      "ratio": 1.209756,
+      "part": "layshaft",
+      "what": "lay shaft"
+    },
+    {
+      "node": "agbtrain_oil",
+      "ratio": 0.439911,
+      "part": "agbtrain",
+      "what": "oil pressure pump"
+    },
+    {
+      "node": "agbtrain_hyd",
+      "ratio": 0.312195,
+      "part": "agbtrain",
+      "what": "hydraulic pump"
+    },
+    {
+      "node": "agbtrain_pma",
+      "ratio": 0.744465,
+      "part": "agbtrain",
+      "what": "dedicated alternator"
+    },
+    {
+      "node": "agbtrain_si",
+      "ratio": -0.604878,
+      "part": "agbtrain",
+      "what": "starter (front) and IDG (rear)"
+    },
+    {
+      "node": "agbtrain_i_oil_hyd_0",
+      "ratio": -0.645203,
+      "part": "agbtrain",
+      "what": "idler gear"
+    },
+    {
+      "node": "agbtrain_i_hyd_pma_0",
+      "ratio": -0.604878,
+      "part": "agbtrain",
+      "what": "idler gear"
+    },
+    {
+      "node": "agbtrain_i_pma_si_0",
+      "ratio": -0.537669,
+      "part": "agbtrain",
+      "what": "idler gear"
+    },
+    {
+      "node": "agbtrain_i_pma_si_1",
+      "ratio": 0.604878,
+      "part": "agbtrain",
+      "what": "idler gear"
+    },
+    {
+      "node": "agbtrain_scav",
+      "ratio": 0.504065,
+      "part": "agbtrain",
+      "what": "scavenge pumps"
+    },
+    {
+      "node": "agbtrain_fuel",
+      "ratio": 0.465291,
+      "part": "agbtrain",
+      "what": "fuel pump and metering unit"
+    },
+    {
+      "node": "agbtrain_crank",
+      "ratio": 0.806504,
+      "part": "agbtrain",
+      "what": "hand-cranking pad"
+    },
+    {
+      "node": "agbtrain_lay",
+      "ratio": 1.209756,
+      "part": "agbtrain",
+      "what": "lay shaft input"
+    },
+    {
+      "node": "agbtrain_i_scav_fuel_0",
+      "ratio": -0.756098,
+      "part": "agbtrain",
+      "what": "idler gear"
+    },
+    {
+      "node": "agbtrain_i_fuel_crank_0",
+      "ratio": -0.864111,
+      "part": "agbtrain",
+      "what": "idler gear"
+    },
+    {
+      "node": "agbtrain_i_crank_lay_0",
+      "ratio": -1.209756,
+      "part": "agbtrain",
+      "what": "idler gear"
+    },
+    {
+      "node": "agbtrain_i_lay_si_0",
+      "ratio": -0.604878,
+      "part": "agbtrain",
+      "what": "idler gear"
+    },
+    {
+      "node": "agbtrain_i_lay_si_1",
+      "ratio": 0.504065,
+      "part": "agbtrain",
+      "what": "idler gear"
+    }
+  ],
   "vis": {
     "parts": [
       "fan",
@@ -1443,9 +1598,14 @@
       "tec",
       "lpshaft",
       "hpshaft",
-      "bearings"
+      "bearings",
+      "igb",
+      "tower",
+      "angb",
+      "layshaft",
+      "agbtrain"
     ],
-    "out": "^(fan_|lpc_(igv|r1|s1)$|tec_|lpt_r7$|lptcase_(v7|hc7)$)",
+    "out": "^(fan_|lpc_(igv|r1|s1)$|tec_|lpt_r7$|lptcase_(v7|hc7)$|angb_housing|layshaft_tube)",
     "core": "^(lpccase_shell|hpccase_(front|rear|flange|unison|igv$|vsv\\d$|hbv|bore)|combcase_(outer|flange|pads|ignboss|bores)|hptcase_(shell|flange|rib|bore)|lptcase_(shell|flange|rib|bore)|fuel_|ign_)"
   }
 }

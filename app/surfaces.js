@@ -89,6 +89,7 @@ export const FINISH = {
   connector: { scale: 10, grain: 0.05, grime: 0.15, grimeCol: [0.1, 0.1, 0.08], rough: 0.12, bump: 0.15, tintVar: [0.9, 1.0, 0.8], tintAmt: 0.4 },
   hotCase: { scale: 4, grain: 0.08, mottle: 0.12, scratch: 0.1, grime: 0.22, grimeCol: [0.1, 0.08, 0.06], bottom: 0.25, streak: 0.25, rough: 0.2, bump: 0.45, metalLoss: 0.2 },
   turbineBlade: { scale: 12, grain: 0.06, mottle: 0.1, grime: 0.08, grimeCol: [0.18, 0.12, 0.08], rough: 0.15, bump: 0.2 },
+  gearSteel: { scale: 14, grain: 0.03, mottle: 0.06, scratch: 0.22, grime: 0.1, grimeCol: [0.16, 0.12, 0.06], bottom: 0.15, rough: 0.14, bump: 0.06, tintVar: [1.0, 0.95, 0.85], tintAmt: 0.25 },
   compressorBlade: { scale: 12, grain: 0.03, scratch: 0.2, grime: 0.06, grimeCol: [0.2, 0.19, 0.17], rough: 0.12, bump: 0.08 },
   nozzle: { scale: 9, grain: 0.03, scratch: 0.05, mottle: 0.05, grime: 0.1, grimeCol: [0.1, 0.09, 0.08], bottom: 0.2, streak: 0.12, rough: 0.1, bump: 0.06, metalLoss: 0.1 },
   composite: { scale: 6, grain: 0.05, grime: 0.2, grimeCol: [0.05, 0.05, 0.05], bottom: 0.3, rough: 0.12, bump: 0.2 },

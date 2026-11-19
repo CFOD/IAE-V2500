@@ -393,14 +393,22 @@ def build():
     acc = accessories.gearbox_extras(H, accessories.materials(H))
     GBX = accessories.GEARBOX; gt0, gt1 = GBX['th0'], GBX['th1']; rt = GBX['r_out']
     gb = arc_solid('gb', [[0.36, 0.875], [0.36, rt - 0.022], [0.42, rt], [0.7, rt], [0.78, rt - 0.027], [0.78, 0.875]], gt0, gt1, cast)
-    # stiffening ribs and mounting pads on the gearbox casting
+    # stiffening ribs, the split-line flange (front and rear halves bolt together at mid-depth) and mounting pads
+    skin = []
     for th0 in (156, 166, 176, 186, 196, 206):
-        acc.append(arc_solid('rib', [[0.42, rt - 0.001], [0.42, rt + 0.011], [0.7, rt + 0.011], [0.7, rt - 0.001]], th0, th0 + 1.2, cast, steps=2))
+        skin.append(arc_solid('rib', [[0.42, rt - 0.001], [0.42, rt + 0.011], [0.7, rt + 0.011], [0.7, rt - 0.001]], th0, th0 + 1.2, cast, steps=2))
+    skin.append(arc_solid('split', [[0.565, rt - 0.002], [0.565, rt + 0.008], [0.575, rt + 0.008], [0.575, rt - 0.002]], gt0 + 0.5, gt1 - 0.5, cast))
+    for k in range(22):
+        thb = gt0 + 2.5 + (gt1 - gt0 - 5) * k / 21
+        skin.append(cylinder('sb', th_pos(0.575, thb, rt + 0.003), th_pos(0.583, thb, rt + 0.003), 0.0045, 0.0045, steel, seg=6))
+    # the casting as the cutaway shows it: hollow, split web inside, outer skin opened over the gear train
+    import drivetrain as DT
+    gbc = DT.casing_cut(arc_solid, cast, section, rt)
     acc += [
         # de-oiler and its breather out through the cowl, drain to the mast
         cylinder('deoiler', th_pos(0.57, gt1 + 1, 0.975), th_pos(0.57, gt1 + 7, 0.975), 0.055, 0.05, cast, seg=20),
         tube('breather', [(0.6, gt1 + 7, 0.975), (0.8, gt1 + 5, 1.0), (0.98, gt1 + 2.5, oml(0.98, gt1 + 2.5) - 0.045), (1.03, gt1, oml(1.03, gt1) - 0.016)], 0.011, steel),   # ends at the cowl outlet
-        tube('drain', [(0.6, 180, rt), (0.7, 180, rt + 0.035), (0.92, 180, rt + 0.035), (0.95, 180, smooth_nacelle(0.95) - 0.01)], 0.006, steel),
+        tube('drain', [(0.6, 186, rt), (0.7, 186, rt + 0.035), (0.9, 186, rt + 0.035), (0.95, 186, oml(0.95, 186) - 0.012)], 0.006, steel),   # beside the angle gearbox, out through the cowl
     ]
     # oil supply and return between the gearbox and the tank's lower-end ports
     tp = [accessories.at('oiltank', q) for q in accessories.TANK_PORTS]
@@ -410,8 +418,10 @@ def build():
         acc.append(cylinder('gblink', th_pos(0.57, th, 0.88), th_pos(0.57, th + (-4 if th < 180 else 4), 0.97), 0.014, 0.014, steel, seg=10))
         acc.append(box('gblug', th_pos(0.57, th, 0.885), (0.06, 0.05, 0.03), th, cast))
     for x, th in [(0.48, 160), (0.48, 172), (0.48, 190), (0.48, 200), (0.66, 162), (0.66, 176), (0.66, 190), (0.66, 202)]:
-        acc.append(cylinder('pad', th_pos(x, th, rt - 0.002), th_pos(x, th, rt + 0.012), 0.022, 0.022, cast, seg=12))
-    made.append(finish(join('agb_gearbox', [gb] + acc), 0.003))
+        skin.append(cylinder('pad', th_pos(x, th, rt - 0.002), th_pos(x, th, rt + 0.012), 0.022, 0.022, cast, seg=12))
+    made.append(finish(join('agb_gearbox__full', [gb] + skin), 0.003))
+    gbc.name = gbc.data.name = 'agb_gearbox__cut'; made.append(finish(gbc, 0.0))
+    made.append(finish(join('agb_gearboxx', acc), 0.003))
     accessories.build_accessories(H, made)
     import core_units
     CORE_UNITS = core_units.build_core_units(H, made, P, r_at) + core_units.build_mounts(H, made, P, r_at, in_cut)
@@ -476,7 +486,7 @@ def build():
         me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
         for f in me.polygons: f.use_smooth = True
         o = link(bpy.data.objects.new(name, me)); me.materials.append(mat); return o
-    put(181, strut('strut6', 0.99, 1.235, 181.0, r_at(P['bypInner'], 1.1) - 0.01, r_at(P['bypOuter'], 1.1) + 0.012, 0.1, cast))
+    put(181, strut('strut6', 0.935, 1.235, 181.0, r_at(P['bypInner'], 1.1) - 0.01, r_at(P['bypOuter'], 1.1) + 0.012, 0.1, cast))
     # bulkhead (disconnect) panel beside the angle gearbox: fan-case lines end on top, core lines leave underneath
     put(175, box('panel', th_pos(1.1, 175.5, 0.892), (0.22, 0.09, 0.01), 175.5, cast))
     for xx in (1.0, 1.2):
@@ -671,6 +681,13 @@ def build():
               details.build_tec_instruments, details.build_tubes, details.build_liners):
         f(DD)
 
+    # ---- the accessory drive train, gear by gear (tools/blender/drivetrain.py)
+    import drivetrain as DT
+    IM['gear'] = material('i_gear', (0.42, 0.43, 0.45), 1.0, 0.3)
+    dt_objs, SPIN = DT.build(link, {'gear': IM['gear'], 'shaft': IM['shaft'], 'race': IM['race'], 'cage': IM['bronze'], 'case': IM['case'],
+                                    'cast': DM['cast'], 'nut': IM['bolt'], 'gold': DM['gold'], 'steel': IM['steel'], 'dark': DM['dark']}, section)
+    made.extend(dt_objs)
+
     for helper in (wedge, latch): bpy.data.objects.remove(helper, do_unlink=True)
     os.makedirs(OUT, exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, 'v2500.glb'), export_apply=True, export_yup=True)
@@ -685,10 +702,12 @@ def build():
             'spinner': {'match': '^spinner_', 'spool': 1}, 'corecowl': {'match': '^corecowl_'},
             # internals replace the generated stand-ins tagged 'internal' (app/scene3d.js); the fan case keeps its own
             **{c: {'match': f'^{c}_', 'drop': ['internal']} for c in internals.PARTS}, 'fancase': {'match': '^fancase_', 'drop': ['internal']},
+            **{c: {'match': f'^{c}_'} for c in DT.PARTS},
         },
         'rings': IK.rings,
         'ports': details.PORTS,
-        'vis': {'parts': internals.PARTS, 'out': internals.VIS_OUT, 'core': internals.VIS_CORE},
+        'spin': SPIN,
+        'vis': {'parts': internals.PARTS + DT.PARTS, 'out': internals.VIS_OUT[:-1] + '|' + DT.VIS_OUT + ')', 'core': internals.VIS_CORE},
     }
     json.dump(manifest, open(os.path.join(OUT, 'model.json'), 'w'), indent=2)
     tris = sum(len(o.data.loop_triangles) or len(o.data.polygons) for o in made)

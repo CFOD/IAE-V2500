@@ -153,6 +153,69 @@ The reverser cascades now have cambered turning vanes: 14 per bay. The generated
 are dropped when the model loads. Only the blocker-door drag links stay generated, because they move with
 the doors.
 
+### The accessory drive train
+
+`tools/blender/drivetrain.py` models the drive from the HP spool to every accessory, gear by gear. The layout
+follows the Airbus training manual's accessory gearbox figure (ATA 72) and the IAE training notes.
+
+- **Internal gearbox:** a 48-tooth spiral bevel gear splined on the front of the HP stub shaft, held by the
+  No. 3 bearing nut. It drives a 30-tooth pinion at right angles, which runs in a duplex ball bearing and a
+  roller bearing. Its housing is bolted to the No. 1 bearing support cone, with an oil jet on the mesh. The
+  No. 2 bearing and its support moved forward to make room.
+- **Tower shaft:** a hollow two-piece shaft, splined at both ends, with a bolted coupling and a steady
+  bearing in the intermediate case. It runs down the 6 o'clock strut of the intermediate case, and across the
+  bypass duct inside the lower strut of the fan frame, which now starts further forward to hold it.
+- **Angle gearbox:** a 31-to-41 spiral bevel pair on the fan case at 6 o'clock, in a cast housing with
+  bearings, an aft cover and a chip detector at its low point.
+- **Lay shaft:** a quill shaft with a flexible diaphragm coupling, in a flanged housing, into the main
+  gearbox's rear face.
+- **Main gearbox:** two planes of involute spur gears in a casting split at mid-depth.
+  - Rear plane: scavenge pumps, fuel pump, hand-cranking pad and the lay shaft input.
+  - Front plane: oil pressure pump, hydraulic pump and dedicated alternator.
+  - The starter / IDG gearshaft has a gear in each plane and links them.
+  - Every gearshaft has a ball and a roller bearing, lock nuts and its drive coupling.
+  - Big gears have webs with lightening holes.
+  - The pads sit where their gearshafts are, so the starter and IDG moved 1 degree to share one.
+
+**Idler layout:** `solve_train()` places the idlers between the pads. Every listed pair meshes at exactly the
+sum of their pitch radii, and every other pair clears by at least 2.5 modules plus 4 mm. The build checks this
+again (`check_train()`) and stops if it fails. The solved layout is stored in `TRAIN`.
+
+**Speeds:** tooth counts give each shaft's speed as a fraction of N2:
+
+| Shaft | Ratio to N2 | At 100 % N2 (14,950 rpm) |
+|---|---|---|
+| Tower shaft | 1.6 | 23,900 rpm |
+| Lay shaft | 1.21 | 18,100 rpm |
+| IDG and starter | 0.605 | 9,040 rpm (4,900 at idle: within an A320 IDG's input range) |
+| Dedicated alternator | 0.745 | 11,100 rpm |
+| Hand-cranking pad | 0.81 | 12,100 rpm |
+| Scavenge pumps | 0.50 | 7,500 rpm |
+| Fuel pump | 0.47 | 7,000 rpm |
+| Oil pressure pump | 0.44 | 6,600 rpm |
+| Hydraulic pump | 0.31 | 4,700 rpm |
+
+IAE does not publish pad speeds, so these are estimates sized to the units.
+
+**Gear geometry:**
+
+- **Spur gears:** each tooth has an involute flank (20 degree pressure angle) with a root fillet and a tip
+  land, and the tooth ends are chamfered.
+- **Bevel gears:** spiral teeth, built from the virtual spur gear on the back cone (Tredgold's
+  approximation), scaled towards the apex and twisted along the face.
+- **Meshing:** tooth phases are set so every pair interleaves at the line of centres.
+
+**In the app:**
+
+- **Turning:** each rotating assembly is its own node with its origin on its axis. The manifest's `spin` list
+  gives its speed ratio to the HP spool. The app turns each one from the HP spool's own angle, so the whole
+  train runs at the right relative speeds. When a borescope inspection turns the core by hand, the train turns
+  with it.
+- **Where to see it:** the main gearbox, angle gearbox and lay shaft housing each have a sectioned cutaway
+  version. Open the fan cowls with the cutaway on, or take the gearbox casing off, to watch the gears run.
+- **Part cards:** the parts are the internal gearbox, tower shaft, angle gearbox, lay shaft and main gearbox
+  gear train. Each card shows live speeds.
+
 ### The aircraft (apron scene)
 
 `tools/blender/apron.py` builds the A320 the engine hangs on, for the Apron tab, as `app/models/apron.glb`

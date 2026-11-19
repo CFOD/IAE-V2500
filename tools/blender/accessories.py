@@ -3,8 +3,8 @@
 Placement follows the gearbox layout already in build_engine.py (casting under the fan case, 152-208 deg,
 front face x 0.36, rear face x 0.78) and the SR Technics component-location booklet / Airbus training
 manual: air turbine starter, dedicated alternator, hydraulic pump and lube / scavenge pump on the front
-face; IDG, fuel pump with the metering unit, scavenge filter and the hand-cranking pad on the rear; the
-lay shaft to the angle gearbox at the fan frame. Shapes are built from what the photos show (flanges,
+face; IDG, fuel pump with the metering unit, scavenge filter and the hand-cranking pad on the rear. The pads
+sit where the gear train inside (drivetrain.py) puts their gearshafts; the starter and IDG share one. Shapes are built from what the photos show (flanges,
 V-band clamps, ports, plugs, connectors, sight glasses), sized to fit the space between the fan case and
 the fan cowl in this model, which is tighter than on the real engine.
 
@@ -20,9 +20,9 @@ from mathutils import Matrix, Vector
 # units point forward. dressing.py aims the routed lines at the ports these positions give.
 GEARBOX = dict(th0=148, th1=212, x0=0.36, x1=0.78, r_in=0.875, r_out=1.072)
 LAYOUT = {
-    'oilpump': (0.36, 160, 0.975, 1.35), 'hydpump': (0.36, 172, 0.975, 1.3), 'pma': (0.36, 183, 0.99, 1.25), 'starter': (0.36, 196, 0.975, 1.33),
-    'scav': (0.78, 154, 0.95, 1.25), 'fuelpump': (0.78, 166, 0.97, 1.3), 'crank': (0.78, 176, 0.955, 1.2), 'lay': (0.78, 183, 0.93, 1.0),
-    'idg': (0.78, 198, 0.978, 1.28), 'sav': (0.42, 222, 0.955, 1.3), 'oiltank': (0.52, 133.5, 0.925, 1.1),   # sized to the real cowl (Airbus AC)
+    'oilpump': (0.36, 160, 0.975, 1.35), 'hydpump': (0.36, 172, 0.975, 1.3), 'pma': (0.36, 183, 0.99, 1.25), 'starter': (0.36, 197, 0.976, 1.33),
+    'scav': (0.78, 154, 0.95, 1.25), 'fuelpump': (0.78, 166, 0.97, 1.3), 'crank': (0.78, 176, 0.955, 1.2), 'lay': (0.78, 180, 0.99, 1.0),
+    'idg': (0.78, 197, 0.976, 1.28), 'sav': (0.42, 222, 0.955, 1.3), 'oiltank': (0.52, 133.5, 0.925, 1.1),   # sized to the real cowl (Airbus AC)
 }
 STARTER_INLET_X = 0.36 - 0.205 * 1.33     # where the starter duct meets the starter
 SAV_X1 = 0.42 + 0.114 * 1.3               # aft flange of the starter air valve (the duct from the pylon ends here)
@@ -441,25 +441,14 @@ def oiltank(H, M):
 # ---------------------------------------------------------------------------- gearbox casting additions
 
 def gearbox_extras(H, M):
-    """Lay shaft housing to the angle gearbox at the fan frame (with the tower-shaft housing going in to the
-    core), the hand-cranking pad. Joined into the gearbox component."""
-    x, th, r, _ = LAYOUT['lay']
-    K = Kit(H, frame(H, x, th, r))
-    K.rev('gx', [(0, 0.04), (0.01, 0.04), (0.01, 0.026), (0.27, 0.026), (0.27, 0.034), (0.28, 0.034)], M['cast'], seg=32)
-    K.bolts('gx', (0.01, 0, 0), (1, 0, 0), 0.035, 6, 0.003, 0.004, M['nut'])
-    K.ring('gx', 0.13, 0.15, 0.026, 0.031, M['steel'], seg=28)                                 # support clamp
-    K.box('gx', (0.14, 0.0, -0.045), (0.02, 0.022, 0.03), M['steel'])
-    A = Kit(H, frame(H, x + 0.28, th, r - 0.01))                                               # angle gearbox
-    A.loft('gx', [(0.0, 0, 0.0, 0.05, 0.045), (0.015, 0, 0.0, 0.06, 0.05), (0.06, 0, -0.008, 0.06, 0.05), (0.075, 0, -0.016, 0.045, 0.04)], M['cast'])
-    A.cyl('gx', (0.04, 0, -0.04), (0.04, 0, -0.08), 0.026, 0.026, M['cast'], seg=24)          # tower shaft housing, into the fan frame
-    A.bolts('gx', (0.0, 0, 0), (-1, 0, 0), 0.03, 6, 0.003, 0.004, M['nut'])
-    A.hexa('gx', (0.035, 0.0, 0.05), (0.035, 0.0, 0.058), 0.007, M['gold'])                   # chip detector
+    """The hand-cranking pad on the rear face. (The lay shaft, its housing and the angle gearbox are modelled
+    with the rest of the drive train in drivetrain.py, gear by gear.) Joined into the gearbox component."""
     x, th, r, s = LAYOUT['crank']
     C = Kit(H, frame(H, x, th, r), s)                                                          # hand-cranking pad
     C.rev('gx', [(0, 0.032), (0.008, 0.032), (0.008, 0.024), (0.016, 0.022)], M['cast'], seg=28)
     C.bolts('gx', (0.008, 0, 0), (1, 0, 0), 0.028, 4, 0.0032, 0.005, M['nut'], phase=math.pi / 4)
     C.hexa('gx', (0.016, 0, 0), (0.028, 0, 0), 0.012, M['gold'])
-    return K.objs + A.objs + C.objs
+    return C.objs
 
 
 UNITS = [('starter', starter), ('pma', pma), ('hydpump', hydpump), ('oilpump', oilpump), ('idg', idg),

@@ -456,11 +456,7 @@ def build_front(K, M):
     # (the bottom one carries the tower shaft down to the angle gearbox)
     strut_ang = lambda fr, r: (0.0, 0.0)
     row(K, 'lpccase_strut', 'lpccase', 0.95, 1.09, ci, co, strut_ang, lambda f: 0.2, M['case'], 'stator', count=10, n_st=6, n_pts=12, hub_plat=False, tip_plat=False, te=0.03, le_round=1.3)
-    # internal gearbox: bevel gears on the HP stub shaft and the tower shaft down the bottom strut
-    K.lathe('bearings_igb', [(1.04, 0.12), (1.04, 0.15), (1.085, 0.135), (1.085, 0.118)], M['disc'], cut='deep', steps=96)
-    tw = K.cyl('tower', (1.062, 0, 0.14), (1.062, 0, 0.46), 0.016, M['disc'], seg=16)
-    tw.matrix_world = Matrix.Rotation(math.pi, 4, 'X') @ tw.matrix_world
-    tw.name = tw.data.name = 'bearings_towershaft__full'; K.made.append(tw)
+    # (the internal gearbox and tower shaft are modelled gear by gear in drivetrain.py)
 
     # ---------------------------------------------------------------- HP compressor: IGV and VSVs, 10 stages, exit guide vanes
     # variable rows: IGV ahead of stage 3 and VSVs behind stages 3, 4 and 5; their levers reach forward to the unison rings
@@ -725,7 +721,7 @@ def build_rear(K, M):
     K.lathe('lpshaft_main', [(0.3, 0.03), (0.3, 0.05), (0.36, 0.05), (0.36, 0.046), (2.93, 0.046), (2.93, 0.05), (3.1, 0.05), (3.1, 0.03)], M['shaft'], cut='deep', steps=72)
     K.lathe('lpshaft_coupling', [(0.3, 0.05), (0.36, 0.05), (0.36, 0.0615), (0.3, 0.0615)], M['shaft'], cut='deep', steps=72)
     K.lathe('lpshaft_nut', [(0.284, 0.03), (0.3, 0.03), (0.3, 0.06), (0.284, 0.06)], M['shaft'], cut='deep', steps=6)
-    K.lathe('hpshaft_stub', [(1.08, 0.094), (1.08, 0.104), (1.15, 0.104), (1.178, 0.14), (1.183, 0.14), (1.183, 0.132), (1.156, 0.094)], M['shaft'], cut='deep', steps=96)
+    K.lathe('hpshaft_stub', [(1.065, 0.094), (1.065, 0.104), (1.15, 0.104), (1.178, 0.14), (1.183, 0.14), (1.183, 0.132), (1.156, 0.094)], M['shaft'], cut='deep', steps=96)
 
     # ---------------------------------------------------------------- main bearings and their chambers
     def bearing(name, x, r_in, r_out, w, kind, n):
@@ -745,17 +741,24 @@ def build_rear(K, M):
         bar = K.box(name + '_bar', (x, 0, rm), (2 * half + 0.004, 0.0018, 0.006), 0, M['bronze'])
         K.ring(name.replace('bearings_', 'bearings_cage'), bar, None, 'bearings', n, 'static', phase=180.0 / n, cut='deep', extra={'x': x})
     bearing('bearings_no1', 0.52, 0.071, 0.108, 0.045, 'ball', 16)
-    bearing('bearings_no2', 1.0, 0.0665, 0.1, 0.034, 'roller', 24)
+    bearing('bearings_no2', 0.84, 0.0665, 0.1, 0.034, 'roller', 24)   # ahead of the internal gearbox
     bearing('bearings_no3', 1.12, 0.104, 0.146, 0.04, 'ball', 22)
     bearing('bearings_no4', 2.07, 0.104, 0.13, 0.036, 'roller', 30)
     bearing('bearings_no5', 3.06, 0.05, 0.096, 0.04, 'roller', 20)
     # supports: No. 1 cone back to the intermediate case hub (Nos 2 and 3 hang off it), No. 4 under the
     # combustor off the diffuser inner case, No. 5 in the exhaust case
-    K.lathe('bearings_sup1', [(0.5, 0.108), (0.5, 0.116), (0.7, 0.2), (0.95, 0.215), (1.13, 0.168), (1.13, 0.16), (0.95, 0.205), (0.71, 0.19), (0.515, 0.108)], M['case'], cut='deep', steps=144)
-    K.lathe('bearings_sup2', [(0.99, 0.1), (1.01, 0.1), (1.046, 0.19), (1.038, 0.193), (0.996, 0.106)], M['case'], cut='deep', steps=96)
+    sup1 = K.lathe('bearings_sup1', [(0.5, 0.108), (0.5, 0.116), (0.7, 0.2), (0.95, 0.215), (1.13, 0.168), (1.13, 0.16), (0.95, 0.205), (0.71, 0.19), (0.515, 0.108)], M['case'], cut='deep', steps=144)
+    K.lathe('bearings_sup2', [(0.83, 0.1), (0.85, 0.1), (0.875, 0.2), (0.867, 0.203), (0.836, 0.106)], M['case'], cut='deep', steps=96)
     K.lathe('bearings_sup3', [(1.102, 0.146), (1.138, 0.146), (1.138, 0.165), (1.102, 0.153)], M['case'], cut='deep', steps=96)
-    K.lathe('lpccase_hub', [(0.94, ci(0.94)), (1.0, ci(1.0)), (1.1, ci(1.1)), (1.15, ci(1.15)), (1.15, ci(1.15) - 0.008), (1.1, ci(1.1) - 0.008), (1.0, ci(1.0) - 0.008), (0.94, ci(0.94) - 0.008)], M['case'], cut='deep', steps=144)
-    K.lathe('lpccase_diaphragm', [(0.95, 0.209), (0.958, 0.209), (0.958, ci(0.958) - 0.008), (0.95, ci(0.95) - 0.008)], M['case'], cut='deep', steps=144)
+    hub = K.lathe('lpccase_hub', [(0.94, ci(0.94)), (1.0, ci(1.0)), (1.1, ci(1.1)), (1.15, ci(1.15)), (1.15, ci(1.15) - 0.008), (1.1, ci(1.1) - 0.008), (1.0, ci(1.0) - 0.008), (0.94, ci(0.94) - 0.008)], M['case'], cut='deep', steps=144)
+    dia = K.lathe('lpccase_diaphragm', [(0.95, 0.209), (0.958, 0.209), (0.958, ci(0.958) - 0.008), (0.95, ci(0.95) - 0.008)], M['case'], cut='deep', steps=144)
+    # openings at 6 o'clock for the internal gearbox's bearing housing and the tower shaft (drivetrain.X_T)
+    import drivetrain as DT
+    def hole(objs, r0, r1, rad):
+        c = K.cyl('hc', (DT.X_T, 0, r0), (DT.X_T, 0, r1), rad, M['case'], seg=24)
+        c.matrix_world = Matrix.Rotation(math.radians(DT.TH_T), 4, 'X') @ c.matrix_world
+        drill(K, objs, [c])
+    hole(sup1 + dia, 0.15, 0.26, 0.044); hole(hub, 0.24, 0.33, 0.017)
     K.lathe('bearings_sup4', [(2.064, 0.13), (2.076, 0.13), (2.076, 0.158), (2.064, 0.158)], M['case'], cut='deep', steps=96)
     K.lathe('bearings_sup4c', [(2.106, 0.158), (2.112, 0.158), (2.146, 0.178), (2.138, 0.178)], M['case'], cut='deep', steps=96)
     K.lathe('bearings_comp4', [(2.03, 0.1125), (2.03, 0.162), (2.112, 0.162), (2.112, 0.1125), (2.106, 0.1125), (2.106, 0.158), (2.036, 0.158), (2.036, 0.1125)], M['case'], cut='deep', steps=144)
