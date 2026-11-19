@@ -121,6 +121,7 @@ export class Failures {
     this.st = {
       crack: 0, brgLP: 0, lpSeized: false, clutchT: 0, starterBurst: false, idgT: 0, acacT: 0, lpFuel: 1, wfHold: null, wfLast: 0,
       vsvHold: null, spill: 0, fire: 0, fireT: 0, ignT: 0, cowlGone: false, separated: false, caseBurnt: false, harnessFire: 0,
+      fodFan: 0, fodLpc: 0, fodN: 0,   // damage from objects through the intake (ingest)
     };
     this.fx = {};          // derived flags read by the engine, FADEC, oil and damage models
     this.missing = { fan: [], lpc: [], hpc: [] };   // released blades, as fractions round the row (for the 3D view)
@@ -182,6 +183,45 @@ export class Failures {
     }
     this._derive();
     return true;
+  }
+
+  /**
+   * Something went through the intake (src/sim/ground.js). d: the object (mass m, size, hit: soft | semi | hard);
+   * r: radius where it crossed the inlet; k: { U fan blade speed there, Vax axial air speed, w2 HP spool speed
+   * rad/s, rand }. The damage follows the energy of the fan's blow: half the mass times the blade's speed relative
+   * to it, squared. A pigeon at idle is nothing; a goose at take-off (over 200 kJ) bends blades and can break one,
+   * as the bird-ingestion certification tests allow. Small things near the hub can follow the core flow; the fan
+   * flings heavy ones outwards into the bypass duct. Returns what happened, for the log.
+   */
+  ingest(kind, d, r, k) {
+    const e = this.eng, st = this.st, dmg = e.damage ? e.damage.d : null, n1 = e.out.N1pct || 0;
+    const vrel = Math.hypot(k.U, k.Vax), E = 0.5 * d.m * vrel * vrel;
+    const pCore = d.size < 0.35 ? clamp((0.47 - r) / 0.22, 0, 1) * (d.hit === 'hard' ? 0.9 : 0.6) : 0;
+    const core = k.rand() < pCore;
+    let fan = 0, lpc = 0, hpcHit = false, blades = 0;
+    if (d.hit === 'soft') {
+      fan = E / 4e5;
+      if (core) lpc = 0.02 + E / 1.5e5;
+      if (E > 1.5e5 && k.rand() < clamp((E - 1.5e5) / 4e5, 0, 0.5)) blades = 1;
+    } else if (d.hit === 'semi') {
+      fan = E / 2.5e5;
+      if (E > 1e5 && k.rand() < clamp((E - 1e5) / 3e5, 0, 0.85)) blades = E > 6e5 ? 2 : 1;
+      if (E > 4e5 && dmg) dmg.hpc = Math.min(1, dmg.hpc + 0.25);   // pieces of blade and object down the core
+    } else {
+      fan = 0.006 + E / 2e6;   // a nick in a leading edge
+      if (core) { const Ec = 0.5 * d.m * (k.w2 * 0.25) ** 2; hpcHit = k.rand() < clamp(Ec / 2500, 0.05, 0.9); }
+    }
+    st.fodFan = Math.min(1, st.fodFan + fan); st.fodLpc = Math.min(1, st.fodLpc + lpc); st.fodN++;
+    for (let i = 0; i < blades; i++) { this.count.fanBlade = (this.count.fanBlade || 0) + 1; this._releaseFan('fan-blade-off'); }
+    if (hpcHit) this.set('hpcBlade');
+    if (!blades && fan > 0.04 && n1 > 35) this._event('surge-fan');
+    if (lpc > 0.03 && n1 > 30) this._event('surge-lpc');
+    const bird = !!d.fly, kj = E / 1000;
+    const what = blades ? `${blades > 1 ? `${blades} fan blades` : 'a fan blade'} broken off` : fan > 0.25 ? 'fan blades bent' : fan > 0.04 ? 'fan blades dented' : fan > 0.01 ? 'a nick in a fan blade' : 'no harm done';
+    const msg = `${bird ? 'BIRD STRIKE' : 'OBJECT INGESTED'}: ${d.name.toLowerCase()} into the ${core ? 'core' : 'fan'} at ${n1.toFixed(0)} % N1 (${kj < 10 ? kj.toFixed(1) : kj.toFixed(0)} kJ) - ${what}${core && lpc > 0.03 ? ', booster damaged' : ''}${hpcHit ? ', HP compressor blade broken' : ''}`;
+    e.events.push({ t: e.s.t, type: bird ? 'bird-strike' : 'fod-ingested', msg, kind, core, fan, blades });
+    this._derive();
+    return { E, core, fan, lpc, blades, hpc: hpcHit, msg };
   }
 
   _releaseFan(ev) {
@@ -274,6 +314,8 @@ export class Failures {
     if (nFan) { W.effFan -= Math.min(0.045 * nFan, 0.3); W.flowFan *= Math.max(0.6, 1 - 0.04 * nFan); v1 += Math.min(10, 3 + 7 * nFan) * Math.max(n1, 0.15); g1 += 900 * nFan; }
     if (cnt.spinner) { W.effFan -= 0.01; v1 += 1.2 * n1; }
     if (cnt.linerPanel) { W.effFan -= 0.025 * cnt.linerPanel; W.flowFan *= 0.98; v1 += 2 * n1; }
+    if (st.fodFan) { W.effFan -= 0.08 * st.fodFan; W.flowFan *= 1 - 0.04 * st.fodFan; v1 += 7 * st.fodFan * Math.max(n1, 0.2); }   // dented and bent blades
+    if (st.fodLpc) { W.effLpc -= 0.06 * st.fodLpc; W.flowLpc *= 1 - 0.03 * st.fodLpc; v1 += 2 * st.fodLpc * n1; }
     const nLpc = this.missing.lpc.length;
     if (nLpc) { W.effLpc -= Math.min(0.035 * nLpc, 0.25); W.flowLpc *= Math.max(0.7, 1 - 0.03 * nLpc); v1 += 3 * nLpc * n1; }
     if (this.missing.hpc.length) { v2 += 2.5 * this.missing.hpc.length * n2; if (this.missing.hpc.length > 2) W.effHpc -= 0.03 * (this.missing.hpc.length - 2); }

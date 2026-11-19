@@ -475,6 +475,8 @@ const FAIL = {
   'fire-harness': 'Fire has burnt through a core harness - EEC channel lost',
   'fan-cowl-lost': 'FAN COWL DOORS TORN OFF by the airflow',
   'engine-separation': 'ENGINE SEPARATED FROM THE PYLON',
+  'bird-strike': 'BIRD STRIKE',
+  'fod-ingested': 'OBJECT INGESTED by the engine',
 };
 const EV = { ...FAIL, lightoff: 'Light-off', 'flameout-lean': 'FLAME-OUT (mixture too lean)', 'flameout-rich': 'FLAME-OUT (rich / no airflow)', 'surge-fan': 'FAN SURGE', 'surge-lpc': 'LPC SURGE', 'surge-hpc': 'HPC SURGE' };
 let lastBang = -1, lastSurgeLog = -10, sparkK = 0, lostPrev = 0, failSig = '';
@@ -485,7 +487,7 @@ function handleEvents(dt) {
       if (ev.t - lastBang > 0.08) { const w = ev.type.slice(6); view2d.surge(w); view3d && view3d.surge(w); audio.bang(w === 'fan' ? 1.3 : 1); lastBang = ev.t; }
       if (ev.t - lastSurgeLog > 1) { logMsg(EV[ev.type]); lastSurgeLog = ev.t; }
     } else {
-      logMsg(EV[ev.type] || ev.type);
+      logMsg(ev.msg || EV[ev.type] || ev.type);
       if (FAIL[ev.type]) {
         const big = /burst|release|failure|burn-through|blade-off|shear|seized|separation|cowl-lost/.test(ev.type) && ev.type !== 'chip-detector';
         if (big) { audio.bang(/burst|separation/.test(ev.type) ? 2 : 1.4); view3d && view3d.surge(/lp|fan/.test(ev.type) ? 'fan' : 'hpc'); view2d.surge('hpc'); }
