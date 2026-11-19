@@ -224,7 +224,7 @@ export class Borescope {
     this.aS += (this.albedo - this.aS) * Math.min(1, dt * 4);
     // (three.js stops a light getting brighter closer than 10 cm, so nearer than that the gain stays put)
     const g = Math.max(0.1, this.dS) ** 2 / this.aS;
-    this.light.intensity = 1.9 * g; this.glow.intensity = 0.35 * g;
+    this.light.intensity = 1.5 * g; this.glow.intensity = 0.28 * g;
     this.light.position.copy(pos).addScaledVector(d, -0.003); this.light.target.position.copy(pos).add(d); this.light.target.updateMatrixWorld();
     this.glow.position.copy(pos).addScaledVector(d, -0.006);
     if (this.v.bsPass) { this.v.bsPass.uniforms.uT.value = this.t % 100; this.v.bsPass.uniforms.uAspect.value = camera.aspect; }
@@ -269,6 +269,6 @@ export class Borescope {
     const nm = im.name.replace(/_(lo|mid)$/, '');
     if (nm === 'ring_hptcase_ngv1') { const b = ngvBurnAt(im.userData.ths[i], h.burn); return b > 0.15 ? 'thermal barrier coating burnt off, metal oxidised' : b > 0.04 ? 'coating discoloured by a hot streak' : ''; }
     const k = nm === 'ring_hpt_r1' ? h.kH : nm === 'ring_hpt_r2' ? h.kH * 0.7 : nm === 'ring_lpt_r3' ? h.kL : 0;
-    return k > 0.66 ? 'blue heat tint: overheated, blade life used up' : k > 0.33 ? 'bronze heat tint: overheated' : k > 0.08 ? 'straw heat tint: run hot' : '';
+    return k > 0.75 ? 'blue heat tint: overheated, blade life used up' : k > 0.45 ? 'bronze heat tint: overheated' : k > 0.12 ? 'straw heat tint: run hot' : '';
   }
 }

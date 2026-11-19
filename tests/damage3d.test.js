@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../app/vendor/three.module.js';
-import { deformBlade, ngvBurnAt, STREAK_TH } from '../app/damage3d.js';
+import { deformBlade, ngvBurnAt, STREAK_TH, heatTint } from '../app/damage3d.js';
 
 // a flat test blade in the engine frame at angle 0: chord along x (leading edge at x = -0.1), span along y
 // (radial) from 0.3 to 0.7, the direction of rotation +z
@@ -37,4 +37,12 @@ test('burn: the trailing edge goes back mid-span, not at the root or tip; vanes 
   assert.ok(xyz(d, mid)[0] < 0.1 - 0.02, `trailing edge x ${xyz(d, mid)[0]}`);
   assert.ok(Math.abs(xyz(d, root)[0] - 0.1) < 1e-6);
   assert.ok(Math.abs(ngvBurnAt(STREAK_TH, 0.8) - 0.8) < 1e-9 && ngvBurnAt(STREAK_TH + Math.PI, 0.8) < 1e-6);
+});
+
+test('heat tint: none when cool, straw, then bronze, then blue', () => {
+  const c = new THREE.Color();
+  heatTint(0, c); assert.deepEqual([c.r, c.g, c.b], [1, 1, 1]);
+  heatTint(0.33, c); assert.ok(c.r > c.b + 0.2, 'straw is yellow');
+  heatTint(0.66, c); assert.ok(c.r > c.g && c.g > c.b, 'bronze is brown');
+  heatTint(1, c); assert.ok(c.b > c.r + 0.3, 'blue');
 });

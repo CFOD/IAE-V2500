@@ -66,6 +66,13 @@ export function ngvBurnAt(th, burn) {
   return burn * Math.exp(-((d / 0.2) ** 2));
 }
 
+// the temper colours of overheated superalloy, as a tint on the blade's own colour: none, straw, bronze, blue
+const TINTS = [[1, 1, 1], [1, 0.93, 0.7], [0.82, 0.58, 0.38], [0.45, 0.52, 0.85]];
+export function heatTint(v, c) {
+  const x = Math.min(0.999, Math.max(0, v)) * (TINTS.length - 1), i = Math.floor(x), f = x - i, a = TINTS[i], b = TINTS[i + 1];
+  return c.setRGB(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f);
+}
+
 /**
  * Build the damage on the model from the failure state fs. rows(id) gives a part's rotor rows; hide(im, idx)
  * hides the instances the copies stand in for. Returns the copies, for the per-frame cutaway check.
@@ -108,7 +115,7 @@ export function applyDamage(view, fs, rows, hide) {
     const im = rr.im, c = new THREE.Color();
     for (let i = 0; i < im.userData.ths.length; i++) {
       const v = Math.min(1, k * (0.75 + 0.25 * Math.sin(i * 12.9898) ** 2));
-      c.setRGB(1 - 0.45 * v, 1 - 0.55 * v, 1 - 0.5 * v + 0.15 * v * v); im.setColorAt(i, c);
+      heatTint(v, c); im.setColorAt(i, c);
     }
     if (im.instanceColor) im.instanceColor.needsUpdate = true;
   };
