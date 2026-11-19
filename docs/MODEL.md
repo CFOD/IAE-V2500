@@ -144,6 +144,21 @@ Conventions the loader understands:
 - **`drop`** in `model.json` lists tags of generated objects to remove (currently `skin`). Without
   it, every generated object of that component is removed.
 
+## Smoke, fire and other effects
+
+`app/fx.js` draws them; `scene3d.js` places them. A 256 x 256 tileable noise texture is baked at start-up
+(smooth fbm, fine fbm, cauliflower "billow" noise, ridged turbulence) and every effect samples it.
+
+- **Billows** are camera-facing quads moved on the CPU, so each puff stays where it was born and smoke can
+  be sorted back to front. Smoke is lit: a normal from the puff's shape and noise, the key light (shadowed
+  by the puff's own density towards it) and the sky, and an orange glow from below over a fire. Flames are
+  quads stretched along their motion into teardrop tongues, eaten away by rising turbulence and coloured
+  by temperature (white-yellow root, orange, red tips); they are blended as emitted light with partial
+  occlusion so they build into a body of flame instead of a white blob. A surge throws a ball of flame out
+  of the intake and the nozzle.
+- **Streaks** are embers, glowing fragments that cool as they fly, and liquid spray. **Shards** are small
+  metal fragments that tumble, bounce and lie on the floor for a while.
+
 ## Supplying your own model
 
 ## Steps

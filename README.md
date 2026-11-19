@@ -202,8 +202,8 @@ src/sim/      physics, no UI dependencies (runs under plain Node)
   engine.js     engine sizing + two-spool dynamic model
   fadec.js      engine control: start sequence, EPR governor, limiters, schedules
   v2500.js      published V2500-A5 data and model assumptions
-app/          renderer: scene3d.js (three.js 3D engine), cutaway.js (2D section), gauges, UI,
-              audio.js (synthesiser) and samples.js (recording player)
+app/          renderer: scene3d.js (three.js 3D engine), fx.js (smoke, fire, sprays, debris),
+              cutaway.js (2D section), gauges, UI, audio.js (synthesiser) and samples.js (recording player)
   sounds/       optional recordings (docs/SOUND.md)
   vendor/       three.js and add-ons (MIT)    fonts/  Inter, B612 Mono (SIL OFL)
   assets/       optional authored model (docs/MODEL.md)

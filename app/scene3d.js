@@ -14,7 +14,7 @@ import { OutputPass } from './vendor/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from './vendor/jsm/postprocessing/SMAAPass.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { P, ROWS, rAt, tempRGB, lipLoop, scarfX, scarfDroop } from './cutaway.js';
-import { Puffs, Sparks, Particles } from './fx.js';
+import { Billows, Streaks, Shards, Sparks, Particles, FX, noiseTexture } from './fx.js';
 import { setSurfaceQuality, finish, FINISH } from './surfaces.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
@@ -800,41 +800,46 @@ export class Scene3D {
     });
     this.flameSheets = [0.222, 0.238, 0.252, 0.266, 0.28].map((r, i) => { const g = new THREE.LatheGeometry([new THREE.Vector2(r, 1.972), new THREE.Vector2(r + (i - 2) * 0.004, 2.19)], 96); g.rotateZ(-Math.PI / 2); const m = add(new THREE.Mesh(g, flameMat())); m.material.uniforms.uSeed.value = i * 3.7; m.visible = false; return m; });
 
-    // mist, smoke and fire use lumpy puffs
-    const puffs = (n, size, blending) => { const p = this._points(n, size, blending); p.material.map = this.puff; return p; };
+    // smoke, fire and mist (app/fx.js): lit, noise-textured puffs and tongues of flame
+    FX.uNoise.value = noiseTexture(); FX.camera = this.camera;
+    const S = this.scene, XN = P.X_EXIT;
     // intake condensation: thin mist that forms just inside the lip, hugs the wall and is drawn into the fan
-    this.fog = new Puffs(this.scene, 420, { origin: [-0.9, -0.03, 0], dir: [1, 0, 0], speed: 1.6, radius: 0.68, ring: 0.75, spread: -0.05, life: 0.55, size0: 0.22, size1: 0.6, turb: 0.05, drag: 0, swirl: 0.6,
-      colA: [0.86, 0.9, 0.95], colB: [0.92, 0.95, 1.0], colC: [0.95, 0.97, 1.0], alpha: 0.2, lit: 0.25, soft: 0.8, seed: 3 });
+    this.fog = new Billows(S, 420, { origin: [-0.9, -0.03, 0], dir: [1, 0, 0], speed: 1.6, radius: 0.68, ring: 0.75, spread: -0.05, life: 0.55, size0: 0.2, size1: 0.55, turb: 0.05, drag: 0, swirl: 0.6,
+      colA: [0.92, 0.95, 1.0], colB: [0.95, 0.97, 1.0], colC: [1.0, 1.0, 1.0], alpha: 0.22, lit: 0.15, soft: 0.85, detail: 0.6, seed: 3 });
     this.fogK = 0;
     // dust and spray spun up where the ground vortex touches down
-    this.dust = new Puffs(this.scene, 160, { ground: true, origin: [-1.25, FLOOR_Y + 0.06, 0], dir: [0, 1, 0], speed: 0.2, radius: 0.34, ring: 0.6, spread: -0.14, swirl: 6, buoy: [0.12, 0.12, 0], life: 0.9, size0: 0.14, size1: 0.45, turb: 0.05, drag: 0.2,
-      colA: [0.62, 0.6, 0.56], colB: [0.7, 0.69, 0.66], colC: [0.78, 0.78, 0.77], alpha: 0.16, lit: 0.3, seed: 41 });
+    this.dust = new Billows(S, 160, { ground: true, origin: [-1.25, FLOOR_Y + 0.06, 0], dir: [0, 1, 0], speed: 0.2, radius: 0.34, ring: 0.6, spread: -0.14, swirl: 6, buoy: [0.12, 0.12, 0], life: 0.9, size0: 0.14, size1: 0.45, turb: 0.05, drag: 0.2,
+      colA: [0.62, 0.6, 0.56], colB: [0.7, 0.69, 0.66], colC: [0.78, 0.78, 0.77], alpha: 0.18, lit: 0.3, seed: 41 });
     // exhaust: almost invisible in reality. A faint glow of hot gas close to the nozzle, the rest is heat shimmer.
-    this.jetGlow = new Puffs(this.scene, 200, { origin: [3.5 + (P.X_EXIT - 3.55), 0, 0], dir: [1, 0, 0], speed: 12, radius: 0.36, spread: 0.1, life: 0.45, size0: 0.5, size1: 1.5, turb: 0.08, drag: 0.4,
-      colA: [0.3, 0.22, 0.16], colB: [0.12, 0.11, 0.11], colC: [0.03, 0.03, 0.04], alpha: 0.07, soft: 1.1, additive: true, seed: 47, order: 4 });
-    this.bang = puffs(160, 0.75, THREE.AdditiveBlending);
+    this.jetGlow = new Billows(S, 200, { mode: 'glow', origin: [XN - 0.05, 0, 0], dir: [1, 0, 0], speed: 12, radius: 0.36, spread: 0.1, life: 0.45, size0: 0.5, size1: 1.5, turb: 0.08, drag: 0.4,
+      colA: [0.3, 0.22, 0.16], colB: [0.12, 0.11, 0.11], colC: [0.03, 0.03, 0.04], alpha: 0.07, seed: 47, order: 4 });
     // failure effects: glowing fragments and molten metal from the tailpipe, black smoke, fire round the core
-    const S = this.scene;
     this.sparks = new Sparks(S, 420);
-    // black smoke trailing from the tailpipe of a damaged or torching engine
-    this.smokeTail = new Puffs(S, 300, { origin: [3.5 + (P.X_EXIT - 3.55), 0, 0], dir: [1, 0, 0], speed: 2.4, radius: 0.34, spread: 0.12, buoy: [0, 0.5, 0], life: 4.5, size0: 0.5, size1: 3.4, turb: 0.3, drag: 0.5,
-      colA: [0.1, 0.085, 0.07], colB: [0.035, 0.033, 0.032], colC: [0.07, 0.07, 0.072], alpha: 0.75, lit: 0.55, seed: 11 });
-    // nacelle fire: flames from the core and the thick black smoke column above them
-    this.smokeFire = new Puffs(S, 260, { origin: [2.05, 0.5, 0.15], box: [0.9, 0.1, 0.5], dir: [0.25, 1, 0], speed: 1.3, radius: 0.15, spread: 0.1, buoy: [0.15, 0.35, 0], life: 5, size0: 0.45, size1: 3.2, turb: 0.3, drag: 0.3,
-      colA: [0.16, 0.07, 0.03], colB: [0.03, 0.028, 0.028], colC: [0.06, 0.06, 0.062], alpha: 0.8, lit: 0.5, seed: 19 });
-    this.flames = new Puffs(S, 200, { origin: [2.0, 0.2, 0.12], box: [0.85, 0.1, 0.1], dir: [0.1, 1, 0], speed: 1.5, radius: 0.36, ring: 0.6, spread: 0.02, buoy: [0, 1.2, 0], life: 0.85, size0: 0.32, size1: 0.8, turb: 0.1, drag: 0.2,
-      colA: [3.2, 2.4, 1.2], colB: [2.6, 0.9, 0.12], colC: [0.5, 0.06, 0.0], alpha: 0.55, soft: 1.25, additive: true, seed: 23, order: 6 });
-    // torching: fuel still burning as it leaves the nozzle
-    this.torch = new Puffs(S, 220, { origin: [3.3 + (P.X_EXIT - 3.55), 0, 0], dir: [1, 0, 0], speed: 7, radius: 0.26, spread: 0.12, buoy: [0, 1.0, 0], life: 0.6, size0: 0.4, size1: 1.3, turb: 0.12, drag: 0.45,
-      colA: [3.0, 2.6, 1.6], colB: [2.8, 1.0, 0.15], colC: [0.4, 0.05, 0.0], alpha: 0.5, soft: 1.2, additive: true, seed: 29, order: 6 });
+    // black smoke trailing from the tailpipe of a damaged or torching engine: sooty near the nozzle, greying as it thins
+    this.smokeTail = new Billows(S, 380, { origin: [XN - 0.05, 0, 0], dir: [1, 0, 0], speed: 2.4, radius: 0.32, spread: 0.12, buoy: [0, 0.45, 0], life: 4.5, size0: 0.45, size1: 3.2, turb: 0.3, drag: 0.5,
+      colA: [0.07, 0.065, 0.06], colB: [0.06, 0.058, 0.056], colC: [0.17, 0.17, 0.175], alpha: 0.72, lit: 0.6, soft: 1.0, detail: 0.35, seed: 11 });
+    // nacelle fire: tongues of flame round the core, embers, and the thick smoke column above, lit from below
+    this.smokeFire = new Billows(S, 340, { origin: [2.05, 0.55, 0.15], box: [0.9, 0.1, 0.5], dir: [0.2, 1, 0], speed: 1.2, radius: 0.15, spread: 0.12, buoy: [0.15, 0.4, 0], life: 5, size0: 0.35, size1: 3.0, turb: 0.35, drag: 0.3,
+      colA: [0.05, 0.045, 0.04], colB: [0.045, 0.043, 0.042], colC: [0.15, 0.15, 0.155], alpha: 0.85, lit: 0.55, detail: 0.35, seed: 19 });
+    this.flames = new Billows(S, 260, { mode: 'fire', origin: [2.0, 0.2, 0.12], box: [0.85, 0.1, 0.1], dir: [0.1, 1, 0], speed: 1.4, radius: 0.36, ring: 0.6, spread: 0.05, buoy: [0, 2.6, 0], life: 0.62, size0: 0.4, size1: 0.2, turb: 0.4, drag: 0.25,
+      alpha: 0.85, heat: 0.95, gain: 0.95, occ: 0.6, stretch: 0.07, seed: 23 });
+    this.embers = new Streaks(S, 260, { additive: true, len: 0.02 });
+    // torching: fuel still burning as it leaves the nozzle, long tongues along the jet
+    this.torch = new Billows(S, 260, { mode: 'fire', origin: [XN - 0.25, 0, 0], dir: [1, 0, 0], speed: 7, radius: 0.24, spread: 0.15, buoy: [0, 1.2, 0], life: 0.5, size0: 0.42, size1: 0.26, turb: 0.25, drag: 0.45,
+      alpha: 0.65, heat: 1.0, gain: 0.95, occ: 0.5, stretch: 0.035, seed: 29 });
+    // bursts: a fireball out of the intake and the nozzle on a surge, and the smoke after it
+    this.fireball = new Billows(S, 300, { mode: 'fire', ball: 1, life: 0.38, size0: 0.35, size1: 1.05, turb: 0.3, drag: 2.2, buoy: [0, 1.5, 0], alpha: 0.6, heat: 1.05, gain: 1.0, occ: 0.5, stretch: 0.01, seed: 31 });
+    this.burstSmoke = new Billows(S, 180, { life: 2.6, size0: 0.25, size1: 1.6, turb: 0.25, drag: 1.4, buoy: [0, 0.5, 0], colA: [0.09, 0.085, 0.08], colB: [0.12, 0.12, 0.12], colC: [0.22, 0.22, 0.23], alpha: 0.55, lit: 0.6, detail: 0.35, seed: 37 });
+    // leaks: fuel vapour and escaping air as faint wisps
+    this.mist = new Billows(S, 360, { life: 0.7, size0: 0.05, size1: 0.35, turb: 0.2, drag: 2.5, buoy: [0, 0.2, 0], colA: [0.95, 0.94, 0.88], colB: [0.96, 0.96, 0.95], colC: [1, 1, 1], alpha: 0.16, lit: 0.25, soft: 1.1, detail: 0.8, seed: 43 });
     this.fail = { sparks: 0, smoke: 0, fire: 0 };
     // part failures (failures.js): bursts of debris, leaking fluids and air, parts torn off
-    this.debris = new Particles(this.scene, 700, { size: 0.045, map: this.sprite });
-    this.hotBits = new Particles(this.scene, 600, { size: 0.035, map: this.sprite, additive: true });
-    this.liquid = new Particles(this.scene, 1800, { size: 0.028, map: this.sprite });
-    this.gas = new Particles(this.scene, 900, { size: 0.11, map: this.puff, additive: true });
+    this.debris = new Shards(this.scene, 220);
+    this.hotBits = new Streaks(this.scene, 700, { additive: true, len: 0.025 });
+    this.liquid = new Particles(this.scene, 1600, { size: 0.016, map: this.sprite });
+    this.spray = new Streaks(this.scene, 1600, { additive: false, len: 0.035 });
     this.failedParts = new Set(); this.failState = null; this._leakPts = {}; this._torn = []; this._sep = null;
-    this._flameHome = { origin: this.flames.u.uOrigin.value.clone(), box: this.flames.u.uBox.value.clone(), radius: this.flames.u.uRadius.value, ring: this.flames.u.uRing.value, life: this.flames.u.uLife.value };
+    this._flameHome = { origin: this.flames.u.uOrigin.value.clone(), box: this.flames.u.uBox.value.clone(), radius: this.flames.u.uRadius.value, ring: this.flames.u.uRing.value, life: this.flames.u.uLife.value, size0: this.flames.u.uSize0.value, size1: this.flames.u.uSize1.value };
     this._smokeHome = { origin: this.smokeFire.u.uOrigin.value.clone(), box: this.smokeFire.u.uBox.value.clone() };
     this.fireLight = new THREE.PointLight(0xff6a20, 0, 6, 1.4); this.fireLight.position.set(2.0, 0.5, 0.4); this.scene.add(this.fireLight);
 
@@ -1049,15 +1054,20 @@ export class Scene3D {
         const th = rnd() * TAU, r = r0 * (0.4 + 0.6 * rnd()), v = sp * (0.4 + 0.8 * rnd());
         w.set(x, r * Math.cos(th), r * Math.sin(th)); E.localToWorld(w);
         const vx = axial * (0.5 + rnd()), vy = Math.cos(th) * v * spread + 2 * rnd(), vz = Math.sin(th) * v * spread;
-        if (hot && i % 2) this.hotBits.emit(w.x, w.y, w.z, vx, vy, vz, 1.4, 0.75, 0.3, 1, 0.8 + rnd(), 9.81, 0.4);
-        else this.debris.emit(w.x, w.y, w.z, vx, vy, vz, 0.42, 0.44, 0.46, 1, 1.5 + rnd() * 1.5, 9.81, 0.2);
+        if (hot && i % 3) this.hotBits.emit(w.x, w.y, w.z, vx, vy, vz, 1, 1, 1, 1, 0.5 + rnd() * 0.9, { drag: 0.5, cool: true });   // glowing fragments, cooling as they fly
+        else this.debris.emit(w.x, w.y, w.z, vx * 0.8, vy * 0.8, vz * 0.8, 0.014 + 0.045 * rnd() * rnd(), 6 + 6 * rnd());
       }
+      if (hot) { w.set(x, 0, 0); E.localToWorld(w); for (let i = 0; i < 14; i++) this.burstSmoke.emit(w.x + (rnd() - 0.5) * 0.6, w.y + (rnd() - 0.5) * 0.6, w.z + (rnd() - 0.5) * 0.6, axial * 0.15 * rnd(), 0.5 + rnd(), (rnd() - 0.5)); }
     };
-    if (/fan-blade-off|fan-crack-release/.test(type)) { burst(0.15, 0.7, 90, 4, -7, false); burst(0.4, 0.75, 40, 3, 9, false); }
+    if (/fan-blade-off|fan-crack-release/.test(type)) {
+      burst(0.15, 0.7, 90, 4, -7, false); burst(0.4, 0.75, 40, 3, 9, false);
+      const th = rnd() * TAU; w.set(0.1, 0.7 * Math.cos(th), 0.7 * Math.sin(th)); E.localToWorld(w);
+      this.debris.emit(w.x, w.y, w.z, -4 - 2 * rnd(), Math.cos(th) * 3 + 2, Math.sin(th) * 3, 0.13, 20);   // most of the blade itself, out of the intake
+    }
     else if (/spinner-lost|liner-ingested/.test(type)) burst(0.1, 0.6, 50, 2, 7, false);
     else if (/lpc-blade|hpc-blade|hpt-blade|lpt-blade/.test(type)) burst(P.X_EXIT, 0.3, 50, 1.5, 14, true, 0.4);   // through the core and out of the nozzle
     else if (/disc-burst|case-burn/.test(type)) { const x = /hp/.test(type) ? 2.3 : 2.75; burst(x, 0.6, 140, 14, 1, true); burst(x, 0.6, 60, 9, -2, false); }   // uncontained
-    else if (type === 'starter-burst') { const c = this._partCentre('starter'); if (c) for (let i = 0; i < 70; i++) this.hotBits.emit(c.x, c.y, c.z, (rnd() - 0.5) * 6, rnd() * 3 - 1, (rnd() - 0.5) * 6, 1.4, 0.8, 0.35, 1, 0.6 + rnd(), 9.81, 0.5); }
+    else if (type === 'starter-burst') { const c = this._partCentre('starter'); if (c) { for (let i = 0; i < 70; i++) this.hotBits.emit(c.x, c.y, c.z, (rnd() - 0.5) * 6, rnd() * 3 - 1, (rnd() - 0.5) * 6, 1, 1, 1, 1, 0.4 + rnd() * 0.6, { drag: 0.5, cool: true }); for (let i = 0; i < 30; i++) this.debris.emit(c.x, c.y, c.z, (rnd() - 0.5) * 5, rnd() * 2, (rnd() - 0.5) * 5, 0.006 + 0.015 * rnd(), 8); } }
     else if (type === 'fan-cowl-lost') this._tearOff('fancowl');
     else if (type === 'engine-separation') this._separate();
   }
@@ -1079,7 +1089,7 @@ export class Scene3D {
     const cowlTorn = this._torn.length > 0; this._torn = [];
     if (cowlTorn) this.setRemoved('fancowl', false);
     if (this._sep) { this.engine.position.set(0, 0, 0); this.engine.rotation.set(0, 0, 0); this.engine.updateMatrixWorld(true); for (const ob of this._sep.kept) this.engine.attach(ob); this._sep = null; }
-    for (const ps of [this.debris, this.hotBits, this.liquid, this.gas]) ps.clear();
+    for (const ps of [this.debris, this.hotBits, this.liquid, this.spray, this.mist, this.burstSmoke, this.fireball, this.embers, this.flames, this.smokeFire, this.smokeTail, this.torch]) ps.clear();
     this.failedParts = new Set(); this.failState = null; this._missKey = ''; this._leakPts = {};
   }
   /** Released blades: hidden instances, from the counts the simulation keeps. */
@@ -1106,28 +1116,42 @@ export class Scene3D {
   _failFrame(o, dt) {
     const fs = this.failState, t = this.t, E = this.engine;
     this._missing(fs);
-    // leaks: fuel mist, oil and hydraulic fluid streaming and dripping, air jets
+    // leaks: fuel spraying and misting, oil and hydraulic fluid streaming and dripping, air jets. A leak behind
+    // closed cowls is hidden; the liquid finds its way out of the drain at the bottom of the nacelle instead.
     if (fs && fs.leaks.length && dt > 0) {
-      const w = new THREE.Vector3(), d = new THREE.Vector3(), rnd = Math.random;
+      const w = new THREE.Vector3(), d = new THREE.Vector3(), rnd = Math.random, j = () => rnd() - 0.5;
+      const COL = { fuel: [0.93, 0.88, 0.66, 0.5], oil: [0.3, 0.17, 0.04, 0.95], hyd: [0.55, 0.32, 0.86, 0.85] };
       for (const L of fs.leaks) {
         const lp = this._leakPoint(L.part); if (!lp) continue;
         w.copy(lp.pos); E.localToWorld(w); d.copy(lp.dir).transformDirection(E.matrixWorld);
-        const air = L.kind === 'air', n = Math.min(40, Math.floor((air ? 70 : 160) * L.k * dt + rnd()));   // particles per second x dt
+        if (L.kind === 'air') {   // hot air: faint shimmering wisps, fast
+          const n = Math.floor(45 * L.k * dt + rnd());
+          for (let i = 0; i < n; i++) { const sp = 5 + 4 * rnd(); this.mist.emit(w.x, w.y, w.z, d.x * sp + j() * 2, d.y * sp + j() * 2, d.z * sp + j() * 2, { size0: 0.04, size1: 0.45, life: 0.45 }); }
+          continue;
+        }
+        const [r, g, b, a] = COL[L.kind], fuel = L.kind === 'fuel';
+        const n = Math.min(40, Math.floor(150 * L.k * dt + rnd()));
         for (let i = 0; i < n; i++) {
-          const j = () => (rnd() - 0.5);
-          if (air) { const sp = 6 + 4 * rnd(); this.gas.emit(w.x, w.y, w.z, d.x * sp + j() * 2, d.y * sp + j() * 2, d.z * sp + j() * 2, 0.16, 0.17, 0.18, 0.5, 0.35 + 0.2 * rnd(), -0.5, 3.5); continue; }
-          const sp = L.kind === 'fuel' ? 2.5 + 2 * rnd() : 1.2 + 1.2 * rnd();
-          const [r, g, b, a] = L.kind === 'fuel' ? [0.93, 0.88, 0.66, 0.55] : L.kind === 'oil' ? [0.32, 0.19, 0.05, 0.92] : [0.56, 0.33, 0.86, 0.85];
-          this.liquid.emit(w.x, w.y, w.z, d.x * sp + j(), d.y * sp + j(), d.z * sp + j(), r, g, b, a, 1.4 + rnd(), 9.81, L.kind === 'fuel' ? 1.2 : 0.3);
-          if (L.kind === 'fuel' && i % 3 === 0) this.gas.emit(w.x, w.y, w.z, d.x * sp, d.y * sp, d.z * sp, 0.1, 0.095, 0.07, 0.4, 0.6, 0.3, 2);   // vapour
+          const sp = fuel ? 2.5 + 2.5 * rnd() : 1.0 + 1.4 * rnd(), vx = d.x * sp + j() * 0.8, vy = d.y * sp + j() * 0.8, vz = d.z * sp + j() * 0.8;
+          this.spray.emit(w.x, w.y, w.z, vx, vy, vz, r, g, b, a, 0.8 + 0.8 * rnd(), { drag: fuel ? 1.2 : 0.3 });
+          if (i % 2 === 0) this.liquid.emit(w.x, w.y, w.z, vx, vy, vz, r, g, b, a, 1.2 + rnd(), 9.81, fuel ? 1.2 : 0.3);
+          if (fuel && i % 4 === 0) this.mist.emit(w.x, w.y, w.z, vx * 0.6, vy * 0.6, vz * 0.6, { size0: 0.04, size1: 0.3, life: 0.8 });   // atomised fuel
+        }
+        // behind a closed cowl: out of the nacelle drain instead (fan compartment forward, core compartment aft)
+        const lx = lp.pos.x, th = Math.atan2(lp.pos.z, lp.pos.y), exposed = (this.cutaway && inCut(th)) || (lx < 1.2 ? this.cowl.fan > 0.5 : this.cowl.cd > 0.5);
+        if (!exposed) {
+          w.set(lx < 1.2 ? 0.95 : 2.45, lx < 1.2 ? -rAt(P.nacelleBot || P.nacelle, 0.95) - 0.02 : -0.99, 0); E.localToWorld(w);
+          const m = Math.floor(60 * L.k * dt + rnd());
+          for (let i = 0; i < m; i++) { const vx = j() * 0.15, vy = -0.3 - 0.4 * rnd(), vz = j() * 0.15; this.spray.emit(w.x + j() * 0.02, w.y, w.z + j() * 0.02, vx, vy, vz, r, g, b, a, 0.9, { drag: 0.2 }); if (i % 2) this.liquid.emit(w.x, w.y, w.z, vx, vy, vz, r, g, b, a, 1.2, 9.81, 0.2); }
         }
       }
     }
-    for (const ps of [this.debris, this.hotBits, this.liquid, this.gas]) ps.update(dt, FLOOR_Y + 0.01);
+    for (const ps of [this.debris, this.liquid, this.spray, this.hotBits, this.embers]) ps.update(dt, FLOOR_Y + 0.01, t);
+    this.mist.set(t, 0); this.burstSmoke.set(t, 0); this.fireball.set(t, 0);
     // a leak fire burns where the leak is
     const fp = fs && fs.firePart ? this._leakPoint(fs.firePart) : null, fl = this.flames.u, sm = this.smokeFire.u;
-    if (fp) { fl.uOrigin.value.copy(fp.pos).add(fp.dir.clone().multiplyScalar(0.05)); fl.uBox.value.set(0.25, 0.05, 0.25); fl.uRadius.value = 0.06; fl.uRing.value = 0; fl.uLife.value = 0.55; sm.uOrigin.value.copy(fl.uOrigin.value); sm.uBox.value.set(0.3, 0.05, 0.3); this.fireLight.position.copy(fl.uOrigin.value).add(fp.dir.clone().multiplyScalar(0.3)); }
-    else { const h = this._flameHome; fl.uOrigin.value.copy(h.origin); fl.uBox.value.copy(h.box); fl.uRadius.value = h.radius; fl.uRing.value = h.ring; fl.uLife.value = h.life; sm.uOrigin.value.copy(this._smokeHome.origin); sm.uBox.value.copy(this._smokeHome.box); this.fireLight.position.set(2.0, 0.5, 0.4); }
+    if (fp) { fl.uOrigin.value.copy(fp.pos).add(fp.dir.clone().multiplyScalar(0.05)); fl.uBox.value.set(0.25, 0.05, 0.25); fl.uRadius.value = 0.06; fl.uRing.value = 0; fl.uLife.value = 0.5; fl.uSize0.value = 0.24; fl.uSize1.value = 0.12; sm.uOrigin.value.copy(fl.uOrigin.value); sm.uBox.value.set(0.3, 0.05, 0.3); this.fireLight.position.copy(fl.uOrigin.value).add(fp.dir.clone().multiplyScalar(0.3)); }
+    else { const h = this._flameHome; fl.uOrigin.value.copy(h.origin); fl.uBox.value.copy(h.box); fl.uRadius.value = h.radius; fl.uRing.value = h.ring; fl.uLife.value = h.life; fl.uSize0.value = h.size0; fl.uSize1.value = h.size1; sm.uOrigin.value.copy(this._smokeHome.origin); sm.uBox.value.copy(this._smokeHome.box); this.fireLight.position.set(2.0, 0.5, 0.4); }
     if (this._sep) { const e = E.position; fl.uOrigin.value.add(e); sm.uOrigin.value.add(e); }
     // torn-off parts tumble away, then are gone
     for (const tr of this._torn) {
@@ -1148,7 +1172,20 @@ export class Scene3D {
     E.position.set(amp ? (Math.random() - 0.5) * amp : 0, y + (amp ? (Math.random() - 0.5) * amp : 0), amp ? (Math.random() - 0.5) * amp : 0);
     E.rotation.z = rz;
   }
-  surge(which) { this.flash = 1; this.flashFront = which !== 'hpc'; }
+  /** Surge: a fireball out of the intake (fan or booster) and the nozzle, then smoke. */
+  surge(which) {
+    this.flash = 1; this.flashFront = which !== 'hpc';
+    const E = this.engine, w = new THREE.Vector3(), rnd = Math.random, puff = (x, r0, n, vx0, vx1) => {
+      for (let i = 0; i < n; i++) {
+        const th = rnd() * TAU, r = r0 * Math.sqrt(rnd()), vr = 1.5 + 2.5 * rnd();
+        w.set(x, r * Math.cos(th), r * Math.sin(th)); E.localToWorld(w);
+        this.fireball.emit(w.x, w.y, w.z, vx0 + (vx1 - vx0) * rnd(), Math.cos(th) * vr, Math.sin(th) * vr);
+        if (i % 3 === 0) this.burstSmoke.emit(w.x, w.y, w.z, (vx0 + (vx1 - vx0) * rnd()) * 0.35, Math.cos(th) * vr * 0.3 + 0.3, Math.sin(th) * vr * 0.3);
+      }
+    };
+    if (this.flashFront) puff(-0.35, 0.6, 90, -11, -3);
+    puff(P.X_EXIT - 0.1, 0.32, 50, 7, 15);
+  }
   /**
    * low    : plain render, no post-processing at all (the safe fallback)
    * medium : shadows, bloom, heat haze, anti-aliasing
@@ -1351,7 +1388,14 @@ export class Scene3D {
     this.sparks.set(t, F.sparks, 3.45, FLOOR_Y);
     this.smokeTail.u.uSpeed.value = 1.2 + 9 * jet;
     this.smokeTail.set(t, F.smoke * (F.fire > 0 && jet < 0.05 ? 0.25 : 1));
+    FX.uLightV.value.copy(this.key.position).sub(this.key.target.position).transformDirection(this.camera.matrixWorldInverse);
+    const flick = 0.85 + 0.15 * Math.sin(t * 17) * Math.sin(t * 6.3 + 1);
+    this.smokeFire.u.uGlow.value.set(1.0, 0.4, 0.08).multiplyScalar(0.8 * F.fire * flick);
     this.smokeFire.set(t, F.fire); this.flames.set(t, F.fire);
+    if (F.fire > 0.05 && dt > 0) {   // embers lifted out of the flames
+      const fo = this.flames.u.uOrigin.value, fb = this.flames.u.uBox.value, ne = Math.floor(30 * F.fire * dt + Math.random());
+      for (let i = 0; i < ne; i++) this.embers.emit(fo.x + (Math.random() - 0.5) * fb.x, fo.y + 0.1, fo.z + (Math.random() - 0.5) * (fb.z + 0.3), (Math.random() - 0.5) * 0.6, 1 + 1.5 * Math.random(), (Math.random() - 0.5) * 0.6, 1, 1, 1, 1, 1.2 + 1.5 * Math.random(), { cool: true, up: 9.81 + 0.6, drag: 0.6 });
+    }
     this.fireLight.intensity = F.fire * (5 + 2 * Math.sin(t * 23) + 1.5 * Math.sin(t * 37));
     const torchK = clamp(Math.max(o.wfUnburnt, o.torch || 0) / 0.05, 0, 1) + (o.lit && o.pool > 0.02 ? 0.6 : 0);
     this.torch.u.uSpeed.value = 3 + 14 * jet; this.torch.set(t, clamp(torchK, 0, 1));
@@ -1388,13 +1432,8 @@ export class Scene3D {
     // dust and spray kicked up where the vortex touches the ground
     this.dust.u.uOrigin.value.set(foot[0], FLOOR_Y + 0.06, foot[1]); this.dust.set(t, vk);
 
-    // ---- surge: flame out of the intake and tailpipe
-    this.bang.visible = this.flash > 0.03;
-    if (this.bang.visible) {
-      const fl = this.flash, front = this.flashFront;
-      fill(this.bang, 160, (i, pos, col, j) => { const f = Math.random(), th = Math.random() * TAU, back = i % 3 === 0 || !front, r = Math.random() * (back ? 0.4 : 0.75); pos[j] = back ? 3.2 + f * 2 : -0.2 - f * 1.4 * (1.2 - fl); pos[j + 1] = r * Math.cos(th); pos[j + 2] = r * Math.sin(th); const k = fl * (1 - f) * 0.7; col[j] = k; col[j + 1] = k * 0.55; col[j + 2] = k * 0.12; });
-      this.flash *= Math.pow(0.004, dt);
-    }
+    // ---- surge: the flash fades (the fireball itself was emitted by surge())
+    if (this.flash > 0.03) this.flash *= Math.pow(0.004, dt);
     if (this.quality === 'low') this.renderer.render(this.scene, this.camera); else this.composer.render();
   }
 }

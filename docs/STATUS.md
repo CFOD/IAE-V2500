@@ -28,6 +28,10 @@ The test website at iae.cfod.co.uk deploys from this branch automatically (see d
   card and in a searchable Faults tab, with red-pulsing broken parts, missing blades, debris, leak sprays,
   fires where the leak is, engine shake, cowl doors torn off and engine separation. 21 pipes, ducts and
   harnesses are parts of their own. An ENG 1 FIRE pushbutton shuts the LP fuel valve.
+- Smoke and fire redone (app/fx.js): lit, noise-textured smoke sorted back to front and glowing from below
+  over a fire; flames as tongues stretched along their motion and coloured by temperature, with embers; a
+  fireball on a surge; spray as streaks, real tumbling metal fragments; leaks behind closed cowls drip from
+  the nacelle drains.
 - Phones: touch controls and phone layout on the website; an Android app (Capacitor) that packs the
   same page for offline use, sideloaded as a debug APK for now (docs/ANDROID.md).
 

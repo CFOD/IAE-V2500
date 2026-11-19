@@ -12,9 +12,10 @@ contaminated fuel and so on).
 - **Inject / Clear** for lasting failures. Clearing means the part has been repaired or replaced.
   **Trigger** for momentary ones (a blade letting go); press again for another. Momentary damage stays
   until **Repair all**, **Restore new-engine condition** (Hardware tab) or **Reset**.
-- A broken part pulses red. Released blades disappear from their row, debris flies, leaking fuel, oil,
-  hydraulic fluid (purple) and air spray from the broken line, a fire burns where the leak is, heavy
-  vibration shakes the engine, torn-off cowl doors fly away, and a separated engine drops to the floor.
+- A broken part pulses red. Released blades disappear from their row, metal fragments fly and land on the
+  floor, leaking fuel, oil, hydraulic fluid (purple) and air spray from the broken line (behind closed cowls,
+  fluid runs out of the drain at the bottom of the nacelle), a fire burns where the leak is, heavy vibration
+  shakes the engine, torn-off cowl doors fly away, and a separated engine drops to the floor.
 
 ## How it works (`src/sim/failures.js`)
 
