@@ -421,7 +421,7 @@ export class Scene3D {
     const cna = A({ id: 'cna', name: 'Thrust reverser cowls and common nozzle', ex: 0.2, mat: paint, desc: 'The long duct carries bypass air aft, where it mixes with the core exhaust and leaves through one common nozzle.', live: (o) => `Mixed jet ${o.V9.toFixed(0)} m/s (Mach ${o.M9.toFixed(2)}) · ${C(o.T7)} · ${o.W9.toFixed(0)} kg/s` });
     this._solid(cna, band(offset(P.bypOuter, 0.012), P.nacelle, 1.2, 2.86, 20), { tag: 'skin' });
     // unpainted common nozzle at the rear, with a visible step from the painted cowl
-    this._solid(cna, band(offset(P.bypOuter, 0.012), offset(P.nacelle, -0.008), 2.86, P.X_EXIT, 16), { tag: 'skin', mat: (this.shared.bare = heatTint(new THREE.MeshPhysicalMaterial({ color: 0xa2a7ab, metalness: 1, roughness: 0.34, side: THREE.DoubleSide }), 2.75, 3.6, 0.8)) });
+    this._solid(cna, band(offset(P.bypOuter, 0.012), offset(P.nacelle, -0.008), 2.86, P.X_EXIT, 16), { tag: 'skin', mat: (this.shared.bare = heatTint(new THREE.MeshPhysicalMaterial({ color: 0x969a9f, metalness: 1, roughness: 0.42, side: THREE.DoubleSide }), 2.75, 3.6, 0.8)) });
     // nacelle strake, high on the side
     const stS = new THREE.Shape(); stS.moveTo(0, 0); stS.lineTo(0.62, 0); stS.lineTo(0.56, 0.1); stS.lineTo(0.2, 0.035); stS.lineTo(0, 0);
     const strake = new THREE.Mesh(new THREE.ExtrudeGeometry(stS, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 2 }).translate(0.25, 1.0, -0.006), fanCowl.mat);
@@ -797,7 +797,7 @@ export class Scene3D {
         [this.boltMat, FINISH.bareSteel], [linerM, FINISH.acoustic], [white, { ...FINISH.nacellePaint, bottom: 0 }], [fairing, { ...FINISH.titanium, bottom: 0 }],
         [vsvMat, FINISH.titanium], [orange, FINISH.rubber], [perf, FINISH.castBare], [race, { ...FINISH.bareSteel, bottom: 0, grime: 0.05 }], [duct, FINISH.stainlessTube],
         [this.shared.paint, FINISH.nacellePaint], [this.shared.lip, FINISH.polished], [this.shared.loom, FINISH.braid],
-        [this.shared.bare, { ...FINISH.nozzle, heat: [2.9, 4.45, 0.45], soot: [3.95, 4.37, 0.4] }],  // common nozzle: bare metal, light heat tint, soot only near the exit
+        [this.shared.bare, { ...FINISH.nozzle, heat: [2.9, 4.45, 0.4], soot: [3.75, 4.37, 0.55], sootIn: true }],  // common nozzle: satin bare metal, a light heat tint, soot inside towards the exit
       ]);
       const done = new Set([this.capMat]);
       const guess = (m) => {
@@ -1304,6 +1304,9 @@ export class Scene3D {
         panelline: FINISH.nacellePaint, panelline2: FINISH.nacellePaint, panel2: FINISH.nacellePaint, placard: FINISH.nacellePaint, hazard: FINISH.nacellePaint, marking: FINISH.nacellePaint,
         sp_dark: { ...FINISH.darkBox, bottom: 0, grime: 0.08 }, sp_white: { ...FINISH.nacellePaint, bottom: 0, grime: 0.06 }, sp_fair: { ...FINISH.titanium, bottom: 0 },
         blanket: { ...FINISH.stainlessTube, scale: 7, grime: 0.18, bump: 0.3 }, seal: FINISH.rubber, abradable: { ...FINISH.castPaint, grime: 0.12, bottom: 0.1 }, icepanel: FINISH.castPaint,
+        pylonfair: { ...FINISH.polished, scale: 3, grime: 0.14, grimeCol: [0.2, 0.19, 0.17], bottom: 0.3, streak: 0.25, rough: 0.12 },   // bare aluminium pylon fairings
+        pylonside: { ...FINISH.castPaint, scale: 3, bump: 0.12, grime: 0.22, streak: 0.3, edge: 0.3 }, louvre: FINISH.darkBox,
+        heatshield: { ...FINISH.titanium, grime: 0.18, grimeCol: [0.1, 0.08, 0.06], bottom: 0.3, streak: 0.3, heat: [3.0, 4.6, 0.55], soot: [3.6, 5.3, 0.35] },   // pylon heat shield, washed by the exhaust
       }[name] || null;
     };
     const gltf = (await this._loadPacked(base, manifest)) || await this._loadPlain(base, manifest);
@@ -1539,7 +1542,7 @@ export class Scene3D {
       im.userData.ths = ths; im.userData.place = place; im.name = e.node;
       if (hide) { im.userData.kept = ths.filter((t) => !hide(t)).length; this.cutInst.push(im); }
       if (spool && e.blade) im.userData.row = { xm: e.x, ring: true };
-      const whole = part.id === 'fan' && /^fan_(blade|filler)/.test(base);   // the fan is outside the core: never sectioned
+      const whole = part.id === 'fan' && /^fan_(blade|filler|post)/.test(base);   // the fan is outside the core: never sectioned (its blades, fillers and the disc posts holding them)
       if (spool && !whole) this.rotorRows.push({ im, group: groups[spool], part });
       if (e.kind === 'vsv') { im.userData.vsvAt = e._vsvAt; this.vsvRows.push(im); }
       im.computeBoundingSphere();

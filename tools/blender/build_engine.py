@@ -323,7 +323,7 @@ def build():
     lipm = material('lip', (0.74, 0.76, 0.78), 1.0, 0.28)
     section = material('section', (0.5, 0.11, 0.07), 0.1, 0.7)
     primer = material('primer', (0.2, 0.33, 0.06), 0.0, 0.6)       # zinc-chromate green inside the cowls (photos in the Airbus TTM)
-    acoustic = material('acoustic', (0.1, 0.105, 0.11), 0.1, 0.75) # acoustic sandwich panels lining the bypass duct
+    acoustic = material('acoustic', (0.34, 0.35, 0.36), 0.1, 0.72) # acoustic sandwich panels lining the bypass duct: grey composite, perforated
     R = 3.0
     wedge = prism('wedge', [(0, 0)] + [(R * math.cos(a), R * math.sin(a)) for a in [CUT_A + (CUT_B - CUT_A) * i / 12 for i in range(13)]], -2, 6, section)
     # longitudinal split along the bottom centreline (cowl door latch line)
@@ -558,8 +558,8 @@ def build():
     # strake high on the cowl side (kept side of the cutaway)
     th = math.radians(62)   # the strake is on the left-hand door (TTM figure); that is inside the cutaway sector
     def at(x, dr): r = smooth_nacelle(x) - 0.012 + dr; return (x, -r * math.sin(th), r * math.cos(th))
-    bm = bmesh.new(); t = 0.007
-    strake_pts = [(0.28, -0.02), (0.92, -0.02), (0.9, 0.085), (0.5, 0.03)]
+    bm = bmesh.new(); t = 0.009
+    strake_pts = [(0.3, -0.02), (0.92, -0.02), (0.9, 0.115), (0.55, 0.045)]
     for side in (-1, 1):
         vs = [bm.verts.new(tuple(c + side * t * n for c, n in zip(at(x, dr), (0, math.cos(th), math.sin(th))))) for x, dr in strake_pts]
         bm.faces.new(vs if side > 0 else list(reversed(vs)))
@@ -569,21 +569,13 @@ def build():
     me = bpy.data.meshes.new('fancowl_strakeB_L__full'); bm.to_mesh(me); bm.free(); me.materials.append(paint)
     made.append(finish(link(bpy.data.objects.new('fancowl_strakeB_L__full', me)), 0.002))
 
-    # ---- pylon fairing
-    # Narrow leading-edge fairing rising off the fan cowl, deep box under the wing, aft fairing tapering to a point.
-    pyl = loft('pylon_fairing', [(0.02, 0.012, 0.975, 0.99), (0.1, 0.05, 0.975, 1.04), (0.25, 0.09, 0.975, 1.12), (0.5, 0.125, 0.975, 1.23), (0.9, 0.15, 0.97, 1.35), (1.5, 0.16, 0.955, 1.46), (2.2, 0.16, 0.9, 1.5),
-                                 (2.9, 0.145, 0.86, 1.5), (3.4, 0.115, 0.86, 1.46), (3.8, 0.075, 0.93, 1.4), (4.15, 0.035, 1.05, 1.34), (4.4, 0.008, 1.18, 1.28)], paint, n=28)
-    pc = duplicate(pyl, 'pylon_fairing__cut'); boolean(pc, wedge); made.extend([finish(pyl, 0), finish(pc, 0)])
-    # pylon panel lines, access panels and the lower aft fairing in bare metal (far side, so they survive the cutaway)
-    from mathutils import Vector
-    pm = []
-    for x in (0.9, 1.5, 2.2, 2.9, 3.4): pm.append(box('pl', (x, 0.158 if x < 3 else 0.14, 1.2), (0.006, 0.004, 0.5), 0, material('panelline2', (0.12, 0.13, 0.14), 0.0, 0.6)))
-    for x, y in ((1.2, 1.25), (1.85, 1.3), (2.55, 1.3)): pm.append(box('pa', (x, 0.161, y), (0.3, 0.003, 0.16), 0, material('panel2', (0.8, 0.81, 0.82), 0.0, 0.45)))
-    made.append(join('pylon_panels__full', pm))
-    made.append(finish(loft('pylon_aftfairing__full', [(2.7, 0.1, 0.8, 0.9), (3.1, 0.105, 0.76, 0.9), (3.6, 0.08, 0.8, 0.95), (4.0, 0.04, 0.9, 1.06), (4.3, 0.01, 1.05, 1.16)], bare, n=20), 0))
-
-    wing = loft('pylon_wing__full', [(1.55, 1.25, 1.5, 1.52), (1.75, 1.3, 1.5, 1.6), (2.4, 1.35, 1.5, 1.7), (3.4, 1.35, 1.52, 1.72), (4.6, 1.3, 1.6, 1.7), (5.3, 1.25, 1.66, 1.68)], paint, n=24)
-    made.append(finish(wing, 0))
+    # ---- pylon and the slice of wing above the engine, as smooth aerodynamic surfaces (tools/blender/airframe.py)
+    import airframe
+    # (photos: the fairings are bare aluminium, the pylon box sides a mid grey, the heat shield dull titanium)
+    AM = {'paint': paint, 'fair': material('pylonfair', (0.74, 0.75, 0.77), 0.85, 0.3), 'side': material('pylonside', (0.4, 0.41, 0.43), 0.3, 0.5),
+          'bare': material('heatshield', (0.5, 0.49, 0.47), 0.85, 0.42), 'louvre': material('louvre', (0.03, 0.03, 0.035), 0.2, 0.7),
+          'line': material('panelline2', (0.12, 0.13, 0.14), 0.0, 0.6), 'fastener': material('fastener', (0.62, 0.63, 0.64), 0.9, 0.35)}
+    for o in airframe.build_pylon(link, AM, oml) + airframe.build_wing(link, AM): made.append(finish(o, 0))
     # ---- cowl door hinges along the top, each side of the pylon; reverser actuators in the cascade bay
     hk, hf = [], []
     for x in (0.15, 0.45, 0.75, 1.05):
@@ -616,16 +608,18 @@ def build():
     marks.append(patch('m', 0.19, 0.31, 130.5, 137.5, label('R:DANGER'), surf))
     marks.append(patch('m', 0.19, 0.45, 139, 146.5, label('STAND CLEAR OF HAZARD|AREAS WHILE ENGINE|IS RUNNING'), surf))
     marks.append(patch('m', 0.54, 0.78, 155.5, 158.5, label('PRESSURE RELIEF DOOR'), surf, lift=0.0026)); marks.append(patch('m', 0.455, 0.585, 119.4, 121.6, label('OIL SERVICE'), surf, lift=0.0026))
-    marks.append(patch('m', 0.42, 0.58, 221.2, 223.8, label('STARTER VALVE ACCESS'), surf, lift=0.0026)); marks.append(patch('m', 0.72, 0.94, 121, 124.5, label('NO STEP'), surf))
+    marks.append(patch('m', 0.42, 0.58, 221.2, 223.8, label('STARTER VALVE ACCESS'), surf, lift=0.0026)); marks.append(patch('m', 0.3, 0.52, 100, 103.5, label('NO STEP'), surf))
     marks.append(patch('m', 0.66, 0.96, 228, 241, black, surf))        # air-cooled oil cooler outlet
     for k in range(7): marks.append(patch('m', 0.68 + 0.04 * k, 0.695 + 0.04 * k, 229, 240, line, surf, lift=0.003))   # louvre slats
     marks += outline('m', 0.6, 0.78, 250, 262, line, surf)             # EEC / relay access
+    marks.append(patch('m', 0.64, 0.82, 116, 139, black, surf)); marks += outline('m', 0.63, 0.83, 115, 140, line, surf)   # ventilation outlet, low on the left door (photos)
+    for k in range(5): marks.append(patch('m', 0.655 + 0.034 * k, 0.665 + 0.034 * k, 117, 138, line, surf, lift=0.003))     # its grille bars
     for x0 in (0.35, 0.75): marks.append(patch('m', x0, x0 + 0.16, 186, 192, black, surf))                      # two ventilation grilles at the bottom of the right-hand door
     marks.append(patch('m', 1.0, 1.06, 210, 214, black, surf))                                                  # gearbox breather outlet
     marks += outline('m', 0.21, 0.35, 155, 165, line, surf); marks.append(patch('m', 0.22, 0.34, 158.9, 160.9, label('MASTER CHIP DETECTOR'), surf, lift=0.0026))
     join_sides('fancowl_markings', marks, made)
     # nose cowl: anti-ice exhaust slot low on the right, interphone jack panel, hoist points near the top (booklet photo)
-    im = [patch('m', -0.36, -0.2, 236, 246, black, surf), patch('m', -0.3, -0.24, 270, 273, placard, surf)] + outline('m', -0.33, -0.21, 268, 275, line, surf)
+    im = [patch('m', -0.36, -0.2, 114, 124, black, surf)] + outline('m', -0.37, -0.19, 113, 125, line, surf) + [patch('m', -0.35 + 0.026 * k, -0.343 + 0.026 * k, 115, 123, line, surf, lift=0.003) for k in range(6)] + [ patch('m', -0.3, -0.24, 270, 273, placard, surf)] + outline('m', -0.33, -0.21, 268, 275, line, surf)
     for th in (332, 28): im += [patch('m', -0.42, -0.4, th - 0.6, th + 0.6, black, surf), patch('m', -0.39, -0.3, th - 1.2, th + 1.2, label('HOIST POINT'), surf)]
     im += outline('m', -0.5, -0.34, 150, 166, line, surf)                # anti-ice duct access
     im += outline('m', -0.34, -0.2, 352, 364, line, surf) + [patch('m', -0.3, -0.24, 340, 346, black, surf)]   # P2/T2 probe access door, ventilation intake scoop
@@ -654,7 +648,7 @@ def build():
     # ---- engine internals: fan, booster, HP compressor, combustor, turbines, shafts and bearings (tools/blender/internals.py)
     import internals
     IM = {k: material('i_' + k, c, mt, ro) for k, c, mt, ro in [
-        ('tifan', (0.66, 0.68, 0.7), 1.0, 0.24), ('ti', (0.62, 0.64, 0.66), 1.0, 0.3), ('nickel', (0.58, 0.58, 0.57), 1.0, 0.34), ('disc', (0.55, 0.57, 0.59), 1.0, 0.36),
+        ('tifan', (0.5, 0.515, 0.535), 1.0, 0.3), ('ti', (0.62, 0.64, 0.66), 1.0, 0.3), ('nickel', (0.58, 0.58, 0.57), 1.0, 0.34), ('disc', (0.55, 0.57, 0.59), 1.0, 0.36),
         ('case', (0.46, 0.48, 0.5), 0.8, 0.45), ('filler', (0.52, 0.55, 0.58), 0.3, 0.45), ('rubber', (0.06, 0.06, 0.065), 0.0, 0.7), ('bolt', (0.6, 0.61, 0.62), 1.0, 0.3),
         ('vsv', (0.42, 0.47, 0.53), 0.9, 0.32), ('steel', (0.62, 0.64, 0.66), 1.0, 0.3), ('liner', (0.62, 0.6, 0.56), 1.0, 0.45), ('ceramic', (0.92, 0.92, 0.9), 0.0, 0.3),
         ('hptb', (0.46, 0.43, 0.41), 1.0, 0.42), ('tbc', (0.86, 0.83, 0.74), 0.0, 0.6), ('honey', (0.7, 0.7, 0.68), 0.9, 0.55), ('hot', (0.5, 0.46, 0.42), 0.9, 0.45),
@@ -669,9 +663,9 @@ def build():
     import details
     DM = {**IM, 'i_hot': IM['hot'], 'i_case': IM['case'], 'acoustic': acoustic, 'primer': primer, 'bare': bare, 'section': section,
           **{k: material(k, c, mt, ro) for k, c, mt, ro in [
-              ('sp_dark', (0.17, 0.18, 0.2), 0.1, 0.4), ('sp_white', (0.94, 0.94, 0.92), 0.0, 0.5), ('sp_fair', (0.66, 0.68, 0.7), 0.35, 0.45),
+              ('sp_dark', (0.045, 0.048, 0.055), 0.1, 0.22), ('sp_white', (0.94, 0.94, 0.92), 0.0, 0.5), ('sp_fair', (0.66, 0.68, 0.7), 0.35, 0.45),
               ('blanket', (0.72, 0.73, 0.72), 0.7, 0.45), ('seal', (0.85, 0.36, 0.13), 0.0, 0.6), ('grille', (0.42, 0.43, 0.44), 0.8, 0.5),
-              ('liner_perf', (0.55, 0.56, 0.58), 0.5, 0.75), ('abradable', (0.61, 0.79, 0.9), 0.0, 0.8), ('icepanel', (0.44, 0.46, 0.49), 0.0, 0.85),
+              ('liner_perf', (0.55, 0.56, 0.58), 0.5, 0.75), ('abradable', (0.83, 0.79, 0.63), 0.0, 0.78), ('icepanel', (0.44, 0.46, 0.49), 0.0, 0.85),
               ('cast', (0.55, 0.56, 0.55), 0.45, 0.58), ('steel', (0.62, 0.64, 0.66), 1.0, 0.3), ('gold', (0.8, 0.68, 0.3), 0.6, 0.4), ('dark', (0.08, 0.085, 0.09), 0.2, 0.6),
               ('composite', (0.32, 0.33, 0.33), 0.0, 0.6), ('connector', (0.5, 0.55, 0.45), 0.6, 0.4), ('fitting', (0.7, 0.71, 0.72), 1.0, 0.3), ('vband', (0.66, 0.67, 0.68), 1.0, 0.35),
               ('tube_ss', (0.7, 0.71, 0.7), 1.0, 0.32), ('tube_cad', (0.78, 0.7, 0.42), 0.8, 0.35), ('clamp_block', (0.5, 0.5, 0.5), 0.3, 0.6), ('bracket', (0.6, 0.62, 0.64), 1.0, 0.35),

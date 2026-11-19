@@ -98,7 +98,7 @@ export const FINISH = {
   turbineBlade: { scale: 12, grain: 0.06, mottle: 0.1, grime: 0.08, grimeCol: [0.18, 0.12, 0.08], rough: 0.15, bump: 0.2 },
   gearSteel: { scale: 14, grain: 0.03, mottle: 0.06, scratch: 0.22, grime: 0.1, grimeCol: [0.16, 0.12, 0.06], bottom: 0.15, rough: 0.14, bump: 0.06, tintVar: [1.0, 0.95, 0.85], tintAmt: 0.25, turn: 0.4, turnF: 1200, edge: 0.3, edgeCol: [0.86, 0.87, 0.89] },
   compressorBlade: { scale: 12, grain: 0.03, scratch: 0.2, grime: 0.06, grimeCol: [0.2, 0.19, 0.17], rough: 0.12, bump: 0.08 },
-  nozzle: { scale: 9, grain: 0.03, scratch: 0.05, mottle: 0.05, grime: 0.1, grimeCol: [0.1, 0.09, 0.08], bottom: 0.2, streak: 0.12, rough: 0.1, bump: 0.06, metalLoss: 0.1 },
+  nozzle: { scale: 9, grain: 0.025, scratch: 0.18, mottle: 0.025, grime: 0.04, grimeCol: [0.16, 0.14, 0.12], bottom: 0.12, streak: 0.06, rough: 0.07, bump: 0.05, edge: 0.2, edgeCol: [0.82, 0.83, 0.85], metalLoss: 0 },   // satin bare metal, worked by hand
   composite: { scale: 6, grain: 0.05, grime: 0.2, grimeCol: [0.05, 0.05, 0.05], bottom: 0.3, rough: 0.12, bump: 0.2, weave: 0.6 },
   polished: { scale: 4, grain: 0.015, scratch: 0.25, grime: 0.06, grimeCol: [0.3, 0.29, 0.27], rough: 0.1, bump: 0.05, turn: 0.5, turnF: 1500 },
   fireSleeve: { scale: 12, grain: 0.1, grime: 0.3, grimeCol: [0.2, 0.1, 0.05], bottom: 0.3, rough: 0.08, bump: 0.5 },
@@ -142,7 +142,7 @@ export function finish(mat, cfg) {
       uSurfC: { value: new THREE.Vector4(c.edge || 0, c.turn || 0, c.weave || 0, c.turnF || 900) }, uEdgeCol: { value: v3(c.edgeCol, [0.75, 0.76, 0.77]) },
       uGrimeCol: { value: v3(c.grimeCol, [0.12, 0.1, 0.08]) },
       uTintVar: { value: v3(c.tintVar, [1, 1, 1]) }, uTintAmt: { value: c.tintAmt ?? (c.tintVar ? 0.5 : 0) },
-      uHeat: { value: new THREE.Vector3(...(c.heat || [0, 1, 0])) }, uSoot: { value: new THREE.Vector3(...(c.soot || [0, 1, 0])) },
+      uHeat: { value: new THREE.Vector3(...(c.heat || [0, 1, 0])) }, uSoot: { value: new THREE.Vector3(...(c.soot || [0, 1, 0])) }, uSootIn: { value: c.sootIn ? 1 : 0 },
     };
     Object.assign(sh.uniforms, U);
     sh.vertexShader = sh.vertexShader
@@ -158,7 +158,7 @@ export function finish(mat, cfg) {
         varying vec3 vSurfP; varying vec3 vSurfN;
         uniform sampler2D uSurf; uniform float uSurfScale; uniform vec4 uSurfA; uniform vec4 uSurfB; uniform float uSurfMetalLoss; uniform float uSurfQ; uniform float uSurfBumpQ;
         uniform vec3 uGrimeCol; uniform vec3 uTintVar; uniform float uTintAmt; uniform vec3 uHeat; uniform vec3 uSoot;
-        uniform vec4 uSurfC; uniform vec3 uEdgeCol;
+        uniform vec4 uSurfC; uniform vec3 uEdgeCol; uniform float uSootIn;
         vec4 surfTri(vec3 p, vec3 w, float s) {
           // projections chosen so the texture's v runs along engine y on every face that can drip: streaks fall
           return texture2D(uSurf, p.zy * s) * w.x + texture2D(uSurf, p.xz * s) * w.y + texture2D(uSurf, p.xy * s) * w.z;
@@ -230,6 +230,10 @@ export function finish(mat, cfg) {
         if (uSoot.z > 0.0) {
           float span2 = uSoot.y - uSoot.x; span2 = abs(span2) < 1e-3 ? 1e-3 : span2;
           sSoot = clamp(((vSurfP.x - uSoot.x) / span2) * (0.6 + 0.8 * sBig.g) + sFine.a * 0.3 - 0.15, 0.0, 1.0) * clamp(uSoot.z, 0.0, 1.0);
+          if (uSootIn > 0.5) {   // only the faces the exhaust washes: the inside of a duct (normal towards the axis)
+            vec3 rd = vec3(0.0, vSurfP.y, vSurfP.z); float rl = length(rd); rd = rl > 1e-5 ? rd / rl : vec3(0.0, 1.0, 0.0);
+            sSoot *= clamp(0.45 - dot(rd, sN) * 1.3, 0.0, 1.0);
+          }
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.045, 0.04), sSoot * 0.85);
         }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>

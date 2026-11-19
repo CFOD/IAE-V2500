@@ -311,6 +311,16 @@
       "x": 0.16
     },
     {
+      "node": "ring_fan_post",
+      "part": "fan",
+      "count": 22,
+      "kind": "rotor",
+      "spool": 1,
+      "phase": 8.181818181818182,
+      "cut": "deep",
+      "x": 0.1675
+    },
+    {
       "node": "ring_fan_bolts36",
       "part": "fan",
       "count": 36,
@@ -543,6 +553,16 @@
       "blade": true
     },
     {
+      "node": "ring_hpc_posts3",
+      "part": "hpc",
+      "count": 36,
+      "kind": "rotor",
+      "spool": 2,
+      "phase": 5.0,
+      "cut": "deep",
+      "x": 1.187
+    },
+    {
       "node": "ring_hpc_r4",
       "part": "hpc",
       "count": 34,
@@ -554,6 +574,16 @@
       "mid": "ring_hpc_r4_mid",
       "x": 1.2542,
       "blade": true
+    },
+    {
+      "node": "ring_hpc_posts4",
+      "part": "hpc",
+      "count": 34,
+      "kind": "rotor",
+      "spool": 2,
+      "phase": 5.294117647058823,
+      "cut": "deep",
+      "x": 1.2542
     },
     {
       "node": "ring_hpc_r5",
@@ -569,6 +599,16 @@
       "blade": true
     },
     {
+      "node": "ring_hpc_posts5",
+      "part": "hpc",
+      "count": 36,
+      "kind": "rotor",
+      "spool": 2,
+      "phase": 5.0,
+      "cut": "deep",
+      "x": 1.3215
+    },
+    {
       "node": "ring_hpc_r6",
       "part": "hpc",
       "count": 38,
@@ -580,6 +620,16 @@
       "mid": "ring_hpc_r6_mid",
       "x": 1.3887,
       "blade": true
+    },
+    {
+      "node": "ring_hpc_posts6",
+      "part": "hpc",
+      "count": 38,
+      "kind": "rotor",
+      "spool": 2,
+      "phase": 4.7368421052631575,
+      "cut": "deep",
+      "x": 1.3887
     },
     {
       "node": "ring_hpccase_s6",
@@ -608,6 +658,16 @@
       "blade": true
     },
     {
+      "node": "ring_hpc_posts7",
+      "part": "hpc",
+      "count": 40,
+      "kind": "rotor",
+      "spool": 2,
+      "phase": 4.5,
+      "cut": "deep",
+      "x": 1.456
+    },
+    {
       "node": "ring_hpccase_s7",
       "part": "hpccase",
       "count": 74,
@@ -632,6 +692,16 @@
       "mid": "ring_hpc_r8_mid",
       "x": 1.5232,
       "blade": true
+    },
+    {
+      "node": "ring_hpc_posts8",
+      "part": "hpc",
+      "count": 42,
+      "kind": "rotor",
+      "spool": 2,
+      "phase": 4.285714285714286,
+      "cut": "deep",
+      "x": 1.5232
     },
     {
       "node": "ring_hpccase_s8",
@@ -660,6 +730,16 @@
       "blade": true
     },
     {
+      "node": "ring_hpc_posts9",
+      "part": "hpc",
+      "count": 44,
+      "kind": "rotor",
+      "spool": 2,
+      "phase": 4.090909090909091,
+      "cut": "deep",
+      "x": 1.5905
+    },
+    {
       "node": "ring_hpccase_s9",
       "part": "hpccase",
       "count": 74,
@@ -684,6 +764,16 @@
       "mid": "ring_hpc_r10_mid",
       "x": 1.6578,
       "blade": true
+    },
+    {
+      "node": "ring_hpc_posts10",
+      "part": "hpc",
+      "count": 48,
+      "kind": "rotor",
+      "spool": 2,
+      "phase": 3.75,
+      "cut": "deep",
+      "x": 1.6578
     },
     {
       "node": "ring_hpccase_s10",
@@ -712,6 +802,16 @@
       "blade": true
     },
     {
+      "node": "ring_hpc_posts11",
+      "part": "hpc",
+      "count": 50,
+      "kind": "rotor",
+      "spool": 2,
+      "phase": 3.6,
+      "cut": "deep",
+      "x": 1.725
+    },
+    {
       "node": "ring_hpccase_s11",
       "part": "hpccase",
       "count": 74,
@@ -736,6 +836,16 @@
       "mid": "ring_hpc_r12_mid",
       "x": 1.7923,
       "blade": true
+    },
+    {
+      "node": "ring_hpc_posts12",
+      "part": "hpc",
+      "count": 54,
+      "kind": "rotor",
+      "spool": 2,
+      "phase": 3.3333333333333335,
+      "cut": "deep",
+      "x": 1.7923
     },
     {
       "node": "ring_hpccase_s12",
@@ -915,6 +1025,26 @@
       "blade": true
     },
     {
+      "node": "ring_hpt_posts1",
+      "part": "hpt",
+      "count": 54,
+      "kind": "rotor",
+      "spool": 2,
+      "phase": 3.3333333333333335,
+      "cut": "deep",
+      "x": 2.295
+    },
+    {
+      "node": "ring_hpt_posts2",
+      "part": "hpt",
+      "count": 54,
+      "kind": "rotor",
+      "spool": 2,
+      "phase": 3.3333333333333335,
+      "cut": "deep",
+      "x": 2.395
+    },
+    {
       "node": "ring_hptcase_flange221_bolts",
       "part": "hptcase",
       "count": 48,
@@ -959,6 +1089,16 @@
       "blade": true
     },
     {
+      "node": "ring_lpt_posts3",
+      "part": "lpt",
+      "count": 50,
+      "kind": "rotor",
+      "spool": 1,
+      "phase": 3.6,
+      "cut": "deep",
+      "x": 2.528
+    },
+    {
       "node": "ring_lptcase_v4",
       "part": "lptcase",
       "count": 52,
@@ -983,6 +1123,16 @@
       "mid": "ring_lpt_r4_mid",
       "x": 2.636,
       "blade": true
+    },
+    {
+      "node": "ring_lpt_posts4",
+      "part": "lpt",
+      "count": 52,
+      "kind": "rotor",
+      "spool": 1,
+      "phase": 3.4615384615384617,
+      "cut": "deep",
+      "x": 2.636
     },
     {
       "node": "ring_lptcase_v5",
@@ -1011,6 +1161,16 @@
       "blade": true
     },
     {
+      "node": "ring_lpt_posts5",
+      "part": "lpt",
+      "count": 54,
+      "kind": "rotor",
+      "spool": 1,
+      "phase": 3.3333333333333335,
+      "cut": "deep",
+      "x": 2.744
+    },
+    {
       "node": "ring_lptcase_v6",
       "part": "lptcase",
       "count": 56,
@@ -1037,6 +1197,16 @@
       "blade": true
     },
     {
+      "node": "ring_lpt_posts6",
+      "part": "lpt",
+      "count": 58,
+      "kind": "rotor",
+      "spool": 1,
+      "phase": 3.103448275862069,
+      "cut": "deep",
+      "x": 2.852
+    },
+    {
       "node": "ring_lptcase_v7",
       "part": "lptcase",
       "count": 60,
@@ -1061,6 +1231,16 @@
       "mid": "ring_lpt_r7_mid",
       "x": 2.96,
       "blade": true
+    },
+    {
+      "node": "ring_lpt_posts7",
+      "part": "lpt",
+      "count": 60,
+      "kind": "rotor",
+      "spool": 1,
+      "phase": 3.0,
+      "cut": "deep",
+      "x": 2.96
     },
     {
       "node": "ring_lpt_bolts3",

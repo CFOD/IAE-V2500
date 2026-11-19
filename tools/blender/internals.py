@@ -239,8 +239,108 @@ OMEGA_LP = 0.95 * 5650 * 2 * math.pi / 60      # design speeds, rad/s (sizes the
 OMEGA_HP = 0.97 * 14950 * 2 * math.pi / 60
 
 
+# ====================================================================== blade roots and disc slots
+# Turbine blades sit in fir-tree slots and the fan blades in dovetail slots broached axially through the disc rim;
+# compressor blades slide round a circumferential dovetail groove turned in the drum. A root is part of its blade's
+# template; the disc posts between axial slots are a ring of their own, so the disc lathes stop at the slot bottom.
+SLOT_GAP = 0.0004   # running clearance between a root and its slot, so the two read as separate parts
+
+
+def root_profile(kind, p, lobes=3):
+    """Half-width w against depth d below the platform for an axial root, [(d, w)] top to bottom, scaled by the
+    pitch arc p at the rim: 'dove' a single dovetail with flanks at about 30 deg (fan), 'fir' a fir-tree of `lobes`
+    serrations (turbines), each a shallow loaded face out to a lobe and a steep return to a narrower neck."""
+    if kind == 'dove':
+        return [(0.0, 0.17 * p), (0.1 * p, 0.17 * p), (0.34 * p, 0.33 * p), (0.385 * p, 0.33 * p), (0.42 * p, 0.27 * p), (0.42 * p, 0.0)]
+    pts = [(0.0, 0.19 * p), (0.45 * p, 0.19 * p)]; d = 0.45 * p
+    for k in range(lobes):
+        wmax = (0.36 - 0.05 * k) * p; wmin = (0.19 - 0.035 * (k + 1)) * p
+        pts += [(d + 0.07 * p, wmax), (d + 0.12 * p, wmax), (d + 0.27 * p, wmin)]; d += 0.27 * p
+    return pts + [(d + 0.05 * p, 0.08 * p), (d + 0.05 * p, 0.0)]
+
+
+def slot_depth(kind, p, lobes=3):
+    """Depth of an axial slot below the platform: the root's bottom plus a gap (the cooling-air feed in a turbine)."""
+    return root_profile(kind, p, lobes)[-1][0] + 0.04 * p
+
+
+def circ_profile(w):
+    """Circumferential dovetail in the axial plane, [(d, a)]: axial half-length a against depth d below the rim, for a
+    rim w wide."""
+    return [(0.0, 0.2 * w), (0.12 * w, 0.2 * w), (0.3 * w, 0.33 * w), (0.36 * w, 0.33 * w), (0.4 * w, 0.27 * w), (0.4 * w, 0.0)]
+
+
+def circ_groove(xm, w, rr):
+    """The groove a circumferential dovetail runs in, as rim-loop points from front to back at the rim radius rr."""
+    pr = [(d, a + SLOT_GAP) for d, a in circ_profile(w) if a > 0]; db = pr[-1][0] + 0.002
+    left = [(xm - a, rr - d) for d, a in pr] + [(xm - pr[-1][1], rr - db)]
+    return left + [(2 * xm - x, r) for x, r in reversed(left)]
+
+
+def _prism_x(K, name, poly, xa, xb, mat, skew=0.0):
+    """Prism along the axis between xa and xb from a closed loop of (r, theta); n-gon end caps. skew (radians) leans
+    it across the axis, as a slot broached at an angle to follow the blade's stagger."""
+    bm = bmesh.new(); n = len(poly); xm = (xa + xb) / 2; k = math.tan(skew)
+    va = [bm.verts.new((xa, -r * math.sin(t + (xa - xm) * k / r), r * math.cos(t + (xa - xm) * k / r))) for r, t in poly]
+    vb = [bm.verts.new((xb, -r * math.sin(t + (xb - xm) * k / r), r * math.cos(t + (xb - xm) * k / r))) for r, t in poly]
+    for i in range(n): bm.faces.new((va[i], va[(i + 1) % n], vb[(i + 1) % n], vb[i]))
+    bm.faces.new(list(reversed(va))); bm.faces.new(vb)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    o = K.obj(name, bm, [mat]); o.data.set_sharp_from_angle(angle=math.radians(35))
+    return o
+
+
+def _prism_t(K, name, poly, half, mat, nt=6):
+    """Sector swept round the axis over angles -half..half from a closed loop of (x, r); n-gon end caps."""
+    bm = bmesh.new(); n = len(poly); rings = []
+    for j in range(nt + 1):
+        t = -half + 2 * half * j / nt
+        rings.append([bm.verts.new((x, -r * math.sin(t), r * math.cos(t))) for x, r in poly])
+    for a, b in zip(rings, rings[1:]):
+        for i in range(n): bm.faces.new((a[i], a[(i + 1) % n], b[(i + 1) % n], b[i]))
+    bm.faces.new(list(reversed(rings[0]))); bm.faces.new(rings[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    o = K.obj(name, bm, [mat]); o.data.set_sharp_from_angle(angle=math.radians(35))
+    return o
+
+
+def root_parts(K, name, root, pitch, mat, hd):
+    """The root under one blade (at angle 0). root: kind 'fir' | 'dove' with top (platform underside radius), xa, xb,
+    lobes and skew (radians, or 'auto': the blade's stagger at the hub, set by row()); or kind 'circ' with rim, up (top
+    of the neck, inside the platform), xm, w."""
+    if root['kind'] == 'circ':
+        pr = [(d, a) for d, a in circ_profile(root['w']) if a > 0]; rr, xm = root['rim'], root['xm']
+        right = [(xm + pr[0][1], root['up'])] + [(xm + a, rr - d) for d, a in pr]
+        poly = right + [(2 * xm - x, r) for x, r in reversed(right)]
+        return [_prism_t(K, name + '_rt', poly, pitch / 2 * 0.992, mat, nt=6 if hd else 3)]
+    top = root['top']; p = top * pitch
+    prof = [(d, w) for d, w in root_profile(root['kind'], p, root.get('lobes', 3)) if w > 0]
+    right = [(top + 0.003, prof[0][1])] + [(top - d, w) for d, w in prof]
+    poly = [(r, s / r) for r, s in right] + [(r, -s / r) for r, s in reversed(right)]
+    parts = [_prism_x(K, name + '_rt', poly, root['xa'], root['xb'], mat, root.get('skew', 0.0))]
+    if root['kind'] == 'fir':   # seal wings ('angel wings') fore and aft of the shank, overlapping the next row's
+        for xa, xb in ((root['xa'] - 0.007, root['xa'] + 0.001), (root['xb'] - 0.001, root['xb'] + 0.007)):
+            parts.append(K.sector_band(name + '_aw', xa, xb, top - 0.0078, top - 0.0058, pitch * 0.97, mat, nx=1, nt=4 if hd else 2))
+    return parts
+
+
+def disc_posts(K, name, part, spool, count, root, mat, nt=6):
+    """The posts of disc rim between axial slots, as a ring template centred between two blades; returns the slot
+    bottom radius (where the disc's own lathe stops)."""
+    pitch = 2 * math.pi / count; top = root['top']; p = top * pitch; lobes = root.get('lobes', 3)
+    rb = top - slot_depth(root['kind'], p, lobes)
+    edge = [(top - d, w + SLOT_GAP) for d, w in root_profile(root['kind'], p, lobes) if w > 0]; edge.append((rb, edge[-1][1]))
+    L = [(r, w / r - pitch / 2) for r, w in edge]                 # top to bottom: the slot at -pitch/2, its far flank
+    R = [(r, pitch / 2 - w / r) for r, w in reversed(edge)]       # bottom to top: the slot at +pitch/2, its near flank
+    bot = [(rb, L[-1][1] + (R[0][1] - L[-1][1]) * k / nt) for k in range(1, nt)]
+    topa = [(top, R[-1][1] + (L[0][1] - R[-1][1]) * k / nt) for k in range(1, nt)]
+    o = _prism_x(K, name, L + bot + R + topa, root['xa'], root['xb'], mat, root.get('skew', 0.0))
+    K.ring(name, o, None, part, count, 'rotor', spool=spool, phase=180.0 / count, cut='deep', extra={'x': round((root['xa'] + root['xb']) / 2, 4)})
+    return rb
+
+
 def row(K, name, part, x0, x1, hub, tip, angles, tmax, mat, kind, spool=0, solidity=1.3, count=None, n_st=9, n_pts=14,
-        gap=0.0015, hub_plat=False, tip_plat=False, shroud=None, vsv=None, te=0.004, le_round=1.0, lean=0.0, sweep=0.0, cut=True, extra_hi=None):
+        gap=0.0015, hub_plat=False, tip_plat=False, shroud=None, vsv=None, te=0.004, le_round=1.0, lean=0.0, sweep=0.0, cut=True, extra_hi=None, root=None):
     """One blade or vane row as a ring template (hi and lo detail). angles(f, r) -> (a1, a2) in degrees,
     signed towards the direction of rotation; tmax(f) -> thickness/chord. Rotor blades leave a tip gap,
     vanes a hub gap unless they have an inner shroud."""
@@ -292,6 +392,10 @@ def row(K, name, part, x0, x1, hub, tip, angles, tmax, mat, kind, spool=0, solid
             parts.append(K.cyl(name + suffix + '_pn', (xu, 0, r_top + 0.004), (xu, 0, r_top + 0.012), 0.0026, mat, seg=sg - 6))
             if hd: parts.append(K.cyl(name + suffix + '_nt', (xs, 0, r_top + 0.004), (xs, 0, r_top + 0.008), 0.0045, M_BOLT[0] or mat, seg=6))   # spindle nut on the lever
         if extra_hi: parts += extra_hi(pitch, st0, rad, hd)
+        if root:
+            if root.get('skew') == 'auto':   # broached along the root's chord line, at most 30 deg off the axis
+                root['skew'] = max(-30 * D2R, min(30 * D2R, (st0[0][4] + st0[0][5]) / 2))
+            parts += root_parts(K, name + suffix, root, pitch, mat, hd)
         return K.join(name + suffix, parts)
     # three levels: hd (high and ultra quality), mid (medium), lo (low)
     hi = build('', n_st + 4, (round(n_pts * 1.5) // 2) * 2, 6, (2 if pitch < 0.14 else 4) + 2, True)
@@ -368,8 +472,13 @@ def build_front(K, M):
             t = 0.11 * (1 - f) ** 1.6 + 0.026
             out.append((r, 0.168 + 0.018 * f ** 1.5, -0.012 * f ** 2, c, -b1 * D2R, -b2 * D2R, t))
         return out
-    fan_hi = K.blade('fanblade', fan_st(32), M['ti_fan'], n=40, caps=(True, True), te=0.003)
-    fan_mid = K.blade('fanblade_mid', fan_st(22), M['ti_fan'], n=26, caps=(True, True), te=0.003)
+    fan_root = dict(kind='dove', top=0.236, xa=0.047, xb=0.288)   # straight axial dovetails, slid in from the front
+    def fan_rooted(blade, hd):   # the airfoil, a shank on its root section under the annulus fillers, and the dovetail
+        st = [(r, 0.168, 0.0, 0.258, -36 * D2R, -1.5 * D2R, 0.136) for r in (0.2355, 0.2445)]
+        sh = K.blade(blade.name + '_sh', st, M['ti_fan'], n=40 if hd else 26, caps=(True, True), te=0.003)
+        return K.join(blade.name, [blade, sh] + root_parts(K, blade.name, fan_root, 2 * math.pi / 22, M['ti_fan'], hd))
+    fan_hi = fan_rooted(K.blade('fanblade', fan_st(32), M['ti_fan'], n=40, caps=(True, True), te=0.003), True)
+    fan_mid = fan_rooted(K.blade('fanblade_mid', fan_st(22), M['ti_fan'], n=26, caps=(True, True), te=0.003), False)
     fan_lo = K.blade('fanblade_lo', fan_st(6), M['ti_fan'], n=8, caps=(True, True))
     K.ring('fan_blade', fan_hi, fan_lo, 'fan', 22, 'rotor', spool=1, extra={'x': 0.168, 'blade': True}, mid=fan_mid)
     # annulus fillers: the hub between each pair of blades is a separate panel following the blade roots,
@@ -422,8 +531,9 @@ def build_front(K, M):
     K.ring('fan_filler', K.join('filler', [filler] + seal_objs), None, 'fan', 22, 'rotor', spool=1, extra={'x': 0.16})
     # fan disc with its dovetail rim, web and bore, the stub shaft running back to bearings 1 and 2, and the
     # front blade retaining ring that locks the blades and fillers (36 bolts into the disc, 22 into the fillers)
-    disc = [(0.045, 0.236), (0.29, 0.236), (0.29, 0.2), (0.25, 0.19), (0.215, 0.175), (0.2, 0.12), (0.215, 0.1), (0.215, 0.075), (0.13, 0.075),
-            (0.13, 0.1), (0.145, 0.12), (0.13, 0.175), (0.09, 0.19), (0.045, 0.2)]
+    rb = disc_posts(K, 'fan_post', 'fan', 1, 22, fan_root, M['disc'])
+    disc = [(0.045, rb), (0.29, rb), (0.29, 0.19), (0.25, 0.182), (0.215, 0.17), (0.2, 0.12), (0.215, 0.1), (0.215, 0.075), (0.13, 0.075),
+            (0.13, 0.1), (0.145, 0.12), (0.13, 0.17), (0.09, 0.182), (0.045, 0.19)]
     K.lathe('fan_disc', disc, M['disc'], cut='deep')
     K.lathe('fan_stubshaft', [(0.2, 0.075), (0.2, 0.088), (0.32, 0.075), (0.62, 0.068), (1.03, 0.066), (1.03, 0.054), (0.62, 0.056), (0.32, 0.062), (0.21, 0.062)], M['disc'], cut='deep')
     K.lathe('fan_retainring', [(0.012, 0.13), (0.012, 0.245), (0.03, 0.245), (0.03, 0.236), (0.045, 0.236), (0.045, 0.2), (0.03, 0.2), (0.03, 0.13)], M['disc'], cut='deep')
@@ -432,7 +542,7 @@ def build_front(K, M):
     b22 = K.hexbolt('b22', 0.012, 0.226, M['bolt'], d=0.011, h=0.007)
     K.ring('fan_bolts22', b22, None, 'fan', 22, 'rotor', spool=1, phase=180 / 22, extra={'x': 0.012})
     # booster drum bolted to the back of the fan disc
-    K.lathe('lpc_drum', [(0.285, 0.2), (0.285, 0.214), (0.36, 0.27), (0.45, 0.305), (0.88, 0.335), (0.88, 0.322), (0.45, 0.292), (0.36, 0.258), (0.3, 0.205)], M['disc'], cut='deep')
+    K.lathe('lpc_drum', [(0.29, 0.19), (0.29, 0.204), (0.36, 0.27), (0.45, 0.305), (0.88, 0.335), (0.88, 0.322), (0.45, 0.292), (0.36, 0.258), (0.302, 0.194)], M['disc'], cut='deep')
 
     # ---------------------------------------------------------------- fan outlet guide vanes (bypass), 60 at the fan frame
     row(K, 'fan_ogv', 'fancase', 1.0, 1.13, lambda x: r_at(BYP_INNER, x), lambda x: r_at(BYP_OUTER, x), vane_angles(30, 38, 0),
@@ -443,11 +553,12 @@ def build_front(K, M):
     turn = [(22, 12), (20, 11), (18, 10), (17, 9)]
     for i in range(4):
         x = 0.47 + i * 0.095
+        rr = ci(x + 0.02) - 0.004
         row(K, f'lpc_r{i + 1}', 'lpc', x, x + 0.04, lambda q: ci(q) + 0.002, co, comp_rotor_angles(OMEGA_LP, 150, 2, *turn[i]),
-            lambda f: 0.07 - 0.03 * f, M['ti'], 'rotor', spool=1, solidity=1.25, hub_plat=True)
+            lambda f: 0.07 - 0.03 * f, M['ti'], 'rotor', spool=1, solidity=1.25, hub_plat=True, root=dict(kind='circ', rim=rr, up=ci(x + 0.02) - 0.001, xm=x + 0.02, w=0.024))
         row(K, f'lpc_s{i + 1}', 'lpccase', x + 0.05, x + 0.085, ci, co, vane_angles(44, 38, 2), lambda f: 0.075, M['ti'], 'stator',
             solidity=1.3, hub_plat=True, tip_plat=True)
-        K.lathe(f'lpc_disc{i + 1}', [(x + 0.008, ci(x + 0.02) - 0.004), (x + 0.032, ci(x + 0.02) - 0.004), (x + 0.03, ci(x) - 0.02), (x + 0.026, ci(x) - 0.045),
+        K.lathe(f'lpc_disc{i + 1}', [(x + 0.008, rr)] + circ_groove(x + 0.02, 0.024, rr) + [(x + 0.032, rr), (x + 0.03, ci(x) - 0.02), (x + 0.026, ci(x) - 0.045),
                                      (x + 0.032, ci(x) - 0.06), (x + 0.032, ci(x) - 0.075), (x + 0.008, ci(x) - 0.075), (x + 0.008, ci(x) - 0.06), (x + 0.014, ci(x) - 0.045), (x + 0.01, ci(x) - 0.02)], M['disc'], cut='deep', steps=96)
     # booster case with the 2.5 bleed ring
     K.lathe('lpccase_shell', [(0.4, co(0.4)), (0.4, co(0.4) + 0.014), (0.9, co(0.9) + 0.016), (0.9, co(0.9))] , M['case'])
@@ -473,25 +584,26 @@ def build_front(K, M):
     for i in range(10):
         x = xr0 + 0.068 * i; w = 0.034 - 0.0015 * i
         mat = M['ti'] if i < 6 else M['nickel']
-        row(K, f'hpc_r{i + 3}', 'hpc', x, x + w, lambda q: ci(q) + 0.001, co, comp_rotor_angles(OMEGA_HP, 175 - 3 * i, 20 if i == 0 else 8, 20 - 0.4 * i, 13 - 0.3 * i),
-            lambda f: 0.065 - 0.025 * f, mat, 'rotor', spool=2, solidity=1.3 + 0.02 * i, hub_plat=True)
+        bore = 0.09 + 0.012 * i / 9
+        croot = dict(kind='dove', top=ci(x + w / 2) - 0.004, xa=x + 0.002, xb=x + w - 0.002, skew='auto')   # dovetail slots broached at the root's stagger
+        _, n_c = row(K, f'hpc_r{i + 3}', 'hpc', x, x + w, lambda q: ci(q) + 0.001, co, comp_rotor_angles(OMEGA_HP, 175 - 3 * i, 20 if i == 0 else 8, 20 - 0.4 * i, 13 - 0.3 * i),
+            lambda f: 0.065 - 0.025 * f, mat, 'rotor', spool=2, solidity=1.3 + 0.02 * i, hub_plat=True, root=croot)
+        rr = disc_posts(K, f'hpc_posts{i + 3}', 'hpc', 2, n_c, croot, M['disc'])
         if i >= 3:
             xs0 = x + 0.036; last = i == 9
             row(K, f'hpccase_s{i + 3}', 'hpccase', xs0, xs0 + (0.03 if last else 0.024), ci, co, vane_angles(46, 42, 0 if last else 6), lambda f: 0.075, mat, 'stator',
                 solidity=1.4 if last else 1.35, hub_plat=True, tip_plat=True, n_st=6, n_pts=12)
-        # disc: rim under the blades, thin web, thick bore; knife-edge seal teeth under the next stator
-        rr = ci(x + w / 2) - 0.006; bore = 0.09 + 0.012 * i / 9
-        K.lathe(f'hpc_disc{i + 3}', [(x + 0.002, rr), (x + w - 0.002, rr), (x + w - 0.004, rr - 0.012), (x + w / 2 + 0.004, rr - 0.03), (x + w / 2 + 0.004, bore + 0.03), (x + w / 2 + 0.014, bore + 0.012),
-                                     (x + w / 2 + 0.014, bore), (x + w / 2 - 0.014, bore), (x + w / 2 - 0.014, bore + 0.012), (x + w / 2 - 0.004, bore + 0.03), (x + w / 2 - 0.004, rr - 0.03), (x + 0.004, rr - 0.012)],
+        # disc: dovetail posts (their own ring), the live rim under the slots, thin web, thick bore; knife-edge seal teeth under the next stator
+        K.lathe(f'hpc_disc{i + 3}', [(x + 0.002, rr), (x + w - 0.002, rr), (x + w - 0.003, rr - 0.01), (x + w / 2 + 0.004, rr - 0.024), (x + w / 2 + 0.004, bore + 0.03), (x + w / 2 + 0.014, bore + 0.012),
+                                     (x + w / 2 + 0.014, bore), (x + w / 2 - 0.014, bore), (x + w / 2 - 0.014, bore + 0.012), (x + w / 2 - 0.004, bore + 0.03), (x + w / 2 - 0.004, rr - 0.024), (x + 0.003, rr - 0.01)],
                M['disc'], cut='deep', steps=96)
         xn = x + w; xn1 = xr0 + 0.068 * (i + 1)
         if i < 9:   # drum spacer between discs, carrying the seal teeth
-            rs = min(ci(xn), ci(xn1)) - 0.008
-            K.lathe(f'hpc_spacer{i + 3}', [(xn - 0.003, rr - 0.004), (xn1 + 0.003, ci(xn1 + 0.01) - 0.01), (xn1 + 0.003, ci(xn1 + 0.01) - 0.014), (xn - 0.003, rr - 0.008)], M['disc'], cut='deep', steps=96)
+            land = ci((xn + xn1) / 2) - 0.012   # the arm leaves the live rim below the slots and rises to a land under the stator
+            K.lathe(f'hpc_spacer{i + 3}', [(xn - 0.002, rr - 0.002), (xn + 0.006, land), (xn1 + 0.001, land), (xn1 + 0.001, land - 0.004), (xn + 0.006, land - 0.004), (xn - 0.002, rr - 0.006)], M['disc'], cut='deep', steps=96)
             for kk in range(3):
-                xk = xn + 0.008 + kk * 0.008
-                rk = rr - 0.004 + (ci(xn1 + 0.01) - 0.01 - rr + 0.004) * (xk - xn) / (xn1 - xn)
-                K.lathe(f'hpc_ke{i}_{kk}', [(xk - 0.0012, rk - 0.001), (xk, rk + 0.005), (xk + 0.0012, rk - 0.001)], M['disc'], cut='deep', steps=96)
+                xk = xn + 0.009 + kk * 0.008
+                K.lathe(f'hpc_ke{i}_{kk}', [(xk - 0.0012, land - 0.001), (xk, land + 0.006), (xk + 0.0012, land - 0.001)], M['disc'], cut='deep', steps=96)
     # HPC cases: front case (variable vanes) and rear case with the stage 7 and 10 bleed manifolds
     K.lathe('hpccase_front', [(1.15, co(1.15)), (1.15, co(1.15) + 0.026), (1.42, co(1.42) + 0.024), (1.42, co(1.42))], M['case'])
     K.lathe('hpccase_rear', [(1.42, co(1.42)), (1.42, co(1.42) + 0.024), (1.52, co(1.52) + 0.05), (1.62, co(1.62) + 0.05), (1.66, co(1.66) + 0.024),
@@ -636,26 +748,27 @@ def build_rear(K, M):
     hpt_tip = lambda q: co(q) - 0.0035
     row(K, 'hptcase_ngv1', 'hptcase', 2.225, 2.265, ci, co, vane_angles(0, 0, 72), lambda f: 0.26, M['tbc'], 'stator', solidity=1.25, hub_plat=True, tip_plat=True,
         te=0.03, le_round=1.45, n_st=6, n_pts=16, extra_hi=vane_x(0.03, 1.45))
-    row(K, 'hpt_r1', 'hpt', 2.275, 2.315, lambda q: ci(q) + 0.001, hpt_tip, lambda f, r: (42 - 6 * f, -62 - 3 * f), lambda f: 0.27 - 0.08 * f, M['hptb'], 'rotor', spool=2,
-        solidity=1.3, hub_plat=True, te=0.03, le_round=1.45, n_st=8, n_pts=16, extra_hi=blade_x(0.03, 1.45))
+    hroot = [dict(kind='fir', lobes=3, top=ci((a + b) / 2) - 0.004, xa=a + 0.002, xb=b - 0.002) for a, b in ((2.275, 2.315), (2.375, 2.415))]   # three-lobe fir-trees
+    _, n_h1 = row(K, 'hpt_r1', 'hpt', 2.275, 2.315, lambda q: ci(q) + 0.001, hpt_tip, lambda f, r: (42 - 6 * f, -62 - 3 * f), lambda f: 0.27 - 0.08 * f, M['hptb'], 'rotor', spool=2,
+        solidity=1.3, hub_plat=True, te=0.03, le_round=1.45, n_st=8, n_pts=16, extra_hi=blade_x(0.03, 1.45), root=hroot[0])
     row(K, 'hptcase_ngv2', 'hptcase', 2.325, 2.365, ci, co, vane_angles(-26, -20, 66), lambda f: 0.22, M['tbc'], 'stator', solidity=1.25, hub_plat=True, tip_plat=True,
         te=0.025, le_round=1.35, n_st=6, n_pts=16, extra_hi=vane_x(0.025, 1.35))
-    row(K, 'hpt_r2', 'hpt', 2.375, 2.415, lambda q: ci(q) + 0.001, hpt_tip, lambda f, r: (38 - 8 * f, -58 - 4 * f), lambda f: 0.23 - 0.08 * f, M['hptb'], 'rotor', spool=2,
-        solidity=1.25, hub_plat=True, te=0.025, le_round=1.4, n_st=8, n_pts=16, extra_hi=blade_x(0.025, 1.4))
+    _, n_h2 = row(K, 'hpt_r2', 'hpt', 2.375, 2.415, lambda q: ci(q) + 0.001, hpt_tip, lambda f, r: (38 - 8 * f, -58 - 4 * f), lambda f: 0.23 - 0.08 * f, M['hptb'], 'rotor', spool=2,
+        solidity=1.25, hub_plat=True, te=0.025, le_round=1.4, n_st=8, n_pts=16, extra_hi=blade_x(0.025, 1.4), root=hroot[1])
     # blade outer air seals over each rotor, and the vane supports between
     for k, (a, b) in enumerate(((2.268, 2.322), (2.368, 2.422))):
         K.lathe(f'hptcase_oas{k + 1}', prof_band(CORE_OUTER, a, b, 0.0005, 0.013), M['honey'], steps=144)
     for k, (a, b) in enumerate(((2.222, 2.268), (2.322, 2.368))):
         K.lathe(f'hptcase_vsup{k + 1}', prof_band(CORE_OUTER, a + 0.004, b - 0.004, 0.006, 0.014), M['hot'], steps=144)
-    # discs: fir-tree rim under the blades, web, deep bore; a cover plate on the front of disc 1 and an
-    # interstage spacer carrying knife edges under the second vanes
-    for k, (x0, x1) in enumerate(((2.275, 2.315), (2.375, 2.415))):
-        xm = (x0 + x1) / 2; rim = ci(xm) - 0.004
-        K.lathe(f'hpt_disc{k + 1}', [(x0 + 0.002, rim), (x1 - 0.002, rim), (x1, rim - 0.025), (xm + 0.009, rim - 0.05), (xm + 0.007, 0.16), (xm + 0.024, 0.15), (xm + 0.024, 0.118),
-                                     (xm - 0.024, 0.118), (xm - 0.024, 0.15), (xm - 0.007, 0.16), (xm - 0.009, rim - 0.05), (x0, rim - 0.025)], M['disc'], cut='deep', steps=144)
-        K.lathe(f'hpt_rimseal{k + 1}', [(x0 - 0.004, rim - 0.002), (x0, rim - 0.002), (x0, rim - 0.006), (x0 - 0.004, rim - 0.006)], M['disc'], cut='deep', steps=144)
-    K.lathe('hpt_cover1', [(2.267, 0.232), (2.271, 0.232), (2.282, 0.172), (2.278, 0.172)], M['disc'], cut='deep', steps=144)
-    K.lathe('hpt_spacer', [(2.315, 0.21), (2.375, 0.21), (2.375, 0.2), (2.315, 0.2)], M['disc'], cut='deep', steps=144)
+    # discs: fir-tree posts round the rim (a ring of their own), the live rim under the slots, web, deep bore; a
+    # cover plate on the front of disc 1 closing the slots (it feeds them cooling air) and an interstage spacer
+    # carrying knife edges under the second vanes
+    for k, ((x0, x1), n_b) in enumerate((((2.275, 2.315), n_h1), ((2.375, 2.415), n_h2))):
+        xm = (x0 + x1) / 2; rb = disc_posts(K, f'hpt_posts{k + 1}', 'hpt', 2, n_b, hroot[k], M['disc'])
+        K.lathe(f'hpt_disc{k + 1}', [(x0 + 0.002, rb), (x1 - 0.002, rb), (x1 - 0.002, rb - 0.008), (xm + 0.009, rb - 0.024), (xm + 0.007, 0.16), (xm + 0.024, 0.15), (xm + 0.024, 0.118),
+                                     (xm - 0.024, 0.118), (xm - 0.024, 0.15), (xm - 0.007, 0.16), (xm - 0.009, rb - 0.024), (x0 + 0.002, rb - 0.008)], M['disc'], cut='deep', steps=144)
+    K.lathe('hpt_cover1', [(2.267, 0.232), (2.271, 0.232), (2.276, 0.205), (2.282, 0.172), (2.278, 0.172), (2.272, 0.205)], M['disc'], cut='deep', steps=144)
+    K.lathe('hpt_spacer', [(2.313, 0.199), (2.322, 0.2), (2.322, 0.21), (2.368, 0.21), (2.368, 0.2), (2.377, 0.199), (2.377, 0.19), (2.313, 0.19)], M['disc'], cut='deep', steps=144)
     for kk in range(3):
         xk = 2.332 + 0.013 * kk
         K.lathe(f'hpt_ke{kk}', [(xk - 0.0014, 0.2095), (xk, 0.2165), (xk + 0.0014, 0.2095)], M['disc'], cut='deep', steps=144)
@@ -676,18 +789,24 @@ def build_rear(K, M):
         xs0 = 2.455 + i * 0.108; xr = xs0 + 0.054; xm = xr + 0.019
         row(K, f'lptcase_v{i + 3}', 'lptcase', xs0, xs0 + 0.042, ci, co, vane_angles(-34, -28, 50), lambda f: 0.11, M['lptb'], 'stator', solidity=1.1,
             hub_plat=True, tip_plat=True, te=0.012, le_round=1.15, n_st=8, n_pts=14)
-        row(K, f'lpt_r{i + 3}', 'lpt', xr, xr + 0.038, lambda q: ci(q) + 0.001, lambda q: co(q) - 0.006, lambda f, r: (34 - 6 * f, -54 - 3 * f), lambda f: 0.1 - 0.04 * f,
-            M['lptb'], 'rotor', spool=1, solidity=1.0, hub_plat=True, shroud=True, te=0.01, le_round=1.15, n_st=9, n_pts=14)
-        rim = ci(xm) - 0.004; lpt_rims.append((xr, xm, rim))
-        K.lathe(f'lpt_disc{i + 3}', [(xr + 0.002, rim), (xr + 0.036, rim), (xr + 0.036, rim - 0.018), (xm + 0.005, rim - 0.03), (xm + 0.005, 0.2), (xm + 0.013, 0.188), (xm + 0.013, 0.168),
-                                     (xm - 0.013, 0.168), (xm - 0.013, 0.188), (xm - 0.005, 0.2), (xm - 0.005, rim - 0.03), (xr + 0.002, rim - 0.018)], M['disc'], cut='deep', steps=144)
+        lroot = dict(kind='fir', lobes=2, top=ci(xm) - 0.004, xa=xr + 0.002, xb=xr + 0.036)   # two-lobe fir-trees
+        _, n_l = row(K, f'lpt_r{i + 3}', 'lpt', xr, xr + 0.038, lambda q: ci(q) + 0.001, lambda q: co(q) - 0.006, lambda f, r: (34 - 6 * f, -54 - 3 * f), lambda f: 0.1 - 0.04 * f,
+            M['lptb'], 'rotor', spool=1, solidity=1.0, hub_plat=True, shroud=True, te=0.01, le_round=1.15, n_st=9, n_pts=14, root=lroot)
+        rb = disc_posts(K, f'lpt_posts{i + 3}', 'lpt', 1, n_l, lroot, M['disc']); lpt_rims.append((xr, xm, rb))
+        K.lathe(f'lpt_disc{i + 3}', [(xr + 0.002, rb), (xr + 0.036, rb), (xr + 0.036, rb - 0.005), (xm + 0.005, rb - 0.013), (xm + 0.005, 0.2), (xm + 0.013, 0.188), (xm + 0.013, 0.168),
+                                     (xm - 0.013, 0.168), (xm - 0.013, 0.188), (xm - 0.005, 0.2), (xm - 0.005, rb - 0.013), (xr + 0.002, rb - 0.005)], M['disc'], cut='deep', steps=144)
         # honeycomb in the case over each shroud, and under each vane's inner shroud
         K.lathe(f'lptcase_hc{i + 3}', prof_band(CORE_OUTER, xr - 0.002, xr + 0.04, 0.0035, 0.009), M['honey'], steps=144)
         K.lathe(f'lptcase_ihc{i + 3}', [(xs0, ci(xs0) - 0.0105), (xs0 + 0.042, ci(xs0 + 0.042) - 0.0105), (xs0 + 0.042, ci(xs0 + 0.042) - 0.005), (xs0, ci(xs0) - 0.005)], M['honey'], cut='deep', steps=144)
-    for i in range(4):   # seal arms between discs: knife edges under the next vane row, bolted flange at the next disc
+    for i in range(4):   # seal arms between discs: up from the live rim to a land carrying knife edges under the next vane row, down to a bolted flange at the next disc
         (xa, _, ra), (xb, _, rb) = lpt_rims[i], lpt_rims[i + 1]
-        x0, x1 = xa + 0.036, xb + 0.002; ar = lambda x: ra - 0.01 + (rb - ra) * (x - x0) / (x1 - x0)
-        K.lathe(f'lpt_arm{i + 3}', [(x0, ar(x0)), (x1, ar(x1)), (x1, ar(x1) - 0.004), (x0, ar(x0) - 0.004)], M['disc'], cut='deep', steps=144)
+        x0, x1 = xa + 0.036, xb + 0.002; land = ci((x0 + x1) / 2) - 0.021
+        def ar(x, x0=x0, x1=x1, ra=ra, rb=rb, land=land):
+            if x < x0 + 0.012: return ra - 0.003 + (land - ra + 0.003) * (x - x0) / 0.012
+            if x > x1 - 0.012: return land + (rb - 0.003 - land) * (x - x1 + 0.012) / 0.012
+            return land
+        xs_arm = [x0, x0 + 0.012, x1 - 0.012, x1]
+        K.lathe(f'lpt_arm{i + 3}', [(x, ar(x)) for x in xs_arm] + [(x, ar(x) - 0.004) for x in reversed(xs_arm)], M['disc'], cut='deep', steps=144)
         for kk in range(3):
             xk = xa + 0.064 + 0.012 * kk
             K.lathe(f'lpt_ke{i + 3}_{kk}', [(xk - 0.0013, ar(xk) - 0.001), (xk, ci(xk) - 0.0112), (xk + 0.0013, ar(xk) - 0.001)], M['disc'], cut='deep', steps=144)
