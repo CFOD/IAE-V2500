@@ -42,14 +42,26 @@ if (!process.argv.includes('--no-sounds')) {
 }
 // The web host sends the model uncompressed, so publish a gzipped copy as well: the page fetches that and unpacks
 // it itself (DecompressionStream), falling back to the plain file. Apps load from local files and skip it (--local).
+// Cloudflare Pages refuses any file over 25 MiB, and the whole deploy with it, so anything bigger is published in
+// parts (name.0, name.1 ...) that the page joins; the manifest says how many (packedParts, fileParts).
+const LIMIT = 24 * 1048576;
+function writeParts(file, buf) {
+  if (buf.length <= LIMIT) { fs.writeFileSync(file, buf); return 0; }
+  const k = Math.ceil(buf.length / LIMIT);
+  for (let i = 0; i < k; i++) fs.writeFileSync(`${file}.${i}`, buf.subarray(i * LIMIT, (i + 1) * LIMIT));
+  return k;
+}
 let packed = '';
 if (!process.argv.includes('--local')) {
   const md = path.join(out, 'models'), sizes = [];
   for (const name of ['model.json', 'apron.json']) {   // the engine, and the aircraft for the apron scene
     const mf = path.join(md, name); if (!fs.existsSync(mf)) continue;
-    const man = JSON.parse(fs.readFileSync(mf, 'utf8')), gz = zlib.gzipSync(fs.readFileSync(path.join(md, man.file)), { level: 9 });
-    man.packed = man.file + '.gz'; fs.writeFileSync(path.join(md, man.packed), gz); fs.writeFileSync(mf, JSON.stringify(man, null, 2));
-    sizes.push(`${man.file} ${(gz.length / 1048576).toFixed(1)} MB`);
+    const man = JSON.parse(fs.readFileSync(mf, 'utf8')), gf = path.join(md, man.file), raw = fs.readFileSync(gf), gz = zlib.gzipSync(raw, { level: 9 });
+    man.packed = man.file + '.gz'; delete man.packedParts; delete man.fileParts;
+    const pp = writeParts(path.join(md, man.packed), gz); if (pp) man.packedParts = pp;
+    if (raw.length > LIMIT) { fs.rmSync(gf); man.fileParts = writeParts(gf, raw); }   // the plain fallback, in parts
+    fs.writeFileSync(mf, JSON.stringify(man, null, 2));
+    sizes.push(`${man.file} ${(gz.length / 1048576).toFixed(1)} MB${pp ? ` in ${pp} parts` : ''}${man.fileParts ? ` (plain file in ${man.fileParts} parts)` : ''}`);
   }
   packed = `, packed: ${sizes.join(', ')}`;
 }
@@ -87,4 +99,8 @@ fs.writeFileSync(path.join(out, 'LICENSES.txt'), [
   '',
 ].join('\n'));
 fs.writeFileSync(path.join(out, '404.html'), '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=/"><title>V2500</title><a href="/">V2500 Engine Simulator</a>');
+// fail here rather than at Cloudflare's upload, where the whole deploy is refused
+const big = [];
+(function scan(d) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const f = path.join(d, e.name); if (e.isDirectory()) scan(f); else if (fs.statSync(f).size > 25 * 1048576) big.push(path.relative(out, f)); } })(out);
+if (big.length) { console.error(`dist-web/: over Cloudflare Pages' 25 MiB file limit: ${big.join(', ')}`); process.exit(1); }
 console.log(`dist-web/: ${n} files, ${(bytes / 1048576).toFixed(1)} MB${sounds || ' (no sound pack)'}${packed}, no third-party models`);

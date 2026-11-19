@@ -190,7 +190,7 @@ export class ApronView {
     if (this.loading) return this.loading;
     this.loading = (async () => {
       const man = await (await fetch(base + 'apron.json' + query, { cache: 'no-cache' })).json();
-      const gltf = (await this.v._loadPacked(base, { packed: man.packed ? man.packed + query : null })) || (await new GLTFLoader().loadAsync(base + man.file + query));
+      const gltf = (await this.v._loadPacked(base, { packed: man.packed ? man.packed + query : null, packedParts: man.packedParts })) || (await this.v._loadPlain(base, { file: man.file + query, fileParts: man.fileParts }));
       const own = {};
       gltf.scene.traverse((m) => {
         if (!m.isMesh) return;

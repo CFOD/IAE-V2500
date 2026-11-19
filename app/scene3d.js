@@ -1295,7 +1295,7 @@ export class Scene3D {
         blanket: { ...FINISH.stainlessTube, scale: 7, grime: 0.18, bump: 0.3 }, seal: FINISH.rubber, abradable: { ...FINISH.castPaint, grime: 0.12, bottom: 0.1 }, icepanel: FINISH.castPaint,
       }[name] || null;
     };
-    const gltf = (await this._loadPacked(base, manifest)) || await new GLTFLoader().loadAsync(base + manifest.file, (e) => this.onModelProgress && this.onModelProgress(e.lengthComputable ? e.loaded / e.total : null));
+    const gltf = (await this._loadPacked(base, manifest)) || await this._loadPlain(base, manifest);
     const root = gltf.scene; root.scale.setScalar(manifest.scale || 1);
     if (manifest.position) root.position.fromArray(manifest.position);
     if (manifest.rotation) root.rotation.set(...manifest.rotation.map((d) => d * DEG));
@@ -1357,17 +1357,32 @@ export class Scene3D {
   }
 
   /** The gzipped copy of the model that the web build publishes (manifest.packed), unpacked here; null to load the plain file. */
+  /** Fetch a file, or its parts (url.0, url.1 ... before any query) joined, reporting progress. */
+  async _fetchJoined(url, parts) {
+    const urls = parts ? Array.from({ length: parts }, (_, i) => url.replace(/(\?|$)/, `.${i}$1`)) : [url];
+    const rs = await Promise.all(urls.map((u) => fetch(u)));
+    for (const [i, r] of rs.entries()) if (!r.ok || !r.body) throw new Error(`${urls[i]}: ${r.status}`);
+    const lens = rs.map((r) => +r.headers.get('content-length') || 0), total = lens.every((x) => x) ? lens.reduce((a, b) => a + b, 0) : 0;
+    const chunks = []; let got = 0;
+    for (const r of rs) {
+      const reader = r.body.getReader();
+      for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.byteLength; if (this.onModelProgress) this.onModelProgress(total ? Math.min(1, got / total) : null); }
+    }
+    return await new Blob(chunks).arrayBuffer();
+  }
   async _loadPacked(base, manifest) {
     if (!manifest.packed || typeof DecompressionStream !== 'function') return null;
     try {
-      const r = await fetch(base + manifest.packed); if (!r.ok || !r.body) return null;
-      const total = +r.headers.get('content-length') || 0, reader = r.body.getReader(), parts = []; let got = 0;
-      for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); got += value.byteLength; if (this.onModelProgress) this.onModelProgress(total ? Math.min(1, got / total) : null); }
-      let buf = await new Blob(parts).arrayBuffer();
+      let buf = await this._fetchJoined(base + manifest.packed, manifest.packedParts);
       const b = new Uint8Array(buf, 0, 4);
       if (b[0] === 0x1f && b[1] === 0x8b) buf = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();   // else the host already unpacked it
       return await new GLTFLoader().parseAsync(buf, base);
     } catch (e) { console.warn('packed model failed, loading the plain file', e); return null; }
+  }
+  /** The plain model: one file, or parts on a host with a file size limit (tools/build-web.mjs). */
+  async _loadPlain(base, manifest) {
+    if (!manifest.fileParts) return new GLTFLoader().loadAsync(base + manifest.file, (e) => this.onModelProgress && this.onModelProgress(e.lengthComputable ? e.loaded / e.total : null));
+    return new GLTFLoader().parseAsync(await this._fetchJoined(base + manifest.file, manifest.fileParts), base);
   }
   /**
    * Merge the meshes of an authored part that share a group, a cutaway variant and a material into one mesh each:
