@@ -205,10 +205,11 @@ const portLabel = (p) => (p.id === 'fan' ? 'From the intake' : p.id === 'lpc1' ?
 function bsBuild() {
   if (!view3d) { bsTab.innerHTML = '<p class="note">The borescope needs the 3D view.</p>'; return; }
   const ports = view3d.borescope.ports();
-  bsTab.innerHTML = '<p class="note" style="margin-top:2px">Pick a port to put the borescope in. Drag to steer the tip, scroll or pinch to push it in or out, and turn the spool a blade at a time with the buttons. Shut the engine down first: a turning spool just blurs past.</p>'
+  bsTab.innerHTML = '<div class="presets" id="bsTabExit" hidden><button class="on" style="background:rgba(150,28,20,.9);color:#fff">Exit borescope</button></div><p class="note" style="margin-top:2px">Pick a port to put the borescope in. Drag to steer the tip, scroll or pinch to push it in or out, and turn the spool a blade at a time with the buttons. Shut the engine down first: a turning spool just blurs past.</p>'
     + PORT_GROUPS.map(([g, re]) => { const ps = ports.filter((p) => re.test(p.id)); return ps.length ? `<h4>${g}</h4><div class="presets">${ps.map((p) => `<button data-port="${p.id}" title="${p.sees}">${portLabel(p)}</button>`).join('')}</div>` : ''; }).join('')
     + '<h4>Damage recorded</h4><p class="note" style="margin:2px 0 4px">Press <b>Look</b> to put the probe in the right port and turn the spool round to that blade.</p><div id="bsDamage" class="aprlist"></div>';
   for (const b of bsTab.querySelectorAll('button[data-port]')) b.onclick = () => bsEnter(ports.find((p) => p.id === b.dataset.port));
+  $('bsTabExit').querySelector('button').onclick = () => bsLeave();
   $('bsDamage').onclick = (e) => { const b = e.target.closest('button[data-go]'); if (b) { const [k, i, sp] = b.dataset.go.split(':'); bsGo(k, +i, +sp); } };
 }
 // the port and row for each kind of damage the list shows
@@ -224,15 +225,29 @@ function bsEnter(port) {
   if (!view3d || !port) return;
   if (mode !== '3d') setMode('3d');
   if (eng.out.N2pct > 2 || eng.out.N1pct > 2) logMsg('Borescope: the engine is turning. Inspections are done with it shut down; the blades will blur past.');
+  const was = view3d.borescope.on;
   view3d.borescope.enter(port); bsOver.hidden = false; document.body.classList.add('bs-on');
-  logMsg(`Borescope in: ${port.sees}`);
+  // on tablets and phones the panel would cover the view: close it; and let Back (Android, browser) leave
+  if (COMPACT.matches && !$('drawer').classList.contains('shut')) { $('drawer').classList.add('shut'); $('btnDrawer').classList.remove('on'); bsDrawerShut = true; }
+  if (!was) { try { history.pushState({ borescope: true }, ''); } catch (e) { /* no history (file://) */ } }
+  frame3d(); bsRefresh();
+  logMsg(`Borescope in: ${port.sees}. Exit with the button at the top, Esc or Back.`);
 }
-function bsLeave() { if (!view3d) return; view3d.borescope.exit(); bsOver.hidden = true; document.body.classList.remove('bs-on'); }
-$('bsLeave').onclick = bsLeave;
+let bsDrawerShut = false;
+function bsLeave(fromHistory = false) {
+  if (!view3d || !view3d.borescope.on) return;
+  view3d.borescope.exit(); bsOver.hidden = true; document.body.classList.remove('bs-on');
+  if (bsDrawerShut) { $('drawer').classList.remove('shut'); $('btnDrawer').classList.add('on'); bsDrawerShut = false; }
+  if (!fromHistory && history.state && history.state.borescope) { try { history.back(); } catch (e) { /* ignore */ } }
+  frame3d(); bsRefresh();
+}
+$('bsLeave').onclick = () => bsLeave(); $('bsExit').onclick = () => bsLeave();
+addEventListener('popstate', () => { if (view3d && view3d.borescope.on) bsLeave(true); });
 for (const b of bsOver.querySelectorAll('button[data-n]')) b.onclick = () => view3d.borescope.stepBlade(+b.dataset.n);
 function bsRefresh() {
   if (!view3d) return;
   const B = view3d.borescope;
+  const te = $('bsTabExit'); if (te) te.hidden = !B.on;
   if (B.on) {
     const i = B.info, p = B.port, turning = eng.out.N2pct > 2 || eng.out.N1pct > 2;
     $('bsInfo').innerHTML = `<b>${p.part === 'fan' ? 'FAN' : p.id.toUpperCase()}</b> · ${p.sees}<br>${i.what ? `${i.what}${i.damage ? ` — <span class="bad">${i.damage}</span>` : ' — no damage seen'}` : '<span class="dim">aim at a blade or vane</span>'}${i.blade ? `<br><span class="dim">${i.blade}</span>` : ''}${turning ? '<br><span class="bad">Engine turning</span>' : ''}`;

@@ -50,27 +50,46 @@ and the red equipment restraint line. The light is daylight, with sky and haze.
 
 ### Intake
 
-The intake is a sink that swallows the engine's volume flow (W2 / density). Its centre sits 0.35 m inside
-the inlet, so the lip plane sees the full inflow. It draws mostly from ahead; about a third of the flow comes
-from behind the lip, shaded by the nacelle. Air from behind the lip is drawn towards a point just ahead of
-it, so it runs forward along the cowl and round the lip.
+The intake is a sink that swallows the engine's volume flow (W2 / density). Its centre sits on the inlet face,
+6 cm behind the highlight plane. It draws mostly from ahead. Air from behind the lip counts for half as much,
+because the nacelle shades it.
 
-An image sink below the ground keeps air from passing through it. At the ground plane the vertical flow is
-zero; a test checks this.
+An image sink below the ground keeps air from passing through it: at the ground plane the vertical flow is
+zero, and a test checks this. So the air along the ground converges on the stagnation point under the
+intake, and that is where loose debris gathers.
+
+The cowl is solid. Within 0.8 m of its skin behind the lip, the part of the flow heading into the cowl is
+turned along it, towards the lip. Air from under and beside the nacelle therefore runs forward along the cowl
+and curls over the lip into the intake, never through the skin. A test checks this all round the nacelle.
 
 ### Ground vortex
 
 An engine standing still with its inlet 1.25 diameters above the ground forms a vortex between the two. In
 the model:
 
-- **Strength.** Its circulation is 0.4 x inlet speed x diameter.
-- **Position.** It wanders round the ground stagnation point under the lip and pulses in strength. Both are
-  random processes that revert to a mean.
+- **Strength.** Its circulation is 0.4 x inlet speed x diameter, pulsing gently.
+- **Where it stands.** Its foot is near the stagnation point, 25 cm ahead of the lip, drifting a few
+  centimetres.
+- **Shape.** The core rises almost vertically and bends aft late into the lower half of the inlet face, well
+  inside the lip. A test checks that it never passes through the cowl. The rope drawn in the 3D view follows
+  the same curve.
 - **Near the ground.** Friction slows the swirl and the inflow takes over, sweeping debris into the core
-  (the tea-leaf effect). A narrow updraft in the core and a broader, gentler one round it lift what arrives.
-- **Strength by power.** At take-off the core updraft exceeds 50 m/s, enough to lift a bolt or a stone once
-  the core passes over it. At idle the vortex is weak and only lifts a plastic bag.
-- **What you see.** The vortex rope and dust in the 3D view follow its foot.
+  (the tea-leaf effect). A narrow updraft along the core and a broader, gentler one round the foot lift
+  what arrives and carry it up into the intake.
+- **Strength by power.** At take-off the core updraft exceeds 50 m/s, enough to lift a bolt or a stone
+  that lies in its path. At idle the vortex is weak and only lifts a plastic bag.
+- **What you see.** The vortex rope and the dust at its foot.
+
+### What it does to loose things
+
+The ground flow acts at once, and whether an object moves depends on the air speed where it lies:
+
+- **At take-off:** a rag 1.5 m ahead of the lip is drawn in within a second, and one 3.5 m out within
+  about 2.5 s.
+- **At idle:** a plastic bag drifts in over a few seconds. A rag stays put, because the air at ground level
+  (about 1.5 m/s) cannot beat its friction.
+- **Heavy things:** a bolt or a cone stays where it is unless it lies in the vortex's path. That is how heavy
+  debris really gets ingested.
 
 ### Calibration against the Airbus danger areas (AC 6-3)
 
@@ -78,9 +97,9 @@ Take the intake danger boundary as a contour of induced air speed, 1.0 m/s:
 
 | Power | Model | Airbus |
 |---|---|---|
-| Idle | 2.8 m | 2.74 m |
-| Breakaway | about 4.9 m | 5.0 m |
-| Take-off | about 7.4 m | 5.18 m |
+| Idle | 2.9 m | 2.74 m |
+| Breakaway (N1 about 45 %) | about 5.0 m | 5.0 m |
+| Take-off | about 7.2 m | 5.18 m |
 
 At take-off the model is more cautious than the published area. The view draws both: the modelled area as
 a red fill, and the Airbus area as a dashed white line, interpolated by thrust.

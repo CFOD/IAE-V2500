@@ -285,10 +285,16 @@ button, input, select, label { touch-action: manipulation; }
 .aprlist .bad { color: #ff8a7a; } .aprlist .dim { color: var(--ink3); }
 
 /* borescope overlay */
-#bscope { position: absolute; inset: 0; pointer-events: none; }
-#bscope .bsinfo { position: absolute; left: 14px; top: 12px; max-width: min(560px, 70%); font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #e8f0e0; text-shadow: 0 1px 2px #000; background: rgba(0, 0, 0, .35); padding: 6px 10px; border-radius: 8px; }
+/* The borescope overlay sits above every panel: the stage is its own stacking layer, under the dock and drawer. */
+#bscope { position: fixed; inset: 0; pointer-events: none; z-index: 40; }
+#bscope .bsexit { position: fixed; top: calc(var(--top-h, 40px) + 22px); left: 50%; transform: translateX(-50%); pointer-events: auto; height: 38px; padding: 0 18px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .35); background: rgba(150, 28, 20, .9); color: #fff; font-size: 13.5px; font-weight: 680; box-shadow: 0 6px 18px rgba(0, 0, 0, .4); }
+#bscope .bsexit:hover { background: rgba(185, 36, 26, .95); }
+#bscope .bsinfo { position: fixed; left: max(14px, env(safe-area-inset-left)); top: calc(var(--top-h, 40px) + 70px); max-width: min(560px, 70%); font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #e8f0e0; text-shadow: 0 1px 2px #000; background: rgba(0, 0, 0, .45); padding: 6px 10px; border-radius: 8px; }
 #bscope .bsinfo .bad { color: #ff9a7a; } #bscope .bsinfo .dim { color: #a9b2a0; }
-#bscope .bsbar { position: absolute; left: 50%; bottom: calc(var(--dock-h, 0px) + 14px); transform: translateX(-50%); display: flex; gap: 6px; pointer-events: auto; flex-wrap: wrap; justify-content: center; }
-#bscope .bsbar button { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .25); background: rgba(10, 12, 14, .75); color: #f2f4f0; font-size: 12.5px; font-weight: 560; }
+#bscope .bsbar { position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 6px; pointer-events: auto; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 24px); }
+#bscope .bsbar button { height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .25); background: rgba(10, 12, 14, .82); color: #f2f4f0; font-size: 13px; font-weight: 560; }
+#bscope .bsbar #bsLeave { background: rgba(150, 28, 20, .85); }
+/* while inspecting, the panels step aside so the probe's view and its controls are clear */
+body.bs-on #dock, body.bs-on #partcard, body.bs-on #camsPill, body.bs-on #tip { display: none !important; }
 #bscope .bsbar button:hover { background: rgba(40, 44, 48, .9); }
 .aprlist button.go { height: 20px; padding: 0 8px; margin-left: 4px; border-radius: 999px; font-size: 11px; vertical-align: 1px; }

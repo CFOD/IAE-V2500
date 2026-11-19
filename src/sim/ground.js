@@ -4,12 +4,16 @@
 // The ground is the plane y = groundY: the nacelle's low point is 0.76 m above it, as on an A320 at normal
 // weights (Airbus AC 2-3-0, ground clearances).
 //
-// Intake: a sink at the inlet that draws its volume flow mostly from ahead (a third from behind the lip, shaded
-// by the nacelle), smoothed over the inlet radius, with an image sink below the ground so no air passes through
-// it. A ground vortex forms between the ground and the intake when the engine is static; it wanders and pulses,
-// and its core lifts small debris. Taking the Airbus intake danger boundary as a contour of induced air speed,
-// 1.0 m/s puts it at 2.8 m at idle (AC 6-3: 2.74 m) and about 4.9 m at breakaway power (5.0 m); at take-off the
-// same contour reaches about 7.4 m, so the model is more cautious than the published 5.18 m there.
+// Intake: a sink on the inlet face that draws its volume flow mostly from ahead (some from behind the lip,
+// shaded by the nacelle), smoothed over the inlet radius, with an image sink below the ground so no air passes
+// through it. The ground flow therefore converges on the stagnation point under the intake. The cowl is solid:
+// near it, air heading into the skin is turned along it, so air from under and beside the nacelle runs forward
+// along the cowl and curls over the lip into the intake. A ground vortex forms between the ground and the intake
+// when the engine is static: its foot stands near the stagnation point just ahead of the lip and drifts a little,
+// its core bends up and aft into the inlet face, and its updraft lifts small debris into the intake. Taking the
+// Airbus intake danger boundary as a contour of induced air speed, 1.0 m/s puts it at about 2.8 m at idle (AC 6-3:
+// 2.74 m) and about 5 m at breakaway power (5.0 m); at take-off the same contour reaches about 7.2 m, so the model
+// is more cautious than the published 5.18 m there.
 //
 // Exhaust: a round turbulent jet from the common nozzle. A potential core of seven nozzle diameters, then the
 // centreline speed falls as 1/distance, and the profile is Gaussian with a half-speed radius growing about 0.11 m
@@ -30,8 +34,11 @@ export const APRON = {
   groundY: -1.87,            // engine axis 1.87 m above the ground (nacelle low point 1.11 m below the axis + 0.76 m)
   inletX: -0.955, inletR: 0.75,
   nozzleX: 4.3, nozzleR: 0.595,
-  behind: 0.35,              // share of the intake's draw that comes from behind the lip (static)
-  sinkIn: 0.35,              // the sink's centre, behind the highlight plane (m)
+  behind: 0.5,               // weight of the intake's draw from behind the lip, against 1 from ahead (static)
+  sinkIn: 0.06,              // the sink's centre, just behind the highlight plane (m)
+  cowlLayer: 0.8,            // m: how far from the cowl its skin turns the flow aside
+  vortexAhead: 0.25,         // m: the vortex foot's mean position ahead of the highlight plane
+  vortexTop: [0.12, -0.24],  // where its core enters the intake: behind the highlight plane (m), height / inlet radius
   vortexK: 0.4,              // ground vortex circulation / (inlet speed x diameter)
   vortexCore: 0.15,          // m
   vortexLift: 0.08,          // broad updraft round the vortex foot / inlet speed
@@ -62,7 +69,7 @@ export class Apron {
   constructor() {
     this.objs = []; this.events = []; this.t = 0; this._seed = 12345; this._id = 1;
     this.f = { rho: 1.225, Q: 0, Vin: 0, Vj: 0, Vbyp: 0, rev: 0, w1: 0, w2: 0 };
-    this.vtx = { x: APRON.inletX - 0.5, z: 0, k: 0, gx: 0, gz: 0, gk: 1 };
+    this.vtx = { x: APRON.inletX - APRON.vortexAhead, z: 0, k: 0, gx: 0, gz: 0, gk: 1, tx: APRON.inletX + APRON.vortexTop[0], ty: APRON.vortexTop[1] * APRON.inletR, tz: 0 };
   }
   _rand() { this._seed = (this._seed * 16807) % 2147483647; return (this._seed - 1) / 2147483646; }
   /** One step of a mean-reverting random process: mean m, standard deviation sd, reversion rate th (1/s). */
@@ -87,34 +94,41 @@ export class Apron {
     if (f.Q > 0) {
       // intake sink and its image below the ground. A static intake draws from all round, but the nacelle
       // shades what comes from behind the lip; the weights are normalised so the sink still swallows Q.
-      const shade = (A.behind + (1 - A.behind) * smooth(1 - (x - cx) / (1.5 * a))) / (1 + A.behind), e2 = 0.5 * a * a;
-      // Ahead of the lip the sink sits inside the intake, so the lip plane sees the full inflow; air from behind the
-      // lip is drawn towards a point just ahead of it, so it runs forward along the cowl and round the lip.
-      const rr = Math.hypot(y, z), bk = smooth((x - cx) / 0.05) * smooth((rr - 0.9 * a) / (0.1 * a));
-      const sx = (cx + A.sinkIn) * (1 - bk) + Math.min(cx + A.sinkIn, x - 0.35) * bk;
+      const shade = (A.behind + (1 - A.behind) * smooth(1 - (x - cx) / (1.5 * a))) / (1 + A.behind), e2 = 0.5 * a * a, sx = cx + A.sinkIn;
       for (const sy of [0, 2 * gy]) {
         const dx = x - sx, dy = y - sy, dz = z, d2 = dx * dx + dy * dy + dz * dz;
         const k = (-f.Q / (2 * Math.PI)) * shade / Math.pow(d2 + e2, 1.5);
         ux += k * dx; uy += k * dy; uz += k * dz;
       }
-      // ground vortex: a wandering, pulsing column from the ground up into the intake
+      // ground vortex: a column from the ground that bends up and aft into the inlet face
       const v = this.vtx, gam = A.vortexK * f.Vin * 2 * a * v.k;
-      if (gam > 0.01 && y < -a + 0.35) {
-        const rx = x - v.x, rz = z - v.z, r2 = rx * rx + rz * rz, rc2 = A.vortexCore ** 2, r = Math.sqrt(r2) + 1e-6;
-        const fade = smooth((-a + 0.35 - y) / 0.4);
+      if (gam > 0.01 && y < v.ty && x < cx + 0.3) {
+        const c = this.vortexAt(y), rx = x - c.x, rz = z - c.z, r2 = rx * rx + rz * rz, rc2 = A.vortexCore ** 2, r = Math.sqrt(r2) + 1e-6;
+        const fade = 1 - smooth((y - (v.ty - 0.25)) / 0.25);   // ends where it enters the intake
         const vt = (gam / (2 * Math.PI * r)) * (1 - Math.exp(-r2 / rc2)) * Math.exp(-r2 / 0.64) * fade;   // swirl confined to the column
         // near the ground friction slows the swirl and the inflow takes over, sweeping debris into the core
-        // (the tea-leaf effect), where the updraft lifts it
+        // (the tea-leaf effect), where the updraft lifts it along the core
         const near = Math.exp(-(y - gy) / 0.3);
         ux += (-rz / r) * vt * (1 - 0.85 * near); uz += (rx / r) * vt * (1 - 0.85 * near);
-        uy += 0.6 * (gam / (2 * Math.PI * A.vortexCore)) * Math.exp(-r2 / (1.8 * rc2)) * fade;        // updraft in the core
+        const w = 0.6 * (gam / (2 * Math.PI * A.vortexCore)) * Math.exp(-r2 / (1.8 * rc2)) * fade;
+        ux += w * c.tx; uy += w * c.ty; uz += w * c.tz;
         ux -= (rx / r) * 0.45 * vt * near; uz -= (rz / r) * 0.45 * vt * near;
+        // and a broader, gentler updraft round the foot: it lifts light debris that has gathered under the intake
+        // (rags and bags, not bolts)
+        if (y < -a + 0.2) uy += A.vortexLift * f.Vin * Math.exp(-r2 / 0.64) * smooth((-a + 0.2 - y) / 0.4) * smooth((y - gy) / 0.12) * v.k;
       }
-      // and a broader, gentler updraft round the vortex foot, between the ground and the lip: it lifts light
-      // debris that has gathered under the intake (rags and bags, not bolts)
-      if (y < -a + 0.2) {
-        const rx = x - v.x, rz = z - v.z;
-        uy += A.vortexLift * f.Vin * Math.exp(-(rx * rx + rz * rz) / 0.64) * smooth((-a + 0.2 - y) / 0.4) * smooth((y - gy) / 0.12);
+      // the cowl is solid: close to its skin behind the lip, the part of the flow heading into it is turned
+      // along it (forward, towards the lip), so nothing passes through the nacelle
+      const rr = Math.hypot(y, z);
+      if (x > cx - 0.05 && x < A.nozzleX && rr > 1e-6) {
+        const gap = rr - nacelleR(x, y, rr);
+        if (gap > -0.3 && gap < A.cowlLayer) {
+          const ny = y / rr, nz = z / rr, un = uy * ny + uz * nz;
+          if (un < 0) {
+            const k = (1 - smooth(gap / A.cowlLayer)) * smooth((x - cx + 0.05) / 0.12);
+            uy -= un * k * ny; uz -= un * k * nz; ux += un * k * 0.7;
+          }
+        }
       }
     }
     if (f.Vj > 0.5) {
@@ -140,6 +154,23 @@ export class Apron {
       }
     }
     out[0] = ux; out[1] = uy; out[2] = uz;
+    return out;
+  }
+
+  /** Centre of the ground vortex's core at height y, and the core's direction there (unit vector, upwards). */
+  vortexAt(y) {
+    // it rises near-vertically and bends aft late, so it passes ahead of the lower lip and enters the face well inside it
+    const v = this.vtx, gy = APRON.groundY, h = Math.max(0.05, v.ty - gy), s = clamp((y - gy) / h, 0, 1), e = s * s * s, de = 3 * s * s / h;
+    const c = this._vc || (this._vc = { x: 0, z: 0, tx: 0, ty: 1, tz: 0 });
+    c.x = v.x + (v.tx - v.x) * e; c.z = v.z + (v.tz - v.z) * e;
+    const dx = (v.tx - v.x) * de, dz = (v.tz - v.z) * de, l = Math.hypot(dx, 1, dz);
+    c.tx = dx / l; c.ty = 1 / l; c.tz = dz / l;
+    return c;
+  }
+  /** Points along the vortex core from the ground to the intake, for drawing. */
+  vortexPath(n = 12) {
+    const v = this.vtx, gy = APRON.groundY, out = [];
+    for (let i = 0; i <= n; i++) { const y = gy + (v.ty - gy) * (i / n), c = this.vortexAt(y); out.push([c.x, y, c.z]); }
     return out;
   }
 
@@ -180,11 +211,12 @@ export class Apron {
     if (dt <= 0) return;
     this.t += dt;
     const f = this.f, A = APRON, gy = A.groundY;
-    // the ground vortex wanders about a point ahead of the lip and comes and goes
+    // the ground vortex stands near the stagnation point just ahead of the lip, drifting a little and pulsing
     const v = this.vtx, on = smooth((f.Vin - 25) / 40);
-    v.gx = this._ou(v.gx, 0, 0.35, 0.8, dt); v.gz = this._ou(v.gz, 0, 0.3, 0.8, dt);
-    v.gk = clamp(this._ou(v.gk, 0.8, 0.3, 0.7, dt), 0.2, 1.3);
-    v.x = A.inletX + 0.2 + clamp(v.gx, -0.5, 0.5); v.z = clamp(v.gz, -0.4, 0.4); v.k = on * v.gk;   // foot near the ground stagnation point, under the lip
+    v.gx = this._ou(v.gx, 0, 0.08, 0.35, dt); v.gz = this._ou(v.gz, 0, 0.1, 0.35, dt);
+    v.gk = clamp(this._ou(v.gk, 0.85, 0.15, 0.5, dt), 0.4, 1.2);
+    v.x = A.inletX - A.vortexAhead + clamp(v.gx, -0.2, 0.2); v.z = clamp(v.gz, -0.25, 0.25); v.k = on * v.gk;
+    v.tx = A.inletX + A.vortexTop[0]; v.ty = A.vortexTop[1] * A.inletR; v.tz = v.z * 0.3;   // the core enters the lower inlet face
     const n = Math.max(1, Math.ceil(dt / 0.004)), h = dt / n, u = [0, 0, 0];
     for (const o of this.objs) {
       if (o.state === 'ingested' || o.state === 'gone') continue;
@@ -304,7 +336,7 @@ export class Apron {
 const A_TIP = 0.8;
 /** Outer radius of the nacelle at x for a point at height y and radius r: the lip rounds from the highlight to the
  * full cowl over its first 0.3 m, and the cowl is deeper underneath (the A320 nacelle is egg-shaped). */
-function nacelleR(x, y, r) {
+export function nacelleR(x, y, r) {
   const s = smooth((x - APRON.inletX) / 0.3);
   return (APRON.inletR + 0.27 * s) * (1 + 0.08 * clamp(-y / (r + 1e-6), 0, 1));
 }

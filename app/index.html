@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="stage"><canvas id="stage3d"></canvas><div id="bscope" hidden><div class="bsinfo" id="bsInfo"></div><div class="bsbar"><button data-n="-5">&#9664;&#9664; 5</button><button data-n="-1">&#9664; 1 blade</button><button data-n="1">1 blade &#9654;</button><button data-n="5">5 &#9654;&#9654;</button><button id="bsLeave">Leave</button></div></div><canvas id="cutaway" hidden></canvas><div id="tip" hidden></div></div>
+<div id="stage"><canvas id="stage3d"></canvas><canvas id="cutaway" hidden></canvas><div id="tip" hidden></div></div>
 <button id="hudShow" title="Show the interface (H)">Show HUD</button>
 <div id="loading" hidden><i></i><span>Loading the detailed engine model</span></div>
 
@@ -88,5 +88,6 @@
   </div>
 </footer>
 <script type="module" src="main.js"></script>
+<div id="bscope" hidden><button id="bsExit" class="bsexit" title="Leave the borescope (Esc, or Back)">&#10005;&nbsp; Exit borescope</button><div class="bsinfo" id="bsInfo"></div><div class="bsbar"><button data-n="-5">&#9664;&#9664; 5</button><button data-n="-1">&#9664; 1 blade</button><button data-n="1">1 blade &#9654;</button><button data-n="5">5 &#9654;&#9654;</button><button id="bsLeave">Exit</button></div></div>
 </body>
 </html>

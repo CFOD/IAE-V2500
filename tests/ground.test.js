@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Engine } from '../src/sim/engine.js';
 import { Fadec } from '../src/sim/fadec.js';
-import { Apron, APRON } from '../src/sim/ground.js';
+import { Apron, APRON, nacelleR } from '../src/sim/ground.js';
 
 const run = (e, f, T) => { for (let t = 0; t < T; t += 1 / 60) { f.update(1 / 60); e.step(1 / 60); } };
 function at(lever) { const e = new Engine(), f = new Fadec(e); f.mode = 'ign'; f.master = true; run(e, f, 100); f.mode = 'norm'; if (lever) { f.setLever(lever); run(e, f, 40); } e.events.length = 0; return { e, f }; }
@@ -58,4 +58,28 @@ test('ingestion damage follows the energy: a pigeon at idle does nothing, a goos
   run(r.e, r.f, 3);
   assert.ok(g.fan > 0.3, `fan ${g.fan}`); assert.ok(r.e.out.vib1 > v0 + 2, `vib ${v0} -> ${r.e.out.vib1}`);
   assert.ok(r.e.events.some((x) => x.type === 'bird-strike'));
+});
+
+test('intake: no air passes through the cowl; the ground flow converges just ahead of the intake', () => {
+  const a = apron(TO);
+  for (const x of [-0.7, -0.4, 0, 0.8]) for (const th of [180, 135, 90]) {   // 4 cm outside the cowl behind the lip's rounding, below and beside
+    const t = (th * Math.PI) / 180; let rr = 1;
+    for (let i = 0; i < 20; i++) rr = nacelleR(x, rr * Math.cos(t), rr) + 0.04;
+    const y = rr * Math.cos(t), z = rr * Math.sin(t);
+    const u = a.air(x, y, z), un = (u[1] * y + u[2] * z) / rr, sp = Math.hypot(...u);
+    assert.ok(un > -0.15 * sp - 0.05, `into the cowl at x ${x}, ${th} deg: ${un.toFixed(2)} of ${sp.toFixed(2)} m/s`);
+  }
+  const gx = (x) => a.air(x, APRON.groundY + 0.02, 0.6)[0];   // beside the vortex column
+  assert.ok(gx(APRON.inletX - 1.2) > 0 && gx(APRON.inletX + 0.5) < 0, `ground flow ${gx(APRON.inletX - 1.2).toFixed(2)}, ${gx(APRON.inletX + 0.5).toFixed(2)}`);
+});
+
+test('ground vortex: its core stands just ahead of the lip and enters the intake through the inlet face', () => {
+  const a = apron(TO); for (let i = 0; i < 600; i++) a.step(1 / 60);
+  const path = a.vortexPath(20), top = path[path.length - 1];
+  assert.ok(path[0][0] < APRON.inletX && path[0][0] > APRON.inletX - 0.5, `foot at x ${path[0][0].toFixed(2)}`);
+  assert.ok(top[0] > APRON.inletX && Math.hypot(top[1], top[2]) < APRON.inletR * 0.6, `enters at ${top.map((v) => v.toFixed(2))}`);
+  for (const [x, y, z] of path) {   // never inside the nacelle's skin
+    const r = Math.hypot(y, z);
+    assert.ok(!(x > APRON.inletX && r > APRON.inletR && r < 1.1), `inside the cowl at ${x.toFixed(2)}, ${y.toFixed(2)}`);
+  }
 });

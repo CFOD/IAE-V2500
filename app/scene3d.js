@@ -910,10 +910,10 @@ export class Scene3D {
     // ground vortex: a twisting rope of condensed air, bent in the vertex shader from the floor into the intake
     const rope = (layer) => new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, side: THREE.DoubleSide,
-      uniforms: { uT: { value: 0 }, uK: { value: 0 }, uFoot: { value: new THREE.Vector3(-1.42, FLOOR_Y, 0) }, uTop: { value: new THREE.Vector3(-0.42, -0.5, 0) }, uFat: { value: 1 + layer * 0.9 }, uPhase: { value: layer * 2.1 } },
+      uniforms: { uT: { value: 0 }, uK: { value: 0 }, uFoot: { value: new THREE.Vector3(-1.2, FLOOR_Y, 0) }, uTop: { value: new THREE.Vector3(-0.835, -0.18, 0) }, uFat: { value: 1 + layer * 0.9 }, uPhase: { value: layer * 2.1 } },
       vertexShader: `uniform float uT,uFat,uPhase; uniform vec3 uFoot,uTop; varying float vT; varying float vA; varying float vFacing;
         void main(){ float t=clamp(position.y+0.5,0.0,1.0); vT=t; float a=atan(position.z,position.x); vA=a;
-          float e=t*t*(3.0-2.0*t);
+          float e=t*t*t;   // rises near-vertically, bends aft late into the inlet face (as src/sim/ground.js vortexAt)
           vec3 c=vec3(mix(uFoot.x,uTop.x,e), mix(uFoot.y,uTop.y,t), mix(uFoot.z,uTop.z,e));
           float sway=(1.0-t)*t*4.0; c.x+=0.07*sway*sin(t*5.0+uT*1.3+uPhase); c.z+=0.07*sway*cos(t*4.0+uT*1.1+uPhase);
           float r=(mix(0.13,0.022,smoothstep(0.0,0.5,t))+0.008*t)*uFat;
@@ -1721,8 +1721,10 @@ export class Scene3D {
     this.fog.set(t, this.fogK);
     const vk = (this._vk = (this._vk || 0) + (vx - (this._vk || 0)) * Math.min(1, dt * 1.5));
     const av = this.apronView && this.apronView.on && this.apronSim ? this.apronSim.vtx : null;   // on the apron the rope follows the simulated vortex
-    const foot = av ? [av.x, av.z] : [-1.42 + 0.14 * Math.sin(t * 0.7) + 0.05 * Math.sin(t * 2.3), 0.28 * Math.sin(t * 0.43)];
-    this.vortexRopes.forEach((m, k) => { const u = m.material.uniforms; m.visible = vk > 0.01; u.uT.value = t % 1000; u.uK.value = vk * (k === 0 ? 0.3 + 0.4 * fogA : 0.1 + 0.15 * fogA); u.uFoot.value.set(foot[0], FLOOR_Y, foot[1]); });
+    // the foot stands just ahead of the lip and the core enters the lower inlet face, as in the apron physics
+    const foot = av ? [av.x, av.z] : [-1.205 + 0.05 * Math.sin(t * 0.7) + 0.02 * Math.sin(t * 2.3), 0.1 * Math.sin(t * 0.43)];
+    const top = av ? [av.tx, av.ty, av.tz] : [-0.835, -0.18, foot[1] * 0.3];
+    this.vortexRopes.forEach((m, k) => { const u = m.material.uniforms; m.visible = vk > 0.01; u.uT.value = t % 1000; u.uK.value = vk * (k === 0 ? 0.3 + 0.4 * fogA : 0.1 + 0.15 * fogA); u.uFoot.value.set(foot[0], FLOOR_Y, foot[1]); u.uTop.value.set(top[0], top[1], top[2]); });
     // dust and spray kicked up where the vortex touches the ground
     this.dust.u.uOrigin.value.set(foot[0], FLOOR_Y + 0.06, foot[1]); this.dust.set(t, vk);
 
