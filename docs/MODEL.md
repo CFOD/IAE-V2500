@@ -106,6 +106,13 @@ oil, core harnesses A and B, ignition leads A and B, EGT harness, IP and HP blee
 ducts and buffer air. `dressing.py` routes them through `L(name)`; everything else stays in the shared
 dressing nodes.
 
+### The aircraft (apron scene)
+
+`tools/blender/apron.py` builds the A320 the engine hangs on, for the Apron tab, as `app/models/apron.glb`
+(see docs/APRON.md). It has the fuselage with windows, door outlines and belly fairing, the wings with panel
+lines, flap-track fairings and wingtip fences, the tail, both gears with twin wheels and chocks, and engine 2.
+It is loaded only when the apron is first shown.
+
 ### Engine internals
 
 `tools/blender/internals.py` models the inside of the engine. The arrangement follows the Airbus training

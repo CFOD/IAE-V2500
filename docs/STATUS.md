@@ -4,6 +4,12 @@ Work since the switch is on branch `ccr-b314d629-a56f7k-opus` (the original bran
 The test website at iae.cfod.co.uk deploys from this branch automatically (see docs/WEB.md).
 
 ## Done recently
+- The engine on the apron (docs/APRON.md): an A320 modelled in Blender around it on a painted stand, with
+  daylight. Intake suction with a ground vortex, a jet calibrated to the Airbus exhaust velocity contours,
+  and birds, a traffic cone, rag, bag, bolt, stone and suitcase to drop near it. What goes in damages the
+  engine by the energy of the fan's blow. Danger areas are drawn from the model next to the Airbus ones.
+- Detail tiers: High and Ultra draw the full blade templates (cooling holes, squealer tips) with shadows;
+  Medium and Low draw lighter ones.
 - Engine internals modelled in Blender (docs/MODEL.md, Engine internals): 22-blade fan with fillers and
   retaining ring, booster, intermediate case, HP compressor with variable vanes, levers and unison rings,
   discs with rims, webs, bores and knife-edge seals, panelled combustor liners with drilled holes, swirlers,

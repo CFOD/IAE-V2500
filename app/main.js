@@ -3,6 +3,7 @@ import { Engine, defaultMods } from '../src/sim/engine.js';
 import { Fadec, TRA } from '../src/sim/fadec.js';
 import { RATINGS } from '../src/sim/v2500.js';
 import { FAILURES, FAIL_GROUPS } from '../src/sim/failures.js';
+import { Apron, APRON, OBJECTS } from '../src/sim/ground.js';
 import { Cutaway } from './cutaway.js';
 import { Scene3D } from './scene3d.js';
 import { drawEcam, drawMaps, drawTrends, pushTrend } from './gauges.js';
@@ -25,7 +26,7 @@ const active = { drawer: 'ctl', sd: 'maps' };
 const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 let paused = false, speed = 1, evIdx = 0, overTemp = 0, mode = view3d ? '3d' : '2d';
 eng.u.rh = 50; // relative humidity %, only used for the inlet condensation / vortex visuals
-window.sim = { eng, fadec, view3d }; window.simAudio = audio; // handy from the dev console (F12)
+window.sim = { eng, fadec, view3d, setLever: (d) => setLever(d) }; window.simAudio = audio; // handy from the dev console (F12)
 
 const stamp = () => { const t = eng.s.t; return `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`; };
 function logMsg(m) { log.unshift(`<b>${stamp()}</b>${esc(m)}`); if (log.length > 200) log.pop(); }
@@ -133,6 +134,68 @@ for (const [name, v] of Object.entries(presets)) {
   amb.firstChild.appendChild(b);
 }
 amb.insertAdjacentHTML('beforeend', '<p class="note">This is an altitude test cell, not a flight model: presets slew over a few seconds, sliders act instantly. Fog forms in the intake when the air accelerating into the fan cools below its dew point; a ground vortex forms when the engine is stationary and pulling hard.</p>');
+
+// ------------------------------------------------------------ apron: the engine on its A320, and things for it to swallow or blow away
+const apronSim = new Apron(); if (view3d) view3d.apronSim = apronSim;
+let apronOn = false, placeKind = null, apronCutWas = false;
+const apr = $('t-apr');
+apr.innerHTML = `<div class="presets"><button id="aprOn">Show the aircraft on the apron</button></div>
+  <div class="aprchk"><label><input type="checkbox" id="aprDanger" checked> Danger areas</label><label><input type="checkbox" id="aprFlow" checked> Air moving over the ground</label></div>
+  <h4>Put something near the engine</h4>
+  <div class="aprwhere"><select id="aprWhere"><option value="click">Click on the ground to place it</option><option value="front">2 m in front of the intake</option><option value="under">On the ground under the intake</option><option value="side">Beside the intake, 3 m out</option><option value="aft">10 m behind the nozzle</option><option value="far">30 m behind the nozzle</option></select></div>
+  <div class="presets" id="aprObjs"></div>
+  <div class="presets"><button id="aprClear">Clear them all</button></div>
+  <div id="aprList" class="aprlist"></div>
+  <p class="note">The intake draws its air from all round, and a vortex forms between it and the ground when the engine runs standing still: it sweeps debris together and lifts it. Birds fly at their own speed and turn away from strong air; one that cannot out-fly the intake goes in. Damage depends on what goes in and how hard the fan hits it: a pigeon at idle does nothing, a goose or a traffic cone at take-off bends fan blades and can break one off, a bolt into the core breaks compressor blades. Behind the engine the jet knocks things over and blows them away. The danger areas are worked out from the same air flow; the dashed line is the published Airbus area.</p>`;
+const aprObjs = $('aprObjs');
+for (const [k, d] of Object.entries(OBJECTS)) {
+  const b = document.createElement('button'); b.textContent = d.name; b.dataset.k = k;
+  b.onclick = () => placeObject(k, b);
+  aprObjs.appendChild(b);
+}
+function spot(where) {
+  const j = (a) => (Math.random() - 0.5) * a, xi = APRON.inletX, xn = APRON.nozzleX;
+  return { front: [xi - 2 + j(0.4), j(1)], under: [xi + 0.2 + j(0.6), j(0.6)], side: [xi - 0.5 + j(0.6), 3 + j(0.6)], aft: [xn + 10 + j(1), j(1.5)], far: [xn + 30 + j(2), j(3)] }[where];
+}
+function placeObject(kind, btn) {
+  if (!apronOn) { logMsg('Show the aircraft on the apron first (Apron tab)'); return; }
+  const where = $('aprWhere').value;
+  if (where === 'click') {
+    const again = placeKind === kind; placeKind = again ? null : kind;
+    for (const c of aprObjs.children) c.classList.toggle('on', c.dataset.k === placeKind);
+    view3d.placeHandler = placeKind ? (g) => { apronSim.add(placeKind, g.x, g.z); } : null;
+    if (placeKind) logMsg(`Apron: click on the ground to put down a ${OBJECTS[kind].name.toLowerCase()} (click its button again when done)`);
+    return;
+  }
+  const [x, z] = spot(where); apronSim.add(kind, x, z);
+}
+$('aprWhere').onchange = () => { placeKind = null; view3d.placeHandler = null; for (const c of aprObjs.children) c.classList.remove('on'); };
+$('aprClear').onclick = () => apronSim.clear();
+$('aprDanger').onchange = (e) => { view3d.apronView.showDanger = e.target.checked; };
+$('aprFlow').onchange = (e) => { view3d.apronView.showFlow = e.target.checked; };
+async function setApron(on) {
+  if (!view3d) return;
+  const b = $('aprOn');
+  if (on && !view3d.apronView.loaded) {
+    b.textContent = 'Loading the aircraft...';
+    try { await view3d.apronView.load('models/', assetQuery); } catch (e) { console.warn(e); logMsg('Could not load the aircraft model'); b.textContent = 'Show the aircraft on the apron'; return; }
+  }
+  apronOn = on; view3d.apronView.setOn(on);
+  b.textContent = on ? 'Back to the test cell' : 'Show the aircraft on the apron'; b.classList.toggle('on', on);
+  if (on) { if (mode !== '3d') setMode('3d'); apronCutWas = view3d.cutaway; if (view3d.cutaway) $('btnCut').click(); Object.assign(view3d.orbit, { az: -0.95, el: 0.22, dist: 15 }); view3d.orbit.target.set(2.5, -0.6, -1.2); logMsg('Apron: the engine on its A320, nose-in on stand 24'); }
+  else { apronSim.clear(); placeKind = null; view3d.placeHandler = null; if (apronCutWas && !view3d.cutaway) $('btnCut').click(); Object.assign(view3d.orbit, { az: -0.72, el: 0.2, dist: 10.4 }); view3d.orbit.target.set(1.65, -0.05, 0); }
+}
+$('aprOn').onclick = () => setApron(!apronOn);
+const STATE_WORD = { rest: 'lying still', slide: 'sliding', flying: 'in the air', ingested: 'ingested', gone: 'gone' };
+function refreshApronList() {
+  const rows = apronSim.objs.slice(-14).reverse().map((o) => {
+    const st = o.d.fly && o.state === 'flying' ? (o.panic > 0.5 ? 'flying away from the engine' : 'flying') : o.state === 'rest' && !o.upright && o.d.h ? 'knocked over' : STATE_WORD[o.state];
+    const d = Math.hypot(o.x - APRON.inletX, o.y, o.z), db = o.x - APRON.nozzleX;
+    const where = o.state === 'ingested' || o.state === 'gone' ? '' : db > 0 ? ` · ${db.toFixed(1)} m behind the nozzle` : ` · ${d.toFixed(1)} m from the intake`;
+    return `<div class="${o.state === 'ingested' ? 'bad' : ''}">${o.d.name}: ${st}${where}</div>`;
+  });
+  $('aprList').innerHTML = rows.join('') || '<div class="dim">Nothing on the ground yet.</div>';
+}
 
 const hw = $('t-hw'); hw.innerHTML = '<div class="presets"><button id="hwReset">Restore new-engine condition</button></div>';
 const pct = (v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} %`;
@@ -492,7 +555,8 @@ function handleEvents(dt) {
         const big = /burst|release|failure|burn-through|blade-off|shear|seized|separation|cowl-lost/.test(ev.type) && ev.type !== 'chip-detector';
         if (big) { audio.bang(/burst|separation/.test(ev.type) ? 2 : 1.4); view3d && view3d.surge(/lp|fan/.test(ev.type) ? 'fan' : 'hpc'); view2d.surge('hpc'); }
         if (/hpt-blade|lpt-blade|melting|burst|hpc-blade-failure|bearing-failure/.test(ev.type)) sparkK = 1;
-        view3d && view3d.failEvent(ev.type);
+        if (ev.type === 'bird-strike' || ev.type === 'fod-ingested') audio.bang(ev.blades ? 1.4 : 0.35 + Math.min(0.9, (ev.fan || 0) * 3));
+        view3d && view3d.failEvent(ev.type, ev);
         refreshFaults();
       }
     }
@@ -592,6 +656,7 @@ function tick(now) {
     if (lock !== fadec.revLockout) { fadec.revLockout = lock; if (lock && (fadec.revCmd || eng.u.reverser)) logMsg('Reverser deactivated while the C-ducts are open'); }
     while (acc >= DT && n < 160) { slewAmbient(DT); fadec.update(DT); eng.step(DT); handleEvents(DT); acc -= DT; n++; if (n % 12 === 0) pushTrend(eng.out); }
     if (n >= 160) acc = 0;
+    if (apronOn) { apronSim.setFlow(eng.out); apronSim.step(Math.min(0.05, real * speed), eng); }
   }
   const o = eng.out, vdt = paused ? 0 : real * Math.min(speed, 2), w = inletWeather(o);
   if (mode === '3d') view3d.update(o, vdt, w); else view2d.draw(o, vdt);
@@ -609,6 +674,7 @@ function tick(now) {
       else if (active.sd === 'data' && hist++ % 3 === 0) $('data').innerHTML = dataHtml(o, w);
       else if (active.sd === 'log') $('log').innerHTML = log.join('<br>');
     }
+    if (active.drawer === 'apr' && apronOn) refreshApronList();
   }
   requestAnimationFrame(tick);
 }

@@ -44,10 +44,14 @@ if (!process.argv.includes('--no-sounds')) {
 // it itself (DecompressionStream), falling back to the plain file. Apps load from local files and skip it (--local).
 let packed = '';
 if (!process.argv.includes('--local')) {
-  const md = path.join(out, 'models'), mf = path.join(md, 'model.json'), man = JSON.parse(fs.readFileSync(mf, 'utf8'));
-  const gz = zlib.gzipSync(fs.readFileSync(path.join(md, man.file)), { level: 9 });
-  man.packed = man.file + '.gz'; fs.writeFileSync(path.join(md, man.packed), gz); fs.writeFileSync(mf, JSON.stringify(man, null, 2));
-  packed = `, model packed to ${(gz.length / 1048576).toFixed(1)} MB`;
+  const md = path.join(out, 'models'), sizes = [];
+  for (const name of ['model.json', 'apron.json']) {   // the engine, and the aircraft for the apron scene
+    const mf = path.join(md, name); if (!fs.existsSync(mf)) continue;
+    const man = JSON.parse(fs.readFileSync(mf, 'utf8')), gz = zlib.gzipSync(fs.readFileSync(path.join(md, man.file)), { level: 9 });
+    man.packed = man.file + '.gz'; fs.writeFileSync(path.join(md, man.packed), gz); fs.writeFileSync(mf, JSON.stringify(man, null, 2));
+    sizes.push(`${man.file} ${(gz.length / 1048576).toFixed(1)} MB`);
+  }
+  packed = `, packed: ${sizes.join(', ')}`;
 }
 // Cloudflare Pages / Netlify headers: long cache for the model and libraries, correct type for .glb
 // which build is live (shown in the Sound menu and the log): Cloudflare Pages provides the commit, else git

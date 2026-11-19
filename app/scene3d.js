@@ -17,12 +17,13 @@ import { mergeGeometries } from './vendor/jsm/utils/BufferGeometryUtils.js';
 import { P, ROWS, rAt, tempRGB, lipLoop, scarfX, scarfDroop } from './cutaway.js';
 import { Billows, Streaks, Shards, Sparks, Particles, FX, noiseTexture, DepthCapturePass, SoftFxPass } from './fx.js';
 import { setSurfaceQuality, finish, FINISH } from './surfaces.js';
+import { ApronView } from './apron3d.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const lerp = (a, b, t) => a + (b - a) * t;
 const bell = (x, c, w) => Math.exp(-(((x - c) / w) ** 2));
 const TAU = Math.PI * 2, DEG = Math.PI / 180;
-const FLOOR_Y = -1.75;
+const FLOOR_Y = -1.87;   // ground: the nacelle's low point 0.76 m above it, as on an A320 (src/sim/ground.js)
 // Cutaway wedge: the sector of casing that is removed, in the angle convention
 // used for instances (y = r cos th, z = r sin th). Camera side, upper quarter.
 const CUT_A = -8 * DEG, CUT_B = 112 * DEG;
@@ -233,7 +234,7 @@ export class Scene3D {
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.0;
     r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFShadowMap;
     const scene = (this.scene = new THREE.Scene());
-    scene.background = new THREE.Color(0x0e0f11);
+    scene.background = this.studioBackground = new THREE.Color(0x0e0f11);
     scene.fog = new THREE.Fog(0x0e0f11, 16, 42);
     scene.environment = new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(), 0.03).texture;
     scene.environmentIntensity = 0.5;
@@ -258,6 +259,7 @@ export class Scene3D {
     this._buildStage();
     this._buildEngine();
     this._buildEffects();
+    this.apronView = new ApronView(this);   // the A320 on its stand (app/apron3d.js), hidden until asked for
     this._buildPost();
     // Transparent effects (plume, flames, smoke, mist, fan blur) must stay out of the ambient-occlusion
     // pre-pass. That pass redraws the scene with a plain opaque material, so an effect quad or plume
@@ -800,7 +802,7 @@ export class Scene3D {
     // seamless studio floor that fades into the background
     const fade = canvasTex(256, 256, (g) => { const gr = g.createRadialGradient(128, 128, 20, 128, 128, 128); gr.addColorStop(0, '#fff'); gr.addColorStop(1, '#000'); g.fillStyle = gr; g.fillRect(0, 0, 256, 256); });
     const floor = new THREE.Mesh(new THREE.CircleGeometry(22, 64), new THREE.MeshStandardMaterial({ color: 0x2a2c2f, map: this.tex.concrete, metalness: 0.0, roughness: 0.78, alphaMap: fade, transparent: true }));
-    floor.rotation.x = -Math.PI / 2; floor.position.set(1.4, FLOOR_Y, 0); floor.receiveShadow = true; s.add(floor);
+    floor.rotation.x = -Math.PI / 2; floor.position.set(1.4, FLOOR_Y, 0); floor.receiveShadow = true; s.add(floor); this.floor = floor;
   }
 
   // ---------------------------------------------------------------- effects
@@ -974,7 +976,7 @@ export class Scene3D {
       p.x = e.clientX; p.y = e.clientY;
       if (pts.size >= 2 && pinch) {
         const n = two();
-        if (n.d > 1 && pinch.d > 1) o.dist = clamp(o.dist * (pinch.d / n.d), 1.4, 22);
+        if (n.d > 1 && pinch.d > 1) o.dist = clamp(o.dist * (pinch.d / n.d), 1.4, this.maxDist || 22);
         pan(n.x - pinch.x, n.y - pinch.y); pinch = n;
       } else if (drag) {
         const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
@@ -983,14 +985,23 @@ export class Scene3D {
     });
     const end = (e) => {
       const had = pts.delete(e.pointerId);
-      if (had && drag && !multi && e.type === 'pointerup' && moved < (e.pointerType === 'mouse' ? 5 : 10) && (e.pointerType !== 'mouse' || e.button === 0)) this._pick(e, true);
+      if (had && drag && !multi && e.type === 'pointerup' && moved < (e.pointerType === 'mouse' ? 5 : 10) && (e.pointerType !== 'mouse' || e.button === 0)) {
+        if (this.placeHandler && this.apronView.on) { const g = this.groundAt(e); if (g) this.placeHandler(g); }   // dropping an object on the apron
+        else this._pick(e, true);
+      }
       if (pts.size === 1) { const [q] = [...pts.values()]; drag = { x: q.x, y: q.y, pan: false }; pinch = null; } // carry on orbiting with the finger left
       else if (pts.size === 0) { drag = null; pinch = null; }
     };
     el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
     el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { this.hover = null; this.onHover && this.onHover(null); } });
-    el.addEventListener('wheel', (e) => { e.preventDefault(); o.dist = clamp(o.dist * Math.exp(e.deltaY * 0.0011), 1.4, 22); }, { passive: false });
+    el.addEventListener('wheel', (e) => { e.preventDefault(); o.dist = clamp(o.dist * Math.exp(e.deltaY * 0.0011), 1.4, this.maxDist || 22); }, { passive: false });
     this.ray = new THREE.Raycaster();
+  }
+  /** The ground point under a pointer event (engine frame), or null. */
+  groundAt(e) {
+    const r = this.canvas.getBoundingClientRect();
+    this.ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), this.camera);
+    return this.apronView.groundPoint(this.ray);
   }
   _pick(e, click) {
     const r = this.canvas.getBoundingClientRect();
@@ -1059,7 +1070,7 @@ export class Scene3D {
     this.cutaway = on;
     this.engine.traverse((n) => { if (n.userData.cutPair) { n.userData.cutPair[0].visible = !on; n.userData.cutPair[1].visible = on; } });
     for (const im of this.cutInst) im.count = on ? im.userData.kept : im.userData.ths.length;
-    this.engine.traverse((n) => { const v = n.userData.variant; if (v) n.visible = (v === 'cut') === on; });
+    this.engine.traverse((n) => { const v = n.userData.variant; if (v) n.visible = (v === 'cut') === on; if (n.userData.apronHide) n.visible = false; });
     for (const p of this.parts) if (p.removed) for (const ob of p.objs) ob.visible = false;
   }
   setExplode(v) { this.explode = v; for (const p of this.parts) for (const ob of p.objs) ob.position.x = ob.userData.home + p.ex * v * 1.5; }
@@ -1089,7 +1100,8 @@ export class Scene3D {
     return (this._leakPts[id] = { pos: v, dir, at: this.t });
   }
   /** One-off visuals for a failure event. */
-  failEvent(type) {
+  failEvent(type, ev) {
+    if (type === 'bird-strike' || type === 'fod-ingested') { this.apronView.ingestFx(ev || {}); return; }
     const E = this.engine, w = new THREE.Vector3(), rnd = Math.random;
     const burst = (x, r0, n, sp, axial, hot, spread = 1) => {
       for (let i = 0; i < n; i++) {
@@ -1522,6 +1534,8 @@ export class Scene3D {
     this._reverser(o.rev || 0);
     this._cowls(o, dt);
     this._updateVis();
+    this._lastThrust = o.thrust;
+    if (this.apronSim) this.apronView.update(this.apronSim, dt, t);
 
     // variable stators turn about their own radial axis
     if (Math.abs(o.vsv - (this._vsv ?? 1e9)) > 0.2) {
@@ -1634,7 +1648,8 @@ export class Scene3D {
     this.fog.u.uSpeed.value = 0.6 + 2.6 * p1; this.fog.u.uSwirl.value = 0.3 + 0.9 * p1;
     this.fog.set(t, this.fogK);
     const vk = (this._vk = (this._vk || 0) + (vx - (this._vk || 0)) * Math.min(1, dt * 1.5));
-    const foot = [-1.42 + 0.14 * Math.sin(t * 0.7) + 0.05 * Math.sin(t * 2.3), 0.28 * Math.sin(t * 0.43)];
+    const av = this.apronView && this.apronView.on && this.apronSim ? this.apronSim.vtx : null;   // on the apron the rope follows the simulated vortex
+    const foot = av ? [av.x, av.z] : [-1.42 + 0.14 * Math.sin(t * 0.7) + 0.05 * Math.sin(t * 2.3), 0.28 * Math.sin(t * 0.43)];
     this.vortexRopes.forEach((m, k) => { const u = m.material.uniforms; m.visible = vk > 0.01; u.uT.value = t % 1000; u.uK.value = vk * (k === 0 ? 0.3 + 0.4 * fogA : 0.1 + 0.15 * fogA); u.uFoot.value.set(foot[0], FLOOR_Y, foot[1]); });
     // dust and spray kicked up where the vortex touches the ground
     this.dust.u.uOrigin.value.set(foot[0], FLOOR_Y + 0.06, foot[1]); this.dust.set(t, vk);
