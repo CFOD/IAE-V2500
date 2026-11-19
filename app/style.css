@@ -108,9 +108,9 @@ body.nodrawer #dock { right: 16px; }
 #status .ok::before { background: var(--ok); } #status .warn { color: var(--warn); } #status .warn::before { background: var(--warn); }
 #status .bad { color: #fff; background: rgba(190, 40, 34, .85); border-color: transparent; } #status .bad::before { background: #fff; }
 .dockrow { pointer-events: auto; display: flex; align-items: stretch; gap: 20px; padding: 12px 20px; height: 128px; }
-.ctrl { display: grid; grid-template-columns: auto auto auto; gap: 8px 16px; align-content: space-between; flex: 0 0 auto; }
+.ctrl { display: flex; flex-wrap: wrap; gap: 8px 16px; align-content: space-between; align-items: flex-start; flex: 0 1 455px; min-width: 0; }
 .field { display: flex; flex-direction: column; gap: 5px; }
-.field.grow { min-width: 0; }
+.field.grow { min-width: 0; flex: 1 1 150px; max-width: 250px; }
 .field.grow select { width: 100%; }
 #engMode button { padding: 0 10px; }
 .switch { position: relative; width: 50px; height: 28px; border-radius: 999px; border: 0; background: var(--fill2); transition: background .15s; }
@@ -129,10 +129,9 @@ select option { background: #17181b; }
 .ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 #ecam { flex: 1 1 auto; min-width: 0; height: 100%; display: block; border-left: 1px solid var(--line); padding-left: 0; }
 /* narrow windows: the gauges drop below the pedestal instead of being squeezed out */
-@media (max-width: 1320px) { body:not(.nodrawer) .dockrow { flex-wrap: wrap; height: auto; row-gap: 10px; } body:not(.nodrawer) .lever { flex: 1 1 200px; } body:not(.nodrawer) #ecam { flex: 1 1 100%; height: 92px; border-left: 0; border-top: 1px solid var(--line); padding-top: 6px; } }
-@media (max-width: 920px) { .dockrow { flex-wrap: wrap; height: auto; row-gap: 10px; } .lever { flex: 1 1 200px; } #ecam { flex: 1 1 100%; height: 92px; border-left: 0; border-top: 1px solid var(--line); padding-top: 6px; } }
+@media (max-width: 1320px) and (min-width: 1100px) and (min-height: 700px) { body:not(.nodrawer) .dockrow { flex-wrap: wrap; height: auto; row-gap: 10px; } body:not(.nodrawer) .lever { flex: 1 1 200px; } body:not(.nodrawer) #ecam { flex: 1 1 100%; height: 92px; border-left: 0; border-top: 1px solid var(--line); padding-top: 6px; } }
 .lever .ticks .mct { transition: opacity .1s; }
-@media (max-width: 1120px) { body:not(.nodrawer) .lever .ticks .mct { opacity: 0; } }
+@media (max-width: 1120px) and (min-width: 1100px) { body:not(.nodrawer) .lever .ticks .mct { opacity: 0; } }
 
 /* controls inside the component card, protections, faults */
 #pcCtl { margin-top: 10px; } #pcCtl:empty { display: none; }
@@ -158,7 +157,7 @@ h4 { margin: 16px 0 2px; font-size: 11px; font-weight: 600; color: var(--ink3); 
 .fgroup .fault:last-child { border-bottom: 0; }
 #pcCtl h4 { margin-top: 12px; }
 #pcCtl .fault { padding: 7px 0; } #pcCtl .fault b { font-size: 12px; font-weight: 540; }
-#partcard { max-height: calc(100vh - var(--top-h, 40px) - 190px); overflow: auto; }
+#partcard { max-height: calc(100vh - var(--top-h, 40px) - var(--dock-h, 170px) - 62px); overflow: auto; }   /* never runs into the dock */
 .firebtns { display: flex; gap: 4px; }
 .chip.firepb { color: #ffd2cf; } .chip.firepb[aria-pressed=true] { background: var(--bad); color: #fff; }
 
@@ -174,7 +173,7 @@ body.hud-off #hudShow { display: block; }
 body.nodrawer #camsPill { left: 50%; }
 #camsPill .seg.ghost button { height: 26px; }
 body.hud-off #camsPill, body.mode2d #camsPill { display: none; }
-@media (max-width: 1180px) { body:not(.nodrawer) #camsPill { left: auto; right: calc(var(--drawer) + 32px); transform: none; } }
+@media (max-width: 1400px) and (min-width: 1100px) and (min-height: 700px) { body:not(.nodrawer) #camsPill { left: auto; right: calc(var(--drawer) + 32px); transform: none; } }
 /* reset menu */
 .menu { position: relative; }
 .menu .pop { position: absolute; top: calc(100% + 10px); right: -6px; min-width: 210px; padding: 6px; background: rgba(20, 21, 24, .97); box-shadow: 0 12px 32px rgba(0, 0, 0, .45); display: none; flex-direction: column; gap: 2px; border-radius: 14px; z-index: 20; }
@@ -197,6 +196,30 @@ body.hud-off #loading { display: none; }
 /* ------------------------------------------------------------------ touch screens and phones */
 #stage3d, #cutaway { touch-action: none; }            /* the 3D view handles its own pinch and drag */
 button, input, select, label { touch-action: manipulation; }
+/* Compact screens (tablets, foldables, small laptops, phones): the panel slides over the view instead of
+   squeezing it, the dock always spans the width, the camera presets move to the right under the top bar,
+   and the part card shows only when a part is picked or parts have been removed. */
+@media (max-width: 1099px), (max-height: 699px) {
+  #dock, body.nodrawer #dock { right: 16px; }
+  #drawer { z-index: 6; width: var(--drawer); }
+  #camsPill, body.nodrawer #camsPill { left: auto; right: 16px; transform: none; top: calc(var(--top-h, 40px) + 22px); }
+  #partcard { z-index: 5; width: min(320px, 46vw); }
+  #partcard.empty:not(.has-removed) { display: none; }
+  #partcard.empty #pcHead, #partcard.empty .pc-body { display: none; }
+  #partcard.empty #removedWrap { margin-top: 0; padding-top: 0; border-top: 0; }
+  #partcard.collapsed { width: auto; }
+  .lever .ticks .mct { opacity: 1; }
+}
+/* compact and tall enough: the panel stops above the dock, so the lever and gauges stay in reach */
+@media (max-width: 1099px) and (min-height: 700px), (max-height: 699px) and (min-height: 561px) {
+  #drawer { bottom: calc(var(--dock-h, 170px) + 24px); }
+}
+/* compact but wider than a phone: pedestal and lever share a row, the gauges take the next */
+@media (max-width: 1099px) and (min-width: 761px) and (min-height: 561px) {
+  .dockrow, body:not(.nodrawer) .dockrow { flex-wrap: wrap; height: auto; row-gap: 10px; }
+  .lever, body:not(.nodrawer) .lever { flex: 1 1 220px; }
+  #ecam, body:not(.nodrawer) #ecam { flex: 1 1 100%; height: 92px; border-left: 0; border-top: 1px solid var(--line); padding-top: 6px; }
+}
 /* phones: the top bar scrolls sideways, the panel slides over the view, the part card shows only when a part is picked */
 @media (max-height: 560px), (max-width: 760px) {
   :root { --drawer: min(404px, 86vw); }
@@ -208,9 +231,10 @@ button, input, select, label { touch-action: manipulation; }
   .brand { margin-right: 2px; padding-left: 2px; } .brand b { font-size: 15px; } .brand i { display: none; }
   .pill { padding: 3px; } .chip, .seg button { height: 30px; padding: 0 10px; }
   .inline input { width: 70px; }
-  #camsPill { display: none; }
-  #partcard { top: calc(var(--top-h, 40px) + 16px); left: max(8px, env(safe-area-inset-left)); width: min(280px, 58vw); padding: 12px 14px; max-height: 46vh; overflow: auto; }
-  #partcard.empty { display: none; }
+  #camsPill, body.nodrawer #camsPill { display: none; }
+  #partcard { top: calc(var(--top-h, 40px) + 16px); left: max(8px, env(safe-area-inset-left)); width: min(280px, 62vw); padding: 12px 14px; }
+  .firebtns .chip { padding: 0 9px; }
+  .ctrl { gap: 8px 12px; }
   #drawer { top: calc(var(--top-h, 40px) + 16px); right: max(8px, env(safe-area-inset-right)); bottom: 8px; z-index: 6; }
   #dock, body.nodrawer #dock { left: max(8px, env(safe-area-inset-left)); right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); }
   #status { min-height: 0; max-height: 26px; overflow: hidden; }
@@ -222,6 +246,7 @@ button, input, select, label { touch-action: manipulation; }
   .dockrow, body:not(.nodrawer) .dockrow { flex-wrap: nowrap; height: 106px; row-gap: 0; padding: 6px 12px; }
   .eyebrow, .cap { font-size: 10.5px; }
   .chip#agent { height: 26px; }
+  .ctrl { flex: 0 1 430px; }
   .lever, body:not(.nodrawer) .lever { flex: 0 1 170px; min-width: 140px; padding-left: 12px; }
   #ecam, body:not(.nodrawer) #ecam { flex: 1 1 auto; height: 100%; border-top: 0; border-left: 1px solid var(--line); padding-top: 0; min-width: 120px; }
   .ctrl { gap: 6px 10px; } .field { gap: 3px; }
@@ -235,6 +260,7 @@ button, input, select, label { touch-action: manipulation; }
 @media (max-width: 760px) and (min-height: 561px) {
   .dockrow, body:not(.nodrawer) .dockrow { flex-wrap: wrap; height: auto; row-gap: 10px; }
   .ctrl { flex: 1 1 100%; }
+  .field.grow { flex-basis: 110px; }
   .lever, body:not(.nodrawer) .lever { flex: 1 1 100%; padding-left: 0; border-left: 0; }
   #ecam, body:not(.nodrawer) #ecam { flex: 1 1 100%; height: 86px; border-left: 0; border-top: 1px solid var(--line); padding-top: 6px; }
 }

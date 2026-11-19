@@ -309,13 +309,19 @@ $('btnCut').onclick = () => { const on = !$('btnCut').classList.contains('on'); 
 $('btnFlow').onclick = () => { const on = !$('btnFlow').classList.contains('on'); $('btnFlow').classList.toggle('on', on); if (view3d) view3d.showFlow = on; };
 $('explode').oninput = () => view3d && view3d.setExplode(+$('explode').value);
 for (const b of $('cams').children) b.onclick = () => view3d && view3d.view(b.dataset.v);
-const PHONE = matchMedia('(max-height: 560px), (max-width: 760px)'), TOUCH = matchMedia('(pointer: coarse)').matches;
+// Layout tiers (style.css): desktop, compact (tablets, foldables, small laptops: under 1100 x 700) and phone.
+// On compact screens and phones the panel slides over the view instead of squeezing it.
+const PHONE = matchMedia('(max-height: 560px), (max-width: 760px)'), COMPACT = matchMedia('(max-width: 1099px), (max-height: 699px)'), TOUCH = matchMedia('(pointer: coarse)').matches;
 const frame3d = () => {
-  if (!view3d) return; const hud = !document.body.classList.contains('hud-off'), shut = $('drawer').classList.contains('shut'); document.body.classList.toggle('nodrawer', shut);
-  if (PHONE.matches) {
+  const hud = !document.body.classList.contains('hud-off'), shut = $('drawer').classList.contains('shut'); document.body.classList.toggle('nodrawer', shut);
+  const dockTop = hud ? $('dock').getBoundingClientRect().top : window.innerHeight, topB = hud ? $('top').getBoundingClientRect().bottom : 0;
+  document.documentElement.style.setProperty('--dock-h', `${Math.round(window.innerHeight - dockTop)}px`);
+  // the section view draws inside the space the overlays leave free
+  view2d.inset = { top: topB + 4, bottom: window.innerHeight - dockTop + 4, left: 0, right: hud && !shut && !COMPACT.matches ? $('drawer').offsetWidth + 32 : 0 };
+  if (!view3d) return;
+  if (COMPACT.matches) {
     // the panel slides over the view, so the engine stays centred between the top bar and the dock
-    const dockTop = $('dock').getBoundingClientRect().top, topH = $('top').getBoundingClientRect().bottom;
-    view3d.offsetX = 0; view3d.offsetY = hud ? Math.round((window.innerHeight - dockTop - topH) / 2) : 0;
+    view3d.offsetX = 0; view3d.offsetY = hud ? Math.round((window.innerHeight - dockTop - topB) / 2) : 0;
   } else { view3d.offsetX = hud && !shut ? 210 : 0; view3d.offsetY = hud ? $('top').offsetHeight + 16 : 0; }
   view3d.resize();
 };
@@ -360,10 +366,10 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('resize', () => { view2d.resize(); frame3d(); });
 // phones and tablets: the panel starts shut on small screens, rendering is lighter, and a Full screen button
 // (which also turns a phone sideways where the browser allows it) replaces F11
-if (PHONE.matches && !$('drawer').classList.contains('shut')) { $('drawer').classList.add('shut'); $('btnDrawer').classList.remove('on'); }
+if (COMPACT.matches && !$('drawer').classList.contains('shut')) { $('drawer').classList.add('shut'); $('btnDrawer').classList.remove('on'); }
 if (TOUCH && view3d) view3d.maxDpr = 1.5;
 new ResizeObserver(() => frame3d()).observe($('dock'));
-PHONE.addEventListener('change', () => requestAnimationFrame(frame3d));
+for (const q of [PHONE, COMPACT]) q.addEventListener('change', () => requestAnimationFrame(() => { view2d.resize(); frame3d(); }));
 if (document.fullscreenEnabled && (TOUCH || PHONE.matches)) {   // desktop has F11; this keeps its top bar to one row
   const fb = $('btnFull'); fb.hidden = false;
   const label = () => { fb.textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen'; fb.classList.toggle('on', !!document.fullscreenElement); };
@@ -424,7 +430,7 @@ function showPart(p) {
 }
 function refreshRemoved() {
   const gone = view3d.parts.filter((p) => p.removed);
-  $('removedWrap').hidden = gone.length === 0;
+  $('removedWrap').hidden = gone.length === 0; $('partcard').classList.toggle('has-removed', gone.length > 0);
   $('removed').replaceChildren(...gone.map((p) => { const b = document.createElement('button'); b.textContent = p.name; b.onclick = () => { view3d.setRemoved(p.id, false); refreshRemoved(); }; return b; }));
 }
 if (view3d) {

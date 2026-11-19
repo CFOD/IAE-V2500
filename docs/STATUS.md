@@ -36,6 +36,11 @@ The test website at iae.cfod.co.uk deploys from this branch automatically (see d
   within 1.8 % (approach was 4.8 % low); tests hold the airflow and the tighter approach match.
 - Smoke and fire meet the engine without hard edges (soft particles); an HP shaft failure no longer
   keeps a flame alight at 8 % N2.
+- Layout for every screen size: desktop, compact (tablets, foldables, small laptops: under 1100 x 700) and
+  phone. On compact screens the panel slides over the view and stops above the dock, the dock spans the
+  width, camera presets sit top right, and the part card shows only for a picked part or removed parts. The
+  dock controls wrap instead of overflowing; the section view fits between the top bar and the dock and
+  stacks its station labels on narrow screens.
 - Phones: touch controls and phone layout on the website; an Android app (Capacitor) that packs the
   same page for offline use, sideloaded as a debug APK for now (docs/ANDROID.md).
 

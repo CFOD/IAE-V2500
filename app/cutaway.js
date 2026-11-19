@@ -118,8 +118,11 @@ export class Cutaway {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
     const X0 = -1.15, X1 = 6.1;
-    const sc = Math.min(w / (X1 - X0), (h - 70) / 2.3);
-    const ox = (w - sc * (X1 - X0)) / 2 - X0 * sc, oy = h / 2 + 6;
+    // fit the drawing into the area the overlays leave free (set by main.js), not the whole window
+    const I = this.inset || { top: 0, bottom: 0, left: 0, right: 0 };
+    const aw = Math.max(80, w - I.left - I.right), ah = Math.max(120, h - I.top - I.bottom);
+    const sc = Math.min(aw / (X1 - X0), (ah - 70) / 2.3);
+    const ox = I.left + (aw - sc * (X1 - X0)) / 2 - X0 * sc, oy = I.top + ah / 2 + 6;
     let sx = 0, sy = 0;
     if (this.shake > 0.1) { sx = (Math.random() - 0.5) * this.shake; sy = (Math.random() - 0.5) * this.shake; this.shake *= Math.pow(0.002, dt); }
     const tx = (x) => ox + x * sc + sx;
@@ -304,12 +307,21 @@ export class Cutaway {
         ['2 INLET', -0.35, 0.5, o.T2, o.P2, 1], ['13 BYPASS', 1.3, 0.68, o.T13, o.P13, 1], ['2.5 LPC EXIT', 1.0, 0.36, o.T25, o.P25, -1],
         ['3 HPC EXIT', 1.88, 0.27, o.T3, o.P3, 1], ['4 TURB INLET', 2.2, 0.29, o.T4, o.P4, -1], ['4.9 LPT EXIT', 3.05, 0.38, o.T5, o.P5, 1],
       ];
-      const yTop = 34, yBot = h - 30;
-      st.forEach(([name, x, r, T, Pp, side]) => {
-        const px = tx(x), py = ty(side * r), ly = side > 0 ? yTop : yBot;
-        ctx.strokeStyle = 'rgba(160,180,200,0.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, ly + (side > 0 ? 8 : -22)); ctx.stroke();
-        ctx.fillStyle = '#8fa3ba'; ctx.fillText(name, px, ly - (side > 0 ? 14 : 16));
-        ctx.fillStyle = tempColor(Math.max(T, 500) + 200, 1); ctx.fillText(`${C(T)}  ${B(Pp)}`, px, ly - (side > 0 ? 0 : 2));
+      const yTop = I.top + 34, yBot = I.top + ah - 30;
+      // labels that would overlap a neighbour move to another row; they stay on screen (narrow screens)
+      if (ah < 320) st.length = 0;   // a phone held sideways has no room for them: the Monitor tab's station table has the same numbers
+      const small = aw < 640; if (small) ctx.font = "700 10px 'B612 Mono', Consolas, monospace";
+      const ends = { 1: [-1e9, -1e9, -1e9], [-1]: [-1e9, -1e9, -1e9] };
+      st.sort((a, b) => a[1] - b[1]).forEach(([name, x, r, T, Pp, side]) => {
+        const px = tx(x), py = ty(side * r), val = small ? `${C(T)} ${B(Pp)}` : `${C(T)}  ${B(Pp)}`;
+        const half = Math.max(ctx.measureText(name).width, ctx.measureText(val).width) / 2 + 5;
+        const lx = clamp(px, I.left + half + 2, I.left + aw - half - 2);
+        let row = ends[side].findIndex((e) => e < lx - half); if (row < 0) row = 2;
+        ends[side][row] = lx + half;
+        const ly = side > 0 ? yTop + row * 28 : yBot - row * 28;
+        ctx.strokeStyle = 'rgba(160,180,200,0.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, ly + (side > 0 ? 12 : -26)); ctx.lineTo(lx, ly + (side > 0 ? 8 : -22)); ctx.stroke();
+        ctx.fillStyle = '#8fa3ba'; ctx.fillText(name, lx, ly - (side > 0 ? 14 : 16));
+        ctx.fillStyle = tempColor(Math.max(T, 500) + 200, 1); ctx.fillText(val, lx, ly - (side > 0 ? 0 : 2));
       });
     }
   }
