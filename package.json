@@ -13,9 +13,9 @@
     "dist": "electron-builder",
     "build:web": "node tools/build-web.mjs",
     "build:web:nosound": "node tools/build-web.mjs --no-sounds",
-    "android:sync": "node tools/build-web.mjs && npx cap sync android",
+    "android:sync": "node tools/build-web.mjs --local && npx cap sync android",
     "android:debug": "npm run android:sync && cd android && ./gradlew assembleDebug",
-    "android:store": "node tools/build-web.mjs --no-sounds && npx cap sync android && cd android && ./gradlew bundleRelease"
+    "android:store": "node tools/build-web.mjs --no-sounds --local && npx cap sync android && cd android && ./gradlew bundleRelease"
   },
   "devDependencies": {
     "@capacitor/android": "^8.6.2",

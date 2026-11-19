@@ -106,6 +106,100 @@ oil, core harnesses A and B, ignition leads A and B, EGT harness, IP and HP blee
 ducts and buffer air. `dressing.py` routes them through `L(name)`; everything else stays in the shared
 dressing nodes.
 
+### Engine internals
+
+`tools/blender/internals.py` models the inside of the engine. The arrangement follows the Airbus training
+manual and the SR Technics booklet. Blade and vane counts, chords and angles are estimates sized from
+velocity triangles and typical solidity, because IAE does not publish them.
+
+- **Fan.** 22 wide-chord blades, each lofted from 22 airfoil sections (twist about 30 degrees, thick root,
+  thin tip, slight lean). Annulus fillers follow the blade roots and carry rubber seal strips. The fan disc
+  has a dovetail rim, web and bore. The stub shaft runs back to bearings 1 and 2. The front retaining ring
+  carries its 36 + 22 bolts.
+- **Booster.** Inner fan vanes, then four rotor and stator stages on the booster drum, each disc with a rim,
+  web and bore. The 60 fan outlet guide vanes sit in the bypass duct.
+- **Intermediate case.** Ten struts across the swan-neck duct. The hub and a diaphragm carry the No. 1
+  bearing support cone. The internal gearbox and the tower shaft run down the bottom strut.
+- **HP compressor.** Variable inlet guide vanes and three variable stator rows. Each vane has a trunnion
+  button, a spindle through the case and a lever to its unison ring. There are ten rotor stages (titanium
+  at the front, nickel at the back), then stators and exit guide vanes. Each disc has a rim, web and bore.
+  Drum spacers between the discs carry knife-edge seal teeth. The front and rear cases have bleed
+  manifold bulges and bolted flanges.
+- **Combustor.**
+  - The diffuser case has a pre-diffuser and its struts, injector pads, igniter and borescope bosses.
+  - The outer and inner liners are built from overlapping cooled panels: each panel flares out and the
+    next starts under its lip, leaving a film-cooling slot.
+  - Primary, dilution and igniter holes are drilled with booleans.
+  - The dome has a swirler (cup, vanes and ferrule) for each injector, and a hood ahead of it.
+  - 20 airblast injectors pass through the hood into their swirlers. They are fed from the manifold ring,
+    with clips holding it to the case.
+  - Two igniter plugs sit where `dressing.py` routes their leads.
+- **HP turbine.**
+  - Two stages. The nozzle guide vanes have thermal-barrier-coated platforms.
+  - The rotor blades have squealer tips.
+  - Outer air seals and vane supports sit in the case.
+  - The discs have fir-tree rims, webs and bores. A cover plate sits on disc 1, and an interstage spacer
+    carries knife edges that run against a honeycomb seal under the second vanes.
+  - Tangential on-board injector (TOBI) ring.
+  - HP shaft cone with the compressor discharge seal.
+- **LP turbine.**
+  - Five stages. The shrouded blades carry two knife edges each, running in honeycomb lands.
+  - The vanes have inner shrouds over honeycomb.
+  - Bolted discs with seal arms between them.
+  - The drive cone runs from disc 6 to the LP shaft, with its own bolt circle.
+- **Exhaust case.** 13 struts, a hub with the No. 5 bearing bulkhead, an outer ring with probe bosses, and
+  the exhaust plug.
+- **Shafts and bearings.**
+  - LP shaft with its spline coupling and nut; HP stub shaft.
+  - Bearings 1 to 5, each with inner and outer races, balls or rollers, a cage of side rails and bars, and
+    a support.
+  - Bearing chambers have carbon seals where the shafts leave them.
+
+**Rows and rings.** Every row of identical items (blades, vanes, bolts, swirlers, injectors, rolling
+elements) is exported once, as a template of a single item at angle 0. Blade rows also get a simple
+`_lo` template. `model.json` lists them under `rings`, each with:
+
+- its part and count
+- its kind: rotor, static or vsv (variable stator)
+- its spool
+- its phase
+- how the cutaway treats it: wedge, deep cut, or never cut
+- for variable stators, the spindle position
+
+**How the app draws them.** Each ring is one instanced mesh.
+
+- Rotors turn with their spool and drop the instances inside the deep cut. Static rings drop those inside
+  the wedge.
+- Variable stators turn about their spindles with the simulated stator angle. The inlet guide vanes move
+  most; each row behind them moves less.
+- The released-blade failures hide instances, as they did with the generated rows.
+- The Low quality setting uses the `_lo` templates.
+
+The vane and blade airfoils follow the sloping annulus walls along the chord. This matters most in the
+flared LP turbine and the steep booster inlet.
+
+**Bodies of revolution.** Discs, cases, liners and seals are lathed whole and as a cut copy with section
+faces: the wedge for casings, the deep cut for rotor internals. The number of steps round the axis scales
+with radius. Corners of the section profile are kept sharp. In the app, the static meshes of each part
+are merged per material, so hundreds of small bodies cost a handful of draw calls.
+
+**Visibility tiers.** `model.json` `vis` sorts the internals into three tiers:
+
+- what can be seen through the intake or nozzle (always drawn)
+- what sits under the core cowl: cases, flanges, VSV levers, injectors. Drawn when the core cowl is off
+  or the reverser cowls are open.
+- everything inside the cases: drawn only with the cutaway on, the engine exploded or a case removed.
+
+The closed engine therefore draws fewer triangles than it did with the old generated internals.
+
+**Generated stand-ins.** The internals generated in `scene3d.js` are tagged `internal`. They show until
+the model loads, then the manifest drops them.
+
+**Download size.** The web host sends the GLB uncompressed. `tools/build-web.mjs` therefore also
+publishes a gzipped copy (`manifest.packed`, about 12 MB instead of 29 MB), which the page unpacks with
+`DecompressionStream`. The plain file is the fallback. App builds (`--local`) load from local files and
+skip the packed copy.
+
 ## Nacelle shape
 
 From the Airbus A320 Aircraft Characteristics (airport and maintenance planning) document, figure

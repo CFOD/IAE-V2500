@@ -637,6 +637,20 @@ def build():
     from dressing import build_dressing
     LINE_PARTS = build_dressing(P, r_at, in_cut, material, link, made, section)
 
+    # ---- engine internals: fan, booster, HP compressor, combustor, turbines, shafts and bearings (tools/blender/internals.py)
+    import internals
+    IM = {k: material('i_' + k, c, mt, ro) for k, c, mt, ro in [
+        ('tifan', (0.66, 0.68, 0.7), 1.0, 0.24), ('ti', (0.62, 0.64, 0.66), 1.0, 0.3), ('nickel', (0.58, 0.58, 0.57), 1.0, 0.34), ('disc', (0.55, 0.57, 0.59), 1.0, 0.36),
+        ('case', (0.46, 0.48, 0.5), 0.8, 0.45), ('filler', (0.52, 0.55, 0.58), 0.3, 0.45), ('rubber', (0.06, 0.06, 0.065), 0.0, 0.7), ('bolt', (0.6, 0.61, 0.62), 1.0, 0.3),
+        ('vsv', (0.42, 0.47, 0.53), 0.9, 0.32), ('steel', (0.62, 0.64, 0.66), 1.0, 0.3), ('liner', (0.62, 0.6, 0.56), 1.0, 0.45), ('ceramic', (0.92, 0.92, 0.9), 0.0, 0.3),
+        ('hptb', (0.46, 0.43, 0.41), 1.0, 0.42), ('tbc', (0.86, 0.83, 0.74), 0.0, 0.6), ('honey', (0.7, 0.7, 0.68), 0.9, 0.55), ('hot', (0.5, 0.46, 0.42), 0.9, 0.45),
+        ('lptb', (0.6, 0.56, 0.5), 1.0, 0.38), ('tec', (0.58, 0.52, 0.44), 0.9, 0.45), ('shaft', (0.55, 0.57, 0.6), 1.0, 0.25), ('race', (0.8, 0.82, 0.84), 1.0, 0.15),
+        ('bronze', (0.72, 0.5, 0.25), 1.0, 0.35), ('carbon', (0.08, 0.08, 0.09), 0.0, 0.5)]}
+    IM['ti_fan'] = IM['tifan']
+    IK = internals.Kit(material, link, section)
+    internals.build_front(IK, IM); internals.build_rear(IK, IM)
+    made.extend(IK.made)
+
     for helper in (wedge, latch): bpy.data.objects.remove(helper, do_unlink=True)
     os.makedirs(OUT, exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, 'v2500.glb'), export_apply=True, export_yup=True)
@@ -648,7 +662,11 @@ def build():
             'cna': {'match': '^cna_', 'drop': ['skin', 'liner']}, 'agb': {'match': '^agb_'}, 'eec': {'match': '^eec_'},
             **{c: {'match': f'^{c}_'} for c, _ in accessories.UNITS}, **{c: {'match': f'^{c}_'} for c in CORE_UNITS}, **{c: {'match': f'^{c}(B__full)?$'} for c in LINE_PARTS},
             'pylon': {'match': '^pylon_'}, 'ext': {'match': '^ext_', 'drop': ['dress']},
+            # internals replace the generated stand-ins tagged 'internal' (app/scene3d.js); the fan case keeps its own
+            **{c: {'match': f'^{c}_', 'drop': ['internal']} for c in internals.PARTS}, 'fancase': {'match': '^fancase_', 'drop': ['internal']},
         },
+        'rings': IK.rings,
+        'vis': {'parts': internals.PARTS, 'out': internals.VIS_OUT, 'core': internals.VIS_CORE},
     }
     json.dump(manifest, open(os.path.join(OUT, 'model.json'), 'w'), indent=2)
     tris = sum(len(o.data.loop_triangles) or len(o.data.polygons) for o in made)

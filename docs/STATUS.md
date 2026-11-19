@@ -1,9 +1,15 @@
-# Where the project stands (18 November 2026)
+# Where the project stands (19 November 2026)
 
 Work since the switch is on branch `ccr-b314d629-a56f7k-opus` (the original branch is untouched).
 The test website at iae.cfod.co.uk deploys from this branch automatically (see docs/WEB.md).
 
 ## Done recently
+- Engine internals modelled in Blender (docs/MODEL.md, Engine internals): 22-blade fan with fillers and
+  retaining ring, booster, intermediate case, HP compressor with variable vanes, levers and unison rings,
+  discs with rims, webs, bores and knife-edge seals, panelled combustor liners with drilled holes, swirlers,
+  20 injectors and the igniters, cooled HP turbine with squealer tips and seals, shrouded LP turbine with
+  honeycomb lands and bolted discs, exhaust case, shafts and all five bearings with rollers, balls and cages.
+  Rows are instanced from templates; hidden internals are not drawn; the web model downloads gzipped.
 - A320 start panel and start faults from the Airbus training manual (ENG MODE, MAN START, aborts,
   dry / wet crank, starter limits); thrust lever into reverse with the hydraulic and C-duct lockouts.
 - Active clearance control: physics, FADEC schedule, controls, a fault; spray rings on the model.

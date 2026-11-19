@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
+import zlib from 'node:zlib';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const out = path.join(root, 'dist-web');
 fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(out, { recursive: true });
@@ -39,6 +40,15 @@ if (!process.argv.includes('--no-sounds')) {
   for (const f of used) { const s = path.join(dir, f); if (!fs.existsSync(s)) { missing.push(f); continue; } fs.copyFileSync(s, path.join(out, 'sounds', f)); sb += fs.statSync(s).size; n++; }
   bytes += sb; sounds = `, ${used.size - missing.length} recordings (${(sb / 1048576).toFixed(1)} MB)` + (missing.length ? `; MISSING ${missing.join(', ')}` : '');
 }
+// The web host sends the model uncompressed, so publish a gzipped copy as well: the page fetches that and unpacks
+// it itself (DecompressionStream), falling back to the plain file. Apps load from local files and skip it (--local).
+let packed = '';
+if (!process.argv.includes('--local')) {
+  const md = path.join(out, 'models'), mf = path.join(md, 'model.json'), man = JSON.parse(fs.readFileSync(mf, 'utf8'));
+  const gz = zlib.gzipSync(fs.readFileSync(path.join(md, man.file)), { level: 9 });
+  man.packed = man.file + '.gz'; fs.writeFileSync(path.join(md, man.packed), gz); fs.writeFileSync(mf, JSON.stringify(man, null, 2));
+  packed = `, model packed to ${(gz.length / 1048576).toFixed(1)} MB`;
+}
 // Cloudflare Pages / Netlify headers: long cache for the model and libraries, correct type for .glb
 // which build is live (shown in the Sound menu and the log): Cloudflare Pages provides the commit, else git
 const git = (c) => { try { return execSync(`git ${c}`, { cwd: root }).toString().trim(); } catch (e) { return ''; } };
@@ -55,6 +65,8 @@ fs.writeFileSync(path.join(out, '_headers'), `/*
   Cache-Control: public, max-age=604800
 /*.glb
   Content-Type: model/gltf-binary
+/*.glb.gz
+  Content-Type: application/octet-stream
 `);
 if (sounds) fs.appendFileSync(path.join(out, '_headers'), `/sounds/*
   Cache-Control: no-cache
@@ -71,4 +83,4 @@ fs.writeFileSync(path.join(out, 'LICENSES.txt'), [
   '',
 ].join('\n'));
 fs.writeFileSync(path.join(out, '404.html'), '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=/"><title>V2500</title><a href="/">V2500 Engine Simulator</a>');
-console.log(`dist-web/: ${n} files, ${(bytes / 1048576).toFixed(1)} MB${sounds || ' (no sound pack)'}, no third-party models`);
+console.log(`dist-web/: ${n} files, ${(bytes / 1048576).toFixed(1)} MB${sounds || ' (no sound pack)'}${packed}, no third-party models`);

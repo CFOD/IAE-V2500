@@ -617,7 +617,7 @@ async function loadModels() {
   const pill = $('loading'); let shown = false;
   view3d.onModelProgress = (f) => { if (!shown) { pill.hidden = false; shown = true; } pill.classList.toggle('indet', f == null); if (f != null) pill.style.setProperty('--p', `${Math.round(f * 100)}%`); };
   for (const dir of ['models/', 'assets/']) {
-    try { const r = await fetch(dir + 'model.json' + assetQuery, { cache: 'no-cache' }); if (!r.ok) continue; const man = await r.json(); man.file += assetQuery; taken.push(...(await view3d.loadExternalModel(dir, man))); } catch (e) { console.warn('model load failed', dir, e); }
+    try { const r = await fetch(dir + 'model.json' + assetQuery, { cache: 'no-cache' }); if (!r.ok) continue; const man = await r.json(); man.file += assetQuery; if (man.packed) man.packed += assetQuery; taken.push(...(await view3d.loadExternalModel(dir, man))); } catch (e) { console.warn('model load failed', dir, e); }
   }
   pill.hidden = true;
   window.sim.externalParts = taken;

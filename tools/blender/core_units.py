@@ -39,7 +39,7 @@ def build_core_units(H, made, P, r_at, bevel=0.001):
     U['exciters'] = ex
 
     # ---------------------------------------------------------------- VSV actuator, crank shaft and links to the unison rings
-    rings = [1.148, 1.218, 1.286, 1.354]
+    rings = [1.1235, 1.194, 1.262, 1.33]                                                               # unison rings (internals.py: 24 mm ahead of each spindle)
     rc = 0.398                                                                                         # crank shaft radius
     C = Kit(H, frame(H, rings[0], 150, rc))
     C.cyl('va', (-0.03, 0, 0), (0.262, 0, 0), 0.01, 0.01, M['steel'], seg=16)                         # crank shaft
@@ -48,7 +48,7 @@ def build_core_units(H, made, P, r_at, bevel=0.001):
         C.ring('va', a - 0.008, a + 0.008, 0.01, 0.018, M['cast'], seg=20)
         C.box('va', (a, 0, (zc - 0.012) / 2), (0.016, 0.028, -zc - 0.012), M['cast'])
     for x in rings:                                                                                    # crank arm and link rod to each ring
-        a = x - rings[0]; ztop = co(x) + 0.074 - rc
+        a = x - rings[0]; ztop = co(x) + 0.052 - rc                                                     # rod end on top of the ring
         C.box('va', (a, -0.018, 0.0), (0.008, 0.036, 0.012), M['steel'])
         C.cyl('va', (a, -0.034, 0.0), (a, -0.034, ztop + 0.004), 0.004, 0.004, M['steel'], seg=10)
         for z in (0.0, ztop + 0.004): C.cyl('va', (a - 0.007, -0.034, z), (a + 0.007, -0.034, z), 0.006, 0.006, M['nut'], seg=12)   # rod-end bearings

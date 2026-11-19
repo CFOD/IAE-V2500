@@ -13,6 +13,7 @@ import { GTAOPass } from './vendor/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from './vendor/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from './vendor/jsm/postprocessing/SMAAPass.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
+import { mergeGeometries } from './vendor/jsm/utils/BufferGeometryUtils.js';
 import { P, ROWS, rAt, tempRGB, lipLoop, scarfX, scarfDroop } from './cutaway.js';
 import { Billows, Streaks, Shards, Sparks, Particles, FX, noiseTexture, DepthCapturePass, SoftFxPass } from './fx.js';
 import { setSurfaceQuality, finish, FINISH } from './surfaces.js';
@@ -37,6 +38,26 @@ const HINGES = {
   cd: { L: { th: 7 * DEG, r: 0.985 }, R: { th: -7 * DEG, r: 0.985 }, open: 45 * DEG },
 };
 const inCut = (th) => { const t = ((th % TAU) + TAU) % TAU; return t > TAU + CUT_A || t < CUT_B; };
+
+// Materials of the authored internals (tools/blender/internals.py names them i_*). Where a part has a material of
+// its own for that role (blades of a rotor part, its casing...), the part's material is used, so heat tint, glow
+// and highlight follow it; otherwise each part gets its own copy of these.
+const INT_MATS = {
+  i_tifan: { color: 0xaab1b8, metalness: 1, roughness: 0.26, f: 'titanium' }, i_ti: { color: 0xa3abb3, metalness: 1, roughness: 0.3, f: 'compressorBlade' },
+  i_nickel: { color: 0x9b9c99, metalness: 1, roughness: 0.34, f: 'compressorBlade' }, i_disc: { color: 0x8a9096, metalness: 1, roughness: 0.36, f: 'bareSteel' },
+  i_case: { color: 0x7c8186, metalness: 0.8, roughness: 0.45, f: 'castPaint' }, i_filler: { color: 0x8d959c, metalness: 0.4, roughness: 0.45, f: 'castPaint' },
+  i_rubber: { color: 0x111214, metalness: 0, roughness: 0.75, f: 'rubber' }, i_vsv: { color: 0x6f7c88, metalness: 0.9, roughness: 0.3, f: 'titanium' },
+  i_steel: { color: 0xa0a5aa, metalness: 1, roughness: 0.3, f: 'stainlessTube' }, i_liner: { color: 0xa39a90, metalness: 0.9, roughness: 0.5, f: 'hotCase' },
+  i_ceramic: { color: 0xe9e8e2, metalness: 0, roughness: 0.35, f: 'polished' }, i_hptb: { color: 0x8f8a82, metalness: 1, roughness: 0.4, f: 'turbineBlade' },
+  i_tbc: { color: 0xd5ccb4, metalness: 0, roughness: 0.62, f: 'hotCase' }, i_honey: { color: 0xaeaea8, metalness: 0.85, roughness: 0.55, f: 'castBare' },
+  i_hot: { color: 0x8a7f72, metalness: 0.9, roughness: 0.45, f: 'hotCase' }, i_lptb: { color: 0x9a8a68, metalness: 1, roughness: 0.4, f: 'turbineBlade' },
+  i_tec: { color: 0x9c8263, metalness: 0.9, roughness: 0.45, f: 'hotCase' }, i_shaft: { color: 0x7a8188, metalness: 1, roughness: 0.28, f: 'bareSteel' },
+  i_race: { color: 0xc4c9cd, metalness: 1, roughness: 0.18, f: 'bareSteel', bottom: 0, grime: 0.05 }, i_bronze: { color: 0xb58a4c, metalness: 1, roughness: 0.35, f: 'cadmium' },
+  i_carbon: { color: 0x1a1a1c, metalness: 0, roughness: 0.5, f: 'darkBox' },
+};
+const INT_PART_MAT = { fan: ['i_tifan'], lpc: ['i_ti'], hpc: ['i_ti'], hpt: ['i_hptb'], lpt: ['i_lptb'], liner: ['i_liner'], tec: ['i_tec'], lpshaft: ['i_shaft'], hpshaft: ['i_shaft'],
+  lpccase: ['i_case'], hpccase: ['i_case'], combcase: ['i_case'], hptcase: ['i_hot'], lptcase: ['i_hot'] };
+const INT_HEAT = { hpt: [2.0, 2.45, 0.8], lpt: [2.3, 3.05, 0.7], hptcase: [2.0, 2.5, 0.9], lptcase: [2.3, 3.1, 0.9], combcase: [1.75, 2.6, 0.5], liner: [1.9, 2.25, 0.9], tec: [2.7, 3.5, 1.0], fuel: [1.85, 2.3, 0.35], ign: [1.9, 2.3, 0.35] };
 
 function canvasTex(w, h, draw, repeat) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
@@ -288,6 +309,7 @@ export class Scene3D {
     }
   }
   _reg(part, obj, parent = this.engine) {
+    if (this._tagInt && !obj.userData.tag) obj.userData.tag = 'internal';   // generated stand-in for an authored internal (see loadExternalModel)
     obj.traverse((m) => { if (m.isMesh) { m.userData.part = part; m.castShadow = true; m.receiveShadow = true; } });
     part.objs.push(obj); parent.add(obj); return obj;
   }
@@ -421,16 +443,19 @@ export class Scene3D {
     const pocket = new THREE.SphereGeometry(0.013, 10, 8); pocket.scale(1.5, 0.45, 1);
     this._ring(spinner, pocket, 18, (m, th) => { m.makeRotationX(th); m.multiply(new THREE.Matrix4().makeRotationZ(0.405)); m.setPosition(-0.08, (sr(-0.08) + 0.004) * Math.cos(th), (sr(-0.08) + 0.004) * Math.sin(th)); }, { parent: this.g1, mat: new THREE.MeshStandardMaterial({ color: 0x3a3e43, metalness: 0.6, roughness: 0.5 }) });
     const fan = A({ id: 'fan', name: 'Fan — 22 wide-chord blades', ex: -1.0, mat: titanium, desc: 'Hollow titanium wide-chord blades, 1.6 m across. Produces most of the thrust by moving a large mass of bypass air.', live: (o) => `N1 ${o.N1pct.toFixed(1)} % · absorbs ${(o.pwrFan / 1e6).toFixed(1)} MW · efficiency ${(o.fan.eff * 100).toFixed(0)} %` });
+    // Generated internals (tagged 'internal') stand in until the authored model loads; tools/blender/internals.py builds the real ones.
+    this._tagInt = true;
     this._row(fan, ROWS[0], 22, this.g1, { chordK: 1.0, rootK: 0.8, tipK: 1.32, stagger: [0.22, 1.02], camber: [0.14, 0.02], thick: [0.085, 0.022], sweep: 0.035, sweepS: 0.012, nSpan: 16, nProf: 12 }, { mat: this._bladeMat(fan, T.fanBlade), whole: true });
     this._solid(fan, [[0.02, 0.05], [0.02, 0.247], [0.3, 0.27], [0.3, 0.05]], { parent: this.g1, mat: fairing }); // annulus fillers
     // the hub between the blades is 22 separate annulus fillers: show the joints, following the blade root stagger, and a rubber seal strip along each blade root
     { const seam = new THREE.BoxGeometry(0.27, 0.004, 0.004), seal = new THREE.BoxGeometry(0.25, 0.01, 0.012), dark = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.8 }), q = new THREE.Quaternion(), qs = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -0.22), ax = new THREE.Vector3(1, 0, 0), one = new THREE.Vector3(1, 1, 1), rh = 0.2595;
       const at = (off) => (m, th) => { q.setFromAxisAngle(ax, th + off).multiply(qs); m.compose(new THREE.Vector3(0.16, rh * Math.cos(th + off), rh * Math.sin(th + off)), q, one); };
       this._ring(fan, seam, 22, at(TAU / 44), { parent: this.g1, mat: dark }); this._ring(fan, seal, 22, at(0.012), { parent: this.g1, mat: dark }); }
+    this._tagInt = false;
     // acoustic liner splices in the inlet barrel, and the grey ice-impact panel aft of the fan track
     for (let k = 0; k < 6; k++) { const x = -0.6 + k * 0.1, r = rAt(P.inletInner, x) + 0.0125; this._ring(inlet, new THREE.BoxGeometry(0.1, 0.004, 0.035), 3, (m, th) => { m.makeRotationX(th); m.setPosition(x, r * Math.cos(th), r * Math.sin(th)); }, { phase: 1.05, mat: new THREE.MeshStandardMaterial({ color: 0x9a9fa4, metalness: 0.6, roughness: 0.5 }) }); }
     this._solid(fanCase, band(offset(P.bypOuter, -0.001), offset(P.bypOuter, 0.003), 0.36, 0.52, 4), { mat: new THREE.MeshStandardMaterial({ color: 0x70767c, roughness: 0.85, side: THREE.DoubleSide }) });
-    this._row(fanCase, ROWS[1], 60, this.engine, { stagger: [-0.3, -0.3], camber: [-0.1, -0.1], thick: [0.07, 0.07], chordK: 1.3, tipK: 1 }, { mat: new THREE.MeshPhysicalMaterial({ ...titanium, color: 0x8c949b }) });
+    this._tagInt = true; this._row(fanCase, ROWS[1], 60, this.engine, { stagger: [-0.3, -0.3], camber: [-0.1, -0.1], thick: [0.07, 0.07], chordK: 1.3, tipK: 1 }, { mat: new THREE.MeshPhysicalMaterial({ ...titanium, color: 0x8c949b }) }); this._tagInt = false;
 
     // ---------------- compressors and turbines
     const lpc = A({ id: 'lpc', name: 'Low-pressure compressor (4 booster stages)', ex: -0.45, mat: { ...titanium, color: 0xa3abb3 }, desc: 'Booster stages on the fan shaft that supercharge the core.', live: (o) => `Pressure ratio ${o.lpc.PR.toFixed(2)} · exit ${C(o.T25)}, ${B(o.P25)} · ${o.Wlpc.toFixed(1)} kg/s` });
@@ -443,6 +468,7 @@ export class Scene3D {
     const lpt = A({ id: 'lpt', name: 'Low-pressure turbine (5 stages)', ex: 0.95, mat: { color: 0x9a8a68, metalness: 1, roughness: 0.4 }, glow: (o) => o.T45 - 130, desc: 'Extracts the remaining energy to drive the fan and booster through the long central shaft.', live: (o) => `Delivers ${(o.pwrLpt / 1e6).toFixed(1)} MW · expansion ratio ${o.lptPR.toFixed(2)} · efficiency ${(o.lpt.eff * 100).toFixed(0)} %` });
     const lptCase = A({ id: 'lptcase', name: 'LPT case and vanes', ex: 1.0, mat: hotM, glow: (o) => o.T45 - 230, desc: 'Flared casing around the five low-pressure turbine stages.', live: (o) => `Turbine metal ${C(o.Tm)}` });
 
+    this._tagInt = true;
     for (let i = 2; i < ROWS.length; i++) {
       const row = ROWS[i], xm = (row.x0 + row.x1) / 2, turbine = xm > 2.2, hpSide = xm > 1.1 && xm < 2.45;
       const n = turbine ? (hpSide ? 60 : 64) : xm < 1.1 ? 62 : 68;
@@ -480,6 +506,7 @@ export class Scene3D {
       const arm = new THREE.BoxGeometry(0.03, 0.045, 0.005); arm.translate(0.012, 0.045 + co(x), 0);
       this._ring(hpcCase, arm, 34, (m, th) => { m.makeRotationX(th); m.setPosition(x - 0.012, 0, 0); }, { mat: pipeSteel });
     }
+    this._tagInt = false;
     // Handling bleed valves: large perforated domes sealed to the core cowl by orange silicone rings.
     // 7A, 7B and stage 10 on the right of the HPC case, 7C on the left beside the VSV actuator.
     const orange = new THREE.MeshStandardMaterial({ color: 0xc8502a, roughness: 0.6 }), perf = new THREE.MeshStandardMaterial({ color: 0x6c6a64, metalness: 0.9, roughness: 0.55, map: T.liner });
@@ -489,6 +516,7 @@ export class Scene3D {
       neck.position.y = 0.05; rim.position.y = 0.1; dome.position.y = 0.1; dome.scale.y = 0.45; seal.rotation.x = Math.PI / 2; seal.position.y = 0.105; g.add(neck, rim, dome, seal);
       onCore(hpcCase, g, x, th, co(x) + 0.03);
     }
+    this._tagInt = true;
     // structural struts of the intermediate case, crossing the swan-neck duct
     this._row(lpcCase, { x0: 0.94, x1: 1.08, kind: 'stator', lo: P.coreInner, hi: P.coreOuter }, 9, this.engine, { stagger: [0, 0], camber: [0, 0], thick: [0.2, 0.2], chordK: 1, tipK: 1 });
     this._solid(hptCase, band(CO, offset(CO, 0.028), 2.2, 2.45, 6));
@@ -532,11 +560,12 @@ export class Scene3D {
     this._solid(noz, [[1.905, 0.412], [1.905, 0.436], [1.929, 0.436], [1.929, 0.412]], { seg: 96, cut: false });
     const ng = new THREE.CylinderGeometry(0.009, 0.013, 0.175, 8); ng.translate(0, 0.33, 0); ng.rotateZ(0.4); ng.translate(0.13, 0, 0); // enter at a steep angle
     this._ring(noz, ng, 20, (m, th) => { m.makeRotationX(th + 0.157 - Math.PI / 2); m.setPosition(1.94, 0, 0); }, { cut: false });
-    this._pipe(noz, [[0.95, 1.02, 180], [1.2, 0.72, 182], [1.6, 0.6, 186], [1.917, 0.44, 190]], 0.012);
+    this._tagInt = false; this._pipe(noz, [[0.95, 1.02, 180], [1.2, 0.72, 182], [1.6, 0.6, 186], [1.917, 0.44, 190]], 0.012); this._tagInt = true;
     const ign = A({ id: 'ign', name: 'Igniter plugs (2)', ex: 0.3, mat: { color: 0xe6e9ec, metalness: 0.9, roughness: 0.25 }, desc: 'Two high-energy spark igniters. Only needed to light the flame; combustion is self-sustaining afterwards.', live: (o) => (o.ignOn ? 'Sparking' : 'Off') });
     const ig = new THREE.CylinderGeometry(0.011, 0.014, 0.19, 10); ig.translate(0, 0.385, 0);
     this._ring(ign, ig, 2, (m, th) => { m.makeRotationX(th - Math.PI / 2); m.setPosition(2.01, 0, 0); }, { phase: 2.4, cut: false });
 
+    this._tagInt = false;
     // ---------------- core cowl, exhaust
     const cowl = A({ id: 'corecowl', name: 'Core cowl (inner fixed structure)', ex: 0.15, mat: composite, desc: 'Inner wall of the bypass duct, wrapped around the core engine. Remove it to see the pipework underneath.', live: (o) => `Bypass duct ${B(o.P13)} · mixing plane ${B(o.Pm)}` });
     this._solid(cowl, band(offset(P.bypInner, -0.016), P.bypInner, 0.42, 1.22, 10));
@@ -544,26 +573,32 @@ export class Scene3D {
     { const barrel = band(offset(P.bypInner, -0.016), P.bypInner, 1.22, 2.86, 22), m = new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...composite });
       this._halfLathe(cowl, 'cd', 'L', barrel, 8 * DEG, 179.75 * DEG, m); this._halfLathe(cowl, 'cd', 'R', barrel, 180.25 * DEG, 352 * DEG, m); }
     const tec = A({ id: 'tec', name: 'Turbine exhaust case and plug', ex: 1.35, mat: { ...hotM, color: 0x9c8263 }, glow: (o) => o.T5 - 170, desc: 'Carries the rear bearing. The EGT thermocouples and the P4.9 pressure probes used for EPR sit in its struts.', live: (o) => `EGT ${C(o.egt)} · EPR ${o.epr.toFixed(3)} · core jet Mach ${o.M8.toFixed(2)}` });
+    this._tagInt = true;
     this._solid(tec, [[3.0, rAt(P.coreInner, 3.0)], [3.12, 0.262], [3.12, 0.1], [3.0, 0.1]]);                                 // inner hub of the exhaust case
     this._solid(tec, [[3.12, 0.262], [3.16, 0.258], [3.5, 0.17], [3.93, 0.055], [3.95, 0.045], [3.93, 0.04], [3.5, 0.158], [3.16, 0.246], [3.12, 0.25]], { seg: 96 }); // exhaust cone: thin perforated shell, open at the rear
     this._ring(tec, new THREE.BoxGeometry(0.05, 0.004, 0.02), 13, (m, th) => { m.makeRotationX(th); m.setPosition(3.21, 0.243 * Math.cos(th), 0.243 * Math.sin(th)); }, { mat: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 }) }); // slots round the mounting flange
+    this._tagInt = false;
     // four struts inside the common nozzle (upper, lower and two side) carrying its inner duct
     { const st = bladeGeo({ span: 0.2, chord: [0.26, 0.2], stagger: [0, 0], camber: [0, 0], thick: [0.12, 0.12], nSpan: 2 });
       this._ring(cna, st, 4, (m, th) => { m.makeRotationX(th); m.setPosition(3.22, 0.46 * Math.cos(th), 0.46 * Math.sin(th)); }, { mat: this.shared.bare });
       this._solid(cna, [[3.1, 0.45], [3.1, 0.462], [3.4, 0.43], [3.4, 0.42]], { mat: this.shared.bare, seg: 96 }); }
+    this._tagInt = true;
     this._solid(tec, band(CO, offset(CO, 0.02), 3.02, 3.12, 3));
     // bolt circles on the plug and the outer ring, borescope and probe bosses, rear mount lugs at the top
     { const bolt = new THREE.CylinderGeometry(0.006, 0.006, 0.014, 6); bolt.rotateZ(Math.PI / 2);
       this._ring(tec, bolt, 13, (m, th) => m.makeTranslation(3.135, 0.2 * Math.cos(th), 0.2 * Math.sin(th)), { mat: this.boltMat });
       this._ring(tec, bolt, 56, (m, th) => m.makeTranslation(3.02, (co(3.02) + 0.035) * Math.cos(th), (co(3.02) + 0.035) * Math.sin(th)), { mat: this.boltMat });
       this._solid(tec, [[3.013, co(3.02) + 0.018], [3.013, co(3.02) + 0.05], [3.027, co(3.02) + 0.05], [3.027, co(3.02) + 0.018]], { seg: 96 });
+      this._tagInt = false;
       const boss = new THREE.CylinderGeometry(0.018, 0.022, 0.03, 10);
       this._ring(hptCase, boss, 6, (m, th) => { m.makeRotationX(th); m.setPosition(2.3, (co(2.3) + 0.035) * Math.cos(th), (co(2.3) + 0.035) * Math.sin(th)); }, { phase: 0.4, mat: this.boltMat });
       this._ring(lptCase, boss, 8, (m, th) => { m.makeRotationX(th); m.setPosition(2.7, (co(2.7) + 0.03) * Math.cos(th), (co(2.7) + 0.03) * Math.sin(th)); }, { phase: 0.2, mat: this.boltMat });
       // stiffening ribs on both turbine cases
       for (const x of [2.28, 2.36, 2.52, 2.6, 2.7, 2.78, 2.9]) this._solid(x < 2.45 ? hptCase : lptCase, [[x - 0.004, co(x) + 0.02], [x - 0.004, co(x) + 0.034], [x + 0.004, co(x) + 0.034], [x + 0.004, co(x) + 0.02]], { seg: 96 }); }
+    this._tagInt = true;
     const strut = bladeGeo({ span: 0.2, chord: [0.09, 0.09], stagger: [0, 0], camber: [0, 0], thick: [0.16, 0.16], nSpan: 2 });
     this._ring(tec, strut, 13, (m, th) => { m.makeRotationX(th); m.setPosition(3.065, 0.275 * Math.cos(th), 0.275 * Math.sin(th)); });
+    this._tagInt = false;
 
     // ---------------- accessories and pipework
     // Gearbox and the units it drives: each is its own part. These simple shapes stand in until the
@@ -601,7 +636,7 @@ export class Scene3D {
     for (const th of [200, 290]) dress(this._pipe(ext, Array.from({ length: 7 }, (_, i) => { const x = 2.24 + i * 0.125; return [x, co(x) + 0.075, th]; }), 0.016, pipeSteel));
     for (const th of [150, 240, 330]) dress(this._pipe(ext, Array.from({ length: 6 }, (_, i) => { const x = 2.3 + i * 0.135; return [x, co(x) + 0.09, th]; }), 0.014, pipeSteel));
     // a pigtail from the fuel manifold to every nozzle
-    for (let k = 0; k < 20; k++) { const th = k * 18 + 9; this._pipe(noz, [[1.917, 0.43, th], [1.892, 0.468, th + 3], [1.862, 0.452, th + 6.5], [1.878, 0.405, th + 8]], 0.0045); }
+    this._tagInt = true; for (let k = 0; k < 20; k++) { const th = k * 18 + 9; this._pipe(noz, [[1.917, 0.43, th], [1.892, 0.468, th + 3], [1.862, 0.452, th + 6.5], [1.878, 0.405, th + 8]], 0.0045); } this._tagInt = false;
     // more pipe runs: oil feed and scavenge, cooling air, sense lines
     [[118, 0.1, pipeGold, 0.006, 1.2, 2.1, 3], [139, 0.098, pipeSteel, 0.007, 1.5, 2.95, 4], [160, 0.1, harness, 0.008, 0.6, 2.6, 3], [186, 0.095, pipeSteel, 0.012, 1.2, 2.4, 2], [212, 0.1, pipeGold, 0.006, 1.7, 2.9, 5],
      [236, 0.098, pipeSteel, 0.008, 0.7, 2.2, 4], [257, 0.1, harness, 0.007, 1.2, 3.0, 3], [280, 0.098, pipeSteel, 0.009, 0.6, 1.9, 4], [304, 0.1, pipeGold, 0.007, 1.9, 3.0, 3], [327, 0.098, harness, 0.01, 1.2, 2.5, 4], [346, 0.1, pipeSteel, 0.006, 0.9, 2.8, 5]].forEach((a) => run(...a));
@@ -613,9 +648,12 @@ export class Scene3D {
     for (const x of [1.45, 2.0, 2.55]) dress(this._solid(ext, [[x - 0.005, co(x) + 0.095], [x - 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.095]], { seg: 96, mat: harness })); // clamps
     // oil feed, scavenge and vent pipes to the bearing compartments, run through struts at the bottom of the engine
     for (const [pts, rad, mt] of [
-      [[[1.02, 0.17, 176], [1.02, 0.3, 177], [1.0, 0.44, 178], [0.95, 0.56, 180], [0.85, 0.66, 182]], 0.009, pipeSteel], [[[1.06, 0.17, 186], [1.06, 0.3, 185], [1.05, 0.46, 184], [1.0, 0.58, 183]], 0.012, pipeGold],
-      [[[2.06, 0.135, 150], [2.05, 0.2, 150], [2.03, 0.3, 151], [2.0, 0.4, 153], [1.9, 0.44, 158], [1.6, 0.42, 168]], 0.008, pipeSteel], [[[2.09, 0.135, 158], [2.09, 0.22, 158], [2.1, 0.33, 158], [2.12, 0.41, 160], [2.3, 0.44, 166]], 0.011, pipeGold],
-      [[[3.06, 0.105, 180], [3.065, 0.2, 180], [3.065, 0.3, 180], [3.06, 0.47, 180], [2.9, 0.54, 180], [2.5, 0.5, 182]], 0.008, pipeSteel], [[[3.07, 0.105, 196], [3.07, 0.3, 196], [3.06, 0.47, 196], [2.85, 0.53, 194]], 0.01, pipeGold]]) this._pipe(brg, pts, rad, mt);
+      [[[0.98, 0.17, 180], [0.98, 0.3, 180], [0.985, 0.44, 180], [0.95, 0.56, 181], [0.85, 0.66, 182]], 0.009, pipeSteel], [[[1.028, 0.17, 180], [1.028, 0.3, 180], [1.025, 0.46, 181], [1.0, 0.58, 183]], 0.011, pipeGold],
+      // No. 4 bearing: in through the inner case and a pre-diffuser strut (144 and 162 deg), so clear of the flame
+      [[[2.06, 0.135, 144], [2.0, 0.165, 144], [1.94, 0.18, 144], [1.905, 0.215, 144], [1.9, 0.3, 144], [1.885, 0.4, 147], [1.8, 0.44, 158], [1.6, 0.42, 168]], 0.008, pipeSteel],
+      [[[2.09, 0.135, 162], [2.03, 0.168, 162], [1.95, 0.181, 162], [1.908, 0.215, 162], [1.902, 0.3, 162], [1.89, 0.4, 163], [2.0, 0.445, 165], [2.3, 0.44, 166]], 0.011, pipeGold],
+      // No. 5 bearing: out through exhaust-case struts 7 and 8
+      [[[3.06, 0.105, 166.15], [3.07, 0.2, 166.15], [3.072, 0.3, 166.15], [3.07, 0.47, 168], [2.9, 0.54, 176], [2.5, 0.5, 182]], 0.008, pipeSteel], [[[3.07, 0.105, 193.85], [3.075, 0.3, 193.85], [3.07, 0.47, 194], [2.85, 0.53, 194]], 0.01, pipeGold]]) this._pipe(brg, pts, rad, mt);
     // EGT thermocouples in the exhaust case struts (about 2, 4.30, 7.30 and 9.30 o'clock) with their harness ring
     for (const th of [60, 135, 225, 285]) { const pr = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 10), pipeSteel), r = co(3.07) + 0.05; pr.position.set(3.07, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); pr.rotation.x = th * DEG; const o2 = this._reg(tec, pr); if (inCut(th * DEG)) o2.userData.variant = 'full'; }
     this._pipe(tec, Array.from({ length: 22 }, (_, i) => [3.1, co(3.1) + 0.085, 118 + i * 11]), 0.007, harness);
@@ -1201,6 +1239,7 @@ export class Scene3D {
     this.renderer.shadowMap.enabled = q !== 'low'; this.key.castShadow = q !== 'low';
     this.ao.enabled = q === 'high' || q === 'ultra';
     setSurfaceQuality(q, this.renderer);
+    for (const r of this._lodRings || []) r.im.geometry = q === 'low' ? r.lo : r.hi;   // blade rows: simple templates on low
     this.resize();
   }
 
@@ -1222,7 +1261,7 @@ export class Scene3D {
         panelline: FINISH.nacellePaint, panelline2: FINISH.nacellePaint, panel2: FINISH.nacellePaint, placard: FINISH.nacellePaint, hazard: FINISH.nacellePaint, marking: FINISH.nacellePaint,
       }[name] || null;
     };
-    const gltf = await new GLTFLoader().loadAsync(base + manifest.file, (e) => this.onModelProgress && this.onModelProgress(e.lengthComputable ? e.loaded / e.total : null));
+    const gltf = (await this._loadPacked(base, manifest)) || await new GLTFLoader().loadAsync(base + manifest.file, (e) => this.onModelProgress && this.onModelProgress(e.lengthComputable ? e.loaded / e.total : null));
     const root = gltf.scene; root.scale.setScalar(manifest.scale || 1);
     if (manifest.position) root.position.fromArray(manifest.position);
     if (manifest.rotation) root.rotation.set(...manifest.rotation.map((d) => d * DEG));
@@ -1240,11 +1279,13 @@ export class Scene3D {
       const holder = new THREE.Group(); holder.name = `ext:${id}`; parent.add(holder);
       const own = {};
       for (const n of nodes) {
-        holder.attach(n);
+        const lvl = this._visLevel(manifest.vis, id, n.name);
+        (lvl ? this._visGroup(holder, lvl) : holder).attach(n);
         n.userData.variant = /__cut$/i.test(n.name) ? 'cut' : /__full$/i.test(n.name) || nodes.some((m) => m.name === `${n.name}__cut`) ? 'full' : null;
         n.traverse((m) => {
           if (!m.isMesh) return;
           const swap = (mt) => {
+            if (/^i_/.test(mt.name)) return this._intMat(part, mt.name);
             if (/^txt:/.test(mt.name)) return (this._labels ||= {})[mt.name] ||= labelMaterial(mt.name.slice(4));
             const sh = this.shared[mt.name];
             if (mt.name === 'section') return sh || mt;
@@ -1265,13 +1306,167 @@ export class Scene3D {
           m.material = Array.isArray(m.material) ? m.material.map(swap) : swap(m.material);
         });
       }
+      if (manifest.vis && manifest.vis.parts.includes(id)) this._mergeStatic(holder);
       this._reg(part, holder, parent); holder.userData.home = holder.position.x; holder.position.x += part.ex * this.explode * 1.5;
       taken.push(id);
     }
+    if (manifest.rings) this._loadRings(root, manifest);
     this.scene.remove(root);
+    // generated rows and rings that were dropped no longer need updating
+    const alive = (o) => { for (let a = o; a; a = a.parent) if (a === this.scene) return true; return false; };
+    this.rotorRows = this.rotorRows.filter((r) => alive(r.im)); this.vsvRows = this.vsvRows.filter(alive); this.cutInst = this.cutInst.filter(alive);
     for (const [id, kind] of [['fancowl', 'fan'], ['cna', 'cd']]) { const p = this.byId[id]; if (p && taken.includes(id)) for (const ob of p.objs) if (/^ext:/.test(ob.name)) this._rigExternalHinges(ob, kind); }
     this.setCutaway(this.cutaway); this.revNodes = null; this._rev = -1; this._cowlApplied = -1;
     return taken;
+  }
+
+  /** The gzipped copy of the model that the web build publishes (manifest.packed), unpacked here; null to load the plain file. */
+  async _loadPacked(base, manifest) {
+    if (!manifest.packed || typeof DecompressionStream !== 'function') return null;
+    try {
+      const r = await fetch(base + manifest.packed); if (!r.ok || !r.body) return null;
+      const total = +r.headers.get('content-length') || 0, reader = r.body.getReader(), parts = []; let got = 0;
+      for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); got += value.byteLength; if (this.onModelProgress) this.onModelProgress(total ? Math.min(1, got / total) : null); }
+      let buf = await new Blob(parts).arrayBuffer();
+      const b = new Uint8Array(buf, 0, 4);
+      if (b[0] === 0x1f && b[1] === 0x8b) buf = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();   // else the host already unpacked it
+      return await new GLTFLoader().parseAsync(buf, base);
+    } catch (e) { console.warn('packed model failed, loading the plain file', e); return null; }
+  }
+  /**
+   * Merge the meshes of an authored part that share a group, a cutaway variant and a material into one mesh each:
+   * the internals are hundreds of small bodies of revolution, and one draw call apiece would cost more than their
+   * triangles do.
+   */
+  _mergeStatic(holder) {
+    holder.updateMatrixWorld(true);
+    const buckets = new Map(), inv = new THREE.Matrix4(), m4 = new THREE.Matrix4();
+    holder.traverse((m) => {
+      if (!m.isMesh || m.isInstancedMesh || Array.isArray(m.material)) return;
+      let variant = null, grp = holder;
+      for (let a = m; a && a !== holder; a = a.parent) { if (variant == null && a.userData.variant) variant = a.userData.variant; if (/^vis_/.test(a.name)) { grp = a; break; } }
+      const key = `${grp.uuid}|${variant}|${m.material.uuid}`;
+      if (!buckets.has(key)) buckets.set(key, { grp, variant, mat: m.material, meshes: [] });
+      buckets.get(key).meshes.push(m);
+    });
+    for (const { grp, variant, mat, meshes } of buckets.values()) {
+      if (meshes.length < 2) continue;
+      inv.copy(grp.matrixWorld).invert();
+      const geos = meshes.map((m) => {
+        const g = new THREE.BufferGeometry(), src = m.geometry;
+        g.setAttribute('position', src.getAttribute('position').clone()); g.setAttribute('normal', src.getAttribute('normal').clone());
+        g.setIndex(src.index ? src.index.clone() : null); if (!src.index) return g.applyMatrix4(m4.multiplyMatrices(inv, m.matrixWorld)).toNonIndexed();
+        return g.applyMatrix4(m4.multiplyMatrices(inv, m.matrixWorld));
+      });
+      const merged = mergeGeometries(geos.filter((g) => g.index), false); if (!merged) continue;
+      const mesh = new THREE.Mesh(merged, mat); mesh.name = `merged:${meshes[0].name}`;
+      if (variant) mesh.userData.variant = variant;
+      grp.add(mesh);
+      for (const m of meshes) m.parent.remove(m);
+    }
+    // drop the groups left empty
+    const empty = []; holder.traverse((n) => { if (n !== holder && !n.isMesh && !/^vis_/.test(n.name) && !n.children.length) empty.push(n); });
+    for (const n of empty) n.parent.remove(n);
+  }
+  /** Material for an authored internal: the part's own where it has one for that role, else a finished copy owned by the part. */
+  _intMat(part, name) {
+    const key = `${part.id}:${name}`; this._intMats ||= {};
+    if (this._intMats[key]) return this._intMats[key];
+    if (name === 'i_bolt') return (this._intMats[key] = this.boltMat);
+    if ((INT_PART_MAT[part.id] || []).includes(name)) return (this._intMats[key] = part.mat);
+    const d = INT_MATS[name] || INT_MATS.i_steel, { f, bottom, grime, ...base } = d;
+    const m = new THREE.MeshPhysicalMaterial({ ...base, side: THREE.DoubleSide });
+    finish(m, { ...FINISH[f], ...(bottom != null ? { bottom } : {}), ...(grime != null ? { grime } : {}), ...(INT_HEAT[part.id] ? { heat: INT_HEAT[part.id] } : {}) });
+    (part.extMats ||= []).push(m);
+    return (this._intMats[key] = m);
+  }
+  /**
+   * Visibility tier of an authored internal: 'core' for what sits under the core cowl (cases, flanges, VSV levers,
+   * injectors), 'inner' for what is inside the cases; null for what can be seen from outside (fan, booster inlet,
+   * exhaust). Hidden tiers are not drawn at all, which keeps the closed engine cheap to render.
+   */
+  _visLevel(vis, id, name) {
+    if (!vis || !vis.parts.includes(id)) return null;
+    const base = (name || '').replace(/__(cut|full)$/i, '');
+    this._visRe ||= { out: new RegExp(vis.out), core: new RegExp(vis.core) };
+    return this._visRe.out.test(base) ? null : this._visRe.core.test(base) ? 'core' : 'inner';
+  }
+  _visGroup(parent, lvl) {
+    const k = `vis_${lvl}`;
+    if (!parent.userData[k]) { const g = new THREE.Group(); g.name = k; parent.add(g); parent.userData[k] = g; (this._visGroups ||= { core: [], inner: [] })[lvl].push(g); }
+    return parent.userData[k];
+  }
+  _updateVis() {
+    if (!this._visGroups) return;
+    const rm = (id) => this.byId[id] && this.byId[id].removed;
+    const inner = this.cutaway || this.explode > 0.01 || ['lpccase', 'hpccase', 'combcase', 'hptcase', 'lptcase', 'tec'].some(rm);
+    const core = inner || rm('corecowl') || this.cowl.cd > 0.01;
+    for (const g of this._visGroups.inner) g.visible = inner;
+    for (const g of this._visGroups.core) g.visible = core;
+  }
+  /**
+   * Rings of identical items from templates (manifest.rings): each template node holds one blade, vane, bolt...
+   * at angle 0, and is drawn as one instanced mesh at count equal angles. Rotors turn with their spool and drop
+   * the instances inside the deep cut; static rings drop those inside the cutaway wedge (or the deep cut). Blade
+   * rows carry a simpler '_lo' template for the low quality setting.
+   */
+  _loadRings(root, manifest) {
+    const inv = root.matrixWorld.clone().invert(), m4 = new THREE.Matrix4();
+    root.updateMatrixWorld(true);
+    const template = (name) => {
+      const node = name && root.getObjectByName(name); if (!node) return null;
+      const geos = [], mats = [];
+      node.traverse((m) => {
+        if (!m.isMesh) return;
+        const g = new THREE.BufferGeometry(), src = m.geometry;
+        g.setAttribute('position', src.getAttribute('position').clone()); g.setAttribute('normal', src.getAttribute('normal').clone()); if (src.index) g.setIndex(src.index.clone());
+        g.applyMatrix4(m4.multiplyMatrices(inv, m.matrixWorld));
+        geos.push(g); mats.push(Array.isArray(m.material) ? m.material[0] : m.material);
+      });
+      if (!geos.length) return null;
+      const geo = geos.length > 1 ? mergeGeometries(geos, true) : geos[0];
+      if (geos.length === 1) geo.addGroup(0, geo.index ? geo.index.count : geo.attributes.position.count, 0);
+      return { geo, mats };
+    };
+    const groups = { 0: this.engine, 1: this.g1, 2: this.g2 }, dropped = new Set(), m = new THREE.Matrix4();
+    const vsvGain = { hpccase_igv: 1, hpccase_vsv1: 0.85, hpccase_vsv2: 0.65, hpccase_vsv3: 0.45 };
+    this._lodRings = [];
+    for (const e of manifest.rings) {
+      const part = this.byId[e.part]; if (!part) continue;
+      if (!dropped.has(part.id)) { dropped.add(part.id); part.objs = part.objs.filter((ob) => { const d = ob.userData.tag === 'internal'; if (d && ob.parent) ob.parent.remove(ob); return !d; }); }
+      const hi = template(e.node); if (!hi) continue;
+      const lo = template(e.lo);
+      if (lo) { lo.geo.clearGroups(); lo.geo.addGroup(0, lo.geo.index ? lo.geo.index.count : lo.geo.attributes.position.count, 0); }
+      const spool = e.kind === 'rotor' ? e.spool || 0 : 0, base = e.node.replace(/^ring_/, '');
+      const lvl = this._visLevel(manifest.vis, part.id, base);
+      const parent = lvl ? this._visGroup(groups[spool], lvl) : groups[spool];
+      const mats = hi.mats.map((mt) => (/^i_/.test(mt.name) ? this._intMat(part, mt.name) : mt.name === 'section' ? this.capMat : this._intMat(part, 'i_steel')));
+      const ths = Array.from({ length: e.count }, (_, i) => (e.phase || 0) * DEG + (i / e.count) * TAU);
+      let place = (mm, th) => mm.makeRotationX(th);
+      if (e.kind === 'vsv') {   // variable vanes turn about their spindle (radial, at x = xs)
+        const xs = e.xs, gain = vsvGain[base] ?? 0.7, a = new THREE.Matrix4(), b = new THREE.Matrix4(), r = new THREE.Matrix4();
+        a.makeTranslation(xs, 0, 0); b.makeTranslation(-xs, 0, 0);
+        const at = (deg) => { r.makeRotationY(-deg * gain * DEG); const k = a.clone().multiply(r).multiply(b); return (mm, th) => mm.makeRotationX(th).multiply(k); };
+        place = at(0); e._vsvAt = at;
+      }
+      const hide = spool ? null : e.cut === 'deep' ? inDeep : e.cut ? inCut : null;
+      if (hide) ths.sort((p, q) => hide(p) - hide(q));
+      const useLo = lo && this.quality === 'low';
+      const im = new THREE.InstancedMesh(useLo ? lo.geo : hi.geo, mats, e.count);
+      ths.forEach((th, i) => { place(m, th); im.setMatrixAt(i, m); });
+      im.userData.ths = ths; im.userData.place = place; im.name = e.node;
+      if (hide) { im.userData.kept = ths.filter((t) => !hide(t)).length; this.cutInst.push(im); }
+      if (spool && e.blade) im.userData.row = { xm: e.x, ring: true };
+      const whole = part.id === 'fan' && /^fan_(blade|filler)/.test(base);   // the fan is outside the core: never sectioned
+      if (spool && !whole) this.rotorRows.push({ im, group: groups[spool], part });
+      if (e.kind === 'vsv') { im.userData.vsvAt = e._vsvAt; this.vsvRows.push(im); }
+      im.computeBoundingSphere();
+      this._reg(part, im, parent);
+      if (e.blade && lvl === 'inner') im.castShadow = false;   // blades inside the cases: shadows from the discs and cases are enough
+      im.userData.home = 0; im.position.x = part.ex * this.explode * 1.5;
+      if (lo) this._lodRings.push({ im, hi: hi.geo, lo: lo.geo });
+    }
+    this._vsv = null;   // re-place the variable vanes on the next frame
   }
 
   resize() {
@@ -1320,12 +1515,14 @@ export class Scene3D {
     this.fanBlur.position.x = 0.16 + this.byId.fan.ex * this.explode * 1.5;
     this._reverser(o.rev || 0);
     this._cowls(o, dt);
+    this._updateVis();
 
     // variable stators turn about their own radial axis
     if (Math.abs(o.vsv - (this._vsv ?? 1e9)) > 0.2) {
       this._vsv = o.vsv;
       const m = new THREE.Matrix4(), q = new THREE.Quaternion(), q2 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), o.vsv * DEG), ax = new THREE.Vector3(1, 0, 0), one = new THREE.Vector3(1, 1, 1);
       for (const im of this.vsvRows) {
+        if (im.userData.vsvAt) { const pl = (im.userData.place = im.userData.vsvAt(o.vsv)); im.userData.ths.forEach((th, i) => { pl(m, th); im.setMatrixAt(i, m); }); im.instanceMatrix.needsUpdate = true; continue; }
         const { xm, lo } = im.userData.row;
         im.userData.ths.forEach((th, i) => { q.setFromAxisAngle(ax, th).multiply(q2); m.compose(new THREE.Vector3(xm, lo * Math.cos(th), lo * Math.sin(th)), q, one); im.setMatrixAt(i, m); });
         im.instanceMatrix.needsUpdate = true;
