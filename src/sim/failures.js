@@ -125,6 +125,7 @@ export class Failures {
     };
     this.fx = {};          // derived flags read by the engine, FADEC, oil and damage models
     this.missing = { fan: [], lpc: [], hpc: [] };   // released blades, as fractions round the row (for the 3D view)
+    this.dmg = { fan: [], lpc: [], hpc: [] };        // damaged blades: { f (fraction round the row), span (0 hub - 1 tip), type: dent | nick | bend | tear, sev 0-1 }
     this.leaks = [];       // {part, kind: fuel | oil | air | hyd, k} for the 3D view
     this.vib1 = 0; this.vib2 = 0; this.drag1 = 0; this.drag2 = 0;
     this.ecam = [];
@@ -212,6 +213,23 @@ export class Failures {
       if (core) { const Ec = 0.5 * d.m * (k.w2 * 0.25) ** 2; hpcHit = k.rand() < clamp(Ec / 2500, 0.05, 0.9); }
     }
     st.fodFan = Math.min(1, st.fodFan + fan); st.fodLpc = Math.min(1, st.fodLpc + lpc); st.fodN++;
+    // which blades it hit, and how (drawn by the 3D view and seen through the borescope)
+    const mark = (row, n, span, type, sev, nBlades) => {
+      const a0 = k.rand();
+      for (let i = 0; i < n; i++) {
+        const sv = clamp(sev * (1 - 0.2 * i), 0.04, 1);
+        const ty = typeof type === 'function' ? type(sv) : type;
+        this.dmg[row].push({ f: (a0 + i / nBlades) % 1, span: clamp(span + (k.rand() - 0.5) * 0.12, 0.04, 0.97), type: ty, sev: sv });
+      }
+      if (this.dmg[row].length > 60) this.dmg[row].splice(0, this.dmg[row].length - 60);
+    };
+    const span = clamp((r - 0.243) / (0.8 - 0.243), 0.03, 0.97);
+    if (d.hit === 'hard') { if (!core) mark('fan', 1, span, 'nick', clamp(0.25 + E / 3000, 0.25, 1), 22); else { mark('lpc', 2, 0.6, 'nick', 0.6, 54); if (hpcHit) mark('hpc', 3, 0.55, 'nick', 0.8, 36); } }
+    else {
+      const n = clamp(Math.round(1 + E / (d.hit === 'soft' ? 9e4 : 6e4)), 1, 6), sev = clamp(fan * (d.hit === 'soft' ? 3 : 2.2), 0.06, 1);
+      mark('fan', core ? 1 : n, core ? 0.08 : span, (sv) => (sv > 0.7 && d.hit === 'semi' ? 'tear' : sv > 0.4 ? 'bend' : 'dent'), core ? Math.min(sev, 0.3) : sev, 22);
+      if (core && lpc > 0.03) mark('lpc', 3, 0.5, 'dent', clamp(lpc * 4, 0.1, 1), 54);
+    }
     for (let i = 0; i < blades; i++) { this.count.fanBlade = (this.count.fanBlade || 0) + 1; this._releaseFan('fan-blade-off'); }
     if (hpcHit) this.set('hpcBlade');
     if (!blades && fan > 0.04 && n1 > 35) this._event('surge-fan');

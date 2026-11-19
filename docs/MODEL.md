@@ -135,7 +135,7 @@ generated shapes before.
   - LP turbine stages 3, 5 and 7;
   - the combustor's six.
 
-  Their positions go to `model.json` (`ports`) for the borescope.
+  Their positions go to `model.json` (`ports`) for the Inspect tab's borescope (docs/BORESCOPE.md).
 - **Exhaust case instruments.** Four EGT thermocouples, each with a flange, bolts, a terminal head and posts,
   and a probe down its strut. A harness ring collects them and a lead runs forward to the junction box. There
   are also three P4.9 rakes with three sensing heads each, joined by their manifold.

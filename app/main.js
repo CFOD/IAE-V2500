@@ -6,6 +6,7 @@ import { FAILURES, FAIL_GROUPS } from '../src/sim/failures.js';
 import { Apron, APRON, OBJECTS } from '../src/sim/ground.js';
 import { Cutaway } from './cutaway.js';
 import { Scene3D } from './scene3d.js';
+import { ngvBurnAt } from './damage3d.js';
 import { drawEcam, drawMaps, drawTrends, pushTrend } from './gauges.js';
 import { EngineAudio } from './audio.js';
 
@@ -196,6 +197,64 @@ function refreshApronList() {
   });
   $('aprList').innerHTML = rows.join('') || '<div class="dim">Nothing on the ground yet.</div>';
 }
+
+// ------------------------------------------------------------ borescope inspection (app/borescope.js)
+const bsTab = $('t-bs'), bsOver = $('bscope');
+const PORT_GROUPS = [['Fan', /^fan$/], ['Booster', /^lpc/], ['HP compressor', /^hpc/], ['Combustor', /^comb/], ['HP turbine', /^hpt/], ['LP turbine', /^lpt/]];
+const portLabel = (p) => (p.id === 'fan' ? 'From the intake' : p.id === 'lpc1' ? 'Stage 1, through the core inlet' : p.id.replace(/^hpc(\d+)/, 'Stage $1').replace(/^hpt1b$/, 'Stage 1, second port').replace(/^hpt(\d)$/, 'Stage $1').replace(/^lpt(\d)$/, 'Stage $1').replace(/^comb(\d)$/, 'Port $1'));
+function bsBuild() {
+  if (!view3d) { bsTab.innerHTML = '<p class="note">The borescope needs the 3D view.</p>'; return; }
+  const ports = view3d.borescope.ports();
+  bsTab.innerHTML = '<p class="note" style="margin-top:2px">Pick a port to put the borescope in. Drag to steer the tip, scroll or pinch to push it in or out, and turn the spool a blade at a time with the buttons. Shut the engine down first: a turning spool just blurs past.</p>'
+    + PORT_GROUPS.map(([g, re]) => { const ps = ports.filter((p) => re.test(p.id)); return ps.length ? `<h4>${g}</h4><div class="presets">${ps.map((p) => `<button data-port="${p.id}" title="${p.sees}">${portLabel(p)}</button>`).join('')}</div>` : ''; }).join('')
+    + '<h4>Damage recorded</h4><p class="note" style="margin:2px 0 4px">Press <b>Look</b> to put the probe in the right port and turn the spool round to that blade.</p><div id="bsDamage" class="aprlist"></div>';
+  for (const b of bsTab.querySelectorAll('button[data-port]')) b.onclick = () => bsEnter(ports.find((p) => p.id === b.dataset.port));
+  $('bsDamage').onclick = (e) => { const b = e.target.closest('button[data-go]'); if (b) { const [k, i, sp] = b.dataset.go.split(':'); bsGo(k, +i, +sp); } };
+}
+// the port and row for each kind of damage the list shows
+const BS_GO = { fan: ['fan', 'ring_fan_blade'], lpc: ['lpc1', 'ring_lpc_r1'], hpc: ['hpc3', 'ring_hpc_r3'], ngv: ['hpt1', 'ring_hptcase_ngv1'], hpt: ['hpt1', 'ring_hpt_r1'] };
+function bsGo(kind, i, span) {
+  const B = view3d.borescope, [pid, node] = BS_GO[kind], port = B.ports().find((p) => p.id === pid), im = view3d.engine.getObjectByName(node);
+  if (!port || !im) return;
+  if (kind === 'ngv') { const ths = im.userData.ths; i = ths.reduce((a, th, k) => (ngvBurnAt(th, 1) > ngvBurnAt(ths[a], 1) ? k : a), 0); }
+  if (!B.on || B.port !== port) bsEnter(port);
+  B.aim(im, i, span);
+}
+function bsEnter(port) {
+  if (!view3d || !port) return;
+  if (mode !== '3d') setMode('3d');
+  if (eng.out.N2pct > 2 || eng.out.N1pct > 2) logMsg('Borescope: the engine is turning. Inspections are done with it shut down; the blades will blur past.');
+  view3d.borescope.enter(port); bsOver.hidden = false; document.body.classList.add('bs-on');
+  logMsg(`Borescope in: ${port.sees}`);
+}
+function bsLeave() { if (!view3d) return; view3d.borescope.exit(); bsOver.hidden = true; document.body.classList.remove('bs-on'); }
+$('bsLeave').onclick = bsLeave;
+for (const b of bsOver.querySelectorAll('button[data-n]')) b.onclick = () => view3d.borescope.stepBlade(+b.dataset.n);
+function bsRefresh() {
+  if (!view3d) return;
+  const B = view3d.borescope;
+  if (B.on) {
+    const i = B.info, p = B.port, turning = eng.out.N2pct > 2 || eng.out.N1pct > 2;
+    $('bsInfo').innerHTML = `<b>${p.part === 'fan' ? 'FAN' : p.id.toUpperCase()}</b> · ${p.sees}<br>${i.what ? `${i.what}${i.damage ? ` — <span class="bad">${i.damage}</span>` : ' — no damage seen'}` : '<span class="dim">aim at a blade or vane</span>'}${i.blade ? `<br><span class="dim">${i.blade}</span>` : ''}${turning ? '<br><span class="bad">Engine turning</span>' : ''}`;
+  }
+  const el = $('bsDamage'); if (!el) return;
+  const f = eng.fail, dm = eng.damage.d, rows = [], meta = view3d.ringsMeta || [];
+  const count = (node) => (meta.find((r) => r.node === node) || { count: 1 }).count;
+  const words = { dent: 'dented leading edge', nick: 'nicked leading edge', bend: 'tip curled back', tear: 'tip corner torn off' };
+  const look = (k, i, sp) => ` <button class="go" data-go="${k}:${i}:${sp.toFixed(2)}">Look</button>`;
+  for (const [id, node, name] of [['fan', 'ring_fan_blade', 'Fan blade'], ['lpc', 'ring_lpc_r1', 'Booster stage 1 blade'], ['hpc', 'ring_hpc_r3', 'HP compressor stage 3 blade']]) {
+    const n = count(node);
+    for (const r of f.dmg[id]) { const i = Math.floor(r.f * n) % n; rows.push(`${name} ${i + 1}: ${words[r.type]} (${r.sev > 0.66 ? 'severe' : r.sev > 0.33 ? 'moderate' : 'light'}), ${Math.round(r.span * 100)} % of the span${look(id, i, r.span)}`); }
+    for (const m of f.missing[id]) { const i = Math.floor(m * n) % n; rows.push(`<span class="bad">${name} ${i + 1}: missing</span>${look(id, i, 0.5)}`); }
+  }
+  if (dm.ngvBurn > 0.05) rows.push(`<span class="bad">HP turbine stage 1 guide vanes behind fuel nozzle 13: ${dm.ngvBurn > 0.6 ? 'trailing edges burnt away' : dm.ngvBurn > 0.3 ? 'coating gone, trailing edges burning' : 'coating discoloured'}</span>${look('ngv', 0, 0.5)}`);
+  if (dm.TbHmax > 1250) rows.push(`HP turbine blades overheated (metal reached ${(dm.TbHmax - 273).toFixed(0)} °C): heat discolouration${look('hpt', 0, 0.6)}`);
+  if (dm.hptLost > 0.001) rows.push(`<span class="bad">HP turbine blading lost: ${(dm.hptLost * 100).toFixed(0)} %</span>`);
+  if (dm.lptLost > 0.001) rows.push(`<span class="bad">LP turbine blading lost: ${(dm.lptLost * 100).toFixed(0)} %</span>`);
+  const html = rows.map((r) => `<div>${r}</div>`).join('') || '<span class="dim">Nothing recorded: a clean engine.</span>';
+  if (el._h !== html) { el.innerHTML = html; el._h = html; }   // rewritten only when it changes, so the buttons can be pressed
+}
+bsBuild();
 
 const hw = $('t-hw'); hw.innerHTML = '<div class="presets"><button id="hwReset">Restore new-engine condition</button></div>';
 const pct = (v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} %`;
@@ -424,7 +483,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'o' || e.key === 'O') $('btnCowl').click();
   else if (e.key === 'h' || e.key === 'H') setHud(document.body.classList.contains('hud-off'));
   else if (e.key === ' ') { $('btnPause').click(); e.preventDefault(); }
-  else if (e.key === 'Escape') openReset(false);
+  else if (e.key === 'Escape') { openReset(false); if (view3d && view3d.borescope.on) bsLeave(); }
 });
 window.addEventListener('resize', () => { view2d.resize(); frame3d(); });
 // phones and tablets: the panel starts shut on small screens, rendering is lighter, and a Full screen button
@@ -574,7 +633,7 @@ function handleEvents(dt) {
   sparkK = Math.max(losing && o.N2pct > 5 ? 0.8 : 0, sparkK - dt * 0.35);
   if (view3d) {
     Object.assign(view3d.fail, { sparks: sparkK, fire: o.fire, smoke: Math.max(o.fire, o.oilSmoke ? 0.45 * o.oilSmoke : 0, o.W9 > 3 ? Math.min(1, 2 * (dm.hptLost + dm.lptLost) + (o.torch > 0.01 ? 0.5 : 0)) : 0) });
-    const fl = eng.fail; view3d.failState = { missing: fl.missing, hpt: dm.hptLost, lpt: dm.lptLost, leaks: fl.leaks, firePart: fl.firePart };
+    const fl = eng.fail; view3d.failState = { missing: fl.missing, dmg: fl.dmg, hpt: dm.hptLost, lpt: dm.lptLost, ngvBurn: dm.ngvBurn, hotH: dm.TbHmax, hotL: dm.TbLmax, leaks: fl.leaks, firePart: fl.firePart };
   }
   // failures can change by themselves (a crack becomes a released blade): keep the buttons honest
   const sig = Object.keys(eng.fail.on).join() + JSON.stringify(eng.fail.count);
@@ -675,6 +734,7 @@ function tick(now) {
       else if (active.sd === 'log') $('log').innerHTML = log.join('<br>');
     }
     if (active.drawer === 'apr' && apronOn) refreshApronList();
+    if (active.drawer === 'bs' || (view3d && view3d.borescope.on)) bsRefresh();
   }
   requestAnimationFrame(tick);
 }
@@ -689,6 +749,7 @@ async function loadModels() {
   }
   pill.hidden = true;
   window.sim.externalParts = taken;
+  bsBuild();
   if (taken.length) logMsg(`Authored model loaded: ${taken.join(', ')}`);
 }
 if (view3d) loadModels();

@@ -22,6 +22,7 @@ export class Damage {
   reset() {
     this.d = {
       hptCreep: 0, hptLost: 0, lptCreep: 0, lptLost: 0, // creep life used (1 = first blade lets go), fraction of blading destroyed
+      ngvBurn: 0, TbHmax: 288, TbLmax: 288,             // guide vanes burnt behind a streaking nozzle (0-1); hottest the turbine blades have been (K)
       liner: 0, hpc: 0, fan: 0, rub: 0, bow: 0, bowRub: 0, fire: 0, burst: '', surges: 0, lastSurge: -9,
       TbH: 288, TbL: 288, vib1: 0, vib2: 0,
     };
@@ -47,6 +48,9 @@ export class Damage {
     d.TbH += (TbH - d.TbH) * Math.min(1, dt / 1.5);
     const TbL = o.lit ? 0.95 * (o.T45 || T0) : Math.min(d.TbL, o.Tm || T0);
     d.TbL += (TbL - d.TbL) * Math.min(1, dt / 3);
+    d.TbHmax = Math.max(d.TbHmax, d.TbH); d.TbLmax = Math.max(d.TbLmax, d.TbL);
+    // the guide vanes in a streaking nozzle's path burn: coating first, then the trailing edges
+    if (o.lit && streak > 0) d.ngvBurn = Math.min(1, d.ngvBurn + (dt * (streak / 340) * Math.max(0.15, n2 * n2)) / 150);
 
     // ---- creep: life falls by half for every ~12 K of metal temperature and with the fourth power of speed
     if (d.hptLost < 1) {

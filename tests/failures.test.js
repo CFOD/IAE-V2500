@@ -101,3 +101,28 @@ test('clearing a failure repairs the part', () => {
   assert.ok(!e.fail.isOn('brk_fuelsupply')); run(e, f, 2); assert.ok(e.out.lit, 'repaired before the lines ran dry');
   e.fail.reset(); assert.equal(e.fail.active, 0);
 });
+
+test('ingestion leaves records of the blades it hit: a goose bends fan tips, a bolt nicks one blade', () => {
+  const r = takeoff(); let sd = 3; const rand = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+  const w1 = (r.e.out.N1pct / 100) * 5650 * Math.PI / 30;
+  r.e.fail.ingest('goose', { name: 'Canada goose', m: 3.6, size: 0.75, hit: 'soft', fly: 15 }, 0.62, { U: w1 * 0.62, Vax: 170, w2: 1400, rand });
+  const fan = r.e.fail.dmg.fan;
+  assert.ok(fan.length >= 2 && fan.length <= 6, `${fan.length} blades`);
+  assert.ok(fan.some((d) => d.type === 'bend'), fan.map((d) => d.type).join());
+  for (const d of fan) assert.ok(d.f >= 0 && d.f < 1 && d.span > 0.5 && d.span < 0.9 && d.sev > 0 && d.sev <= 1, JSON.stringify(d));
+  assert.ok(new Set(fan.map((d) => Math.floor(d.f * 22))).size === fan.length, 'neighbouring blades, one record each');
+  const b = takeoff();
+  b.e.fail.ingest('bolt', { name: 'Bolt', m: 0.035, size: 0.06, hit: 'hard' }, 0.7, { U: w1 * 0.7, Vax: 170, w2: 1400, rand: () => 0.5 });
+  assert.equal(b.e.fail.dmg.fan.length, 1); assert.equal(b.e.fail.dmg.fan[0].type, 'nick');
+  b.e.fail.reset(); assert.equal(b.e.fail.dmg.fan.length, 0);
+});
+
+test('a streaking nozzle burns the HP turbine guide vanes behind it, faster at high power', () => {
+  const r = takeoff(); r.e.fail.set('nozzleStreak', true); run(r.e, r.f, 60);
+  const burn = r.e.damage.d.ngvBurn;
+  assert.ok(burn > 0.15 && burn < 0.8, `burn ${burn}`);
+  const i = idling(); i.e.fail.set('nozzleStreak', true); run(i.e, i.f, 60);
+  assert.ok(i.e.damage.d.ngvBurn < burn / 4, `idle ${i.e.damage.d.ngvBurn}`);
+  const c = takeoff(); run(c.e, c.f, 60); assert.equal(c.e.damage.d.ngvBurn, 0);
+  assert.ok(c.e.damage.d.TbHmax >= c.e.damage.d.TbH && c.e.damage.d.TbHmax > 900, `hottest ${c.e.damage.d.TbHmax}`);
+});

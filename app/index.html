@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="stage"><canvas id="stage3d"></canvas><canvas id="cutaway" hidden></canvas><div id="tip" hidden></div></div>
+<div id="stage"><canvas id="stage3d"></canvas><div id="bscope" hidden><div class="bsinfo" id="bsInfo"></div><div class="bsbar"><button data-n="-5">&#9664;&#9664; 5</button><button data-n="-1">&#9664; 1 blade</button><button data-n="1">1 blade &#9654;</button><button data-n="5">5 &#9654;&#9654;</button><button id="bsLeave">Leave</button></div></div><canvas id="cutaway" hidden></canvas><div id="tip" hidden></div></div>
 <button id="hudShow" title="Show the interface (H)">Show HUD</button>
 <div id="loading" hidden><i></i><span>Loading the detailed engine model</span></div>
 
@@ -52,12 +52,13 @@
 </aside>
 
 <aside id="drawer" class="glass">
-  <nav class="tabs" data-group="drawer"><button data-t="ctl" class="on">Control</button><button data-t="amb">Ambient</button><button data-t="hw">Hardware</button><button data-t="flt">Faults</button><button data-t="apr">Apron</button><button data-t="mon">Monitor</button></nav>
+  <nav class="tabs" data-group="drawer"><button data-t="ctl" class="on">Control</button><button data-t="amb">Ambient</button><button data-t="hw">Hardware</button><button data-t="flt">Faults</button><button data-t="apr">Apron</button><button data-t="bs">Inspect</button><button data-t="mon">Monitor</button></nav>
   <div class="tab on" id="t-ctl"></div>
   <div class="tab" id="t-amb"></div>
   <div class="tab" id="t-hw"></div>
   <div class="tab" id="t-flt"></div>
   <div class="tab" id="t-apr"></div>
+  <div class="tab" id="t-bs"></div>
   <div class="tab" id="t-mon">
     <nav class="tabs sub" data-group="sd"><button data-t="maps" class="on">Compressor maps</button><button data-t="trend">Trends</button><button data-t="data">Stations</button><button data-t="log">Log</button></nav>
     <div class="tab on" id="t-maps"><canvas id="maps"></canvas></div>

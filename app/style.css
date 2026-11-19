@@ -283,3 +283,12 @@ button, input, select, label { touch-action: manipulation; }
 .presets button.on { background: var(--fill2); color: var(--ink); border-color: var(--ink3); }
 .aprlist { font-size: 12px; line-height: 1.6; color: var(--ink2); margin-top: 4px; }
 .aprlist .bad { color: #ff8a7a; } .aprlist .dim { color: var(--ink3); }
+
+/* borescope overlay */
+#bscope { position: absolute; inset: 0; pointer-events: none; }
+#bscope .bsinfo { position: absolute; left: 14px; top: 12px; max-width: min(560px, 70%); font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #e8f0e0; text-shadow: 0 1px 2px #000; background: rgba(0, 0, 0, .35); padding: 6px 10px; border-radius: 8px; }
+#bscope .bsinfo .bad { color: #ff9a7a; } #bscope .bsinfo .dim { color: #a9b2a0; }
+#bscope .bsbar { position: absolute; left: 50%; bottom: calc(var(--dock-h, 0px) + 14px); transform: translateX(-50%); display: flex; gap: 6px; pointer-events: auto; flex-wrap: wrap; justify-content: center; }
+#bscope .bsbar button { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .25); background: rgba(10, 12, 14, .75); color: #f2f4f0; font-size: 12.5px; font-weight: 560; }
+#bscope .bsbar button:hover { background: rgba(40, 44, 48, .9); }
+.aprlist button.go { height: 20px; padding: 0 8px; margin-left: 4px; border-radius: 999px; font-size: 11px; vertical-align: 1px; }

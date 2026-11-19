@@ -18,6 +18,8 @@ import { P, ROWS, rAt, tempRGB, lipLoop, scarfX, scarfDroop } from './cutaway.js
 import { Billows, Streaks, Shards, Sparks, Particles, FX, noiseTexture, DepthCapturePass, SoftFxPass } from './fx.js';
 import { setSurfaceQuality, finish, FINISH } from './surfaces.js';
 import { ApronView } from './apron3d.js';
+import { applyDamage } from './damage3d.js';
+import { Borescope, BorescopeShader } from './borescope.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -260,6 +262,7 @@ export class Scene3D {
     this._buildEngine();
     this._buildEffects();
     this.apronView = new ApronView(this);   // the A320 on its stand (app/apron3d.js), hidden until asked for
+    this.borescope = new Borescope(this);   // inspection through the case ports (app/borescope.js)
     this._buildPost();
     // Transparent effects (plume, flames, smoke, mist, fan blur) must stay out of the ambient-occlusion
     // pre-pass. That pass redraws the scene with a plain opaque material, so an effect quad or plume
@@ -957,6 +960,7 @@ export class Scene3D {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(4, 4), 0.32, 0.5, 1.7); c.addPass(this.bloom);
     this.haze = new ShaderPass(HeatHaze); c.addPass(this.haze);
     c.addPass(new ShaderPass(Sanitize));
+    this.bsPass = new ShaderPass(BorescopeShader); this.bsPass.enabled = false; c.addPass(this.bsPass);   // borescope lens, only while inspecting
     c.addPass(new OutputPass());
     // Anti-aliasing is layered: multisampling on the scene buffer (geometry edges), SMAA on the final
     // image (edges the post-processing passes re-introduce), and optional supersampling on Ultra.
@@ -985,17 +989,20 @@ export class Scene3D {
       p.x = e.clientX; p.y = e.clientY;
       if (pts.size >= 2 && pinch) {
         const n = two();
+        if (this.borescope.on) { if (n.d > 1 && pinch.d > 1) this.borescope.push((n.d - pinch.d) * 0.003); pinch = n; return; }
         if (n.d > 1 && pinch.d > 1) o.dist = clamp(o.dist * (pinch.d / n.d), 1.4, this.maxDist || 22);
         pan(n.x - pinch.x, n.y - pinch.y); pinch = n;
       } else if (drag) {
         const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
-        if (drag.pan) pan(dx, dy); else { o.az -= dx * 0.006; o.el = clamp(o.el + dy * 0.006, -0.3, 1.45); }
+        if (this.borescope.on) this.borescope.look(dx, dy);   // steering the probe tip
+        else if (drag.pan) pan(dx, dy); else { o.az -= dx * 0.006; o.el = clamp(o.el + dy * 0.006, -0.3, 1.45); }
       }
     });
     const end = (e) => {
       const had = pts.delete(e.pointerId);
       if (had && drag && !multi && e.type === 'pointerup' && moved < (e.pointerType === 'mouse' ? 5 : 10) && (e.pointerType !== 'mouse' || e.button === 0)) {
-        if (this.placeHandler && this.apronView.on) { const g = this.groundAt(e); if (g) this.placeHandler(g); }   // dropping an object on the apron
+        if (this.borescope.on) { /* nothing to pick inside the engine */ }
+        else if (this.placeHandler && this.apronView.on) { const g = this.groundAt(e); if (g) this.placeHandler(g); }   // dropping an object on the apron
         else this._pick(e, true);
       }
       if (pts.size === 1) { const [q] = [...pts.values()]; drag = { x: q.x, y: q.y, pan: false }; pinch = null; } // carry on orbiting with the finger left
@@ -1003,7 +1010,7 @@ export class Scene3D {
     };
     el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
     el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { this.hover = null; this.onHover && this.onHover(null); } });
-    el.addEventListener('wheel', (e) => { e.preventDefault(); o.dist = clamp(o.dist * Math.exp(e.deltaY * 0.0011), 1.4, this.maxDist || 22); }, { passive: false });
+    el.addEventListener('wheel', (e) => { e.preventDefault(); if (this.borescope.on) { this.borescope.push(-e.deltaY * 0.0008); return; } o.dist = clamp(o.dist * Math.exp(e.deltaY * 0.0011), 1.4, this.maxDist || 22); }, { passive: false });
     this.ray = new THREE.Raycaster();
   }
   /** The ground point under a pointer event (engine frame), or null. */
@@ -1157,15 +1164,18 @@ export class Scene3D {
   }
   /** Released blades: hidden instances, from the counts the simulation keeps. */
   _missing(fs) {
-    const key = fs ? `${fs.missing.fan.length},${fs.missing.lpc.length},${fs.missing.hpc.length},${Math.round(fs.hpt * 100)},${Math.round(fs.lpt * 100)}` : '';
+    const dl = fs && fs.dmg ? `${fs.dmg.fan.length},${fs.dmg.lpc.length},${fs.dmg.hpc.length},${Math.round((fs.ngvBurn || 0) * 20)},${Math.round((fs.hotH || 0) / 25)},${Math.round((fs.hotL || 0) / 25)}` : '';
+    const key = fs ? `${fs.missing.fan.length},${fs.missing.lpc.length},${fs.missing.hpc.length},${Math.round(fs.hpt * 100)},${Math.round(fs.lpt * 100)},${dl}` : '';
     if (key === this._missKey) return; this._missKey = key; this._miss = new Map();
     if (!fs) fs = { missing: { fan: [], lpc: [], hpc: [] }, hpt: 0, lpt: 0 };   // repaired: rows rewritten whole below
     // the rotor rows of a part, in build order (the fan's row is drawn whole, so it is not among rotorRows)
     const rows = (id) => { const out = []; for (const ob of (this.byId[id] || { objs: [] }).objs) if (ob.isInstancedMesh && ob.userData.row && ob.parent !== this.engine) out.push({ im: ob }); return out; };
-    const put = (im, idx) => { if (idx.length) this._miss.set(im, new Set(idx)); };
+    const put = (im, idx) => { if (!idx.length) return; const s0 = this._miss.get(im) || new Set(); for (const i of idx) s0.add(i); this._miss.set(im, s0); };
     const pick = (n, count, seed) => { const out = []; let sd = seed; n = Math.min(n, count); while (out.length < n) { sd = (sd * 16807) % 2147483647; const i = sd % count; if (!out.includes(i)) out.push(i); } return out; };
     for (const id of ['fan', 'lpc', 'hpc']) { const r = rows(id)[0]; if (r) put(r.im, fs.missing[id].map((f) => Math.floor(f * r.im.count) % r.im.count)); }
     ['hpt', 'lpt'].forEach((id, k) => rows(id).forEach((r, j) => put(r.im, pick(Math.round(fs[id] * r.im.count * (j === 0 ? 1.5 : 0.5 / Math.max(1, j))), r.im.count, 97 + 31 * j + 7 * k))));
+    // dented, bent and burnt blades: deformed copies stand in for their instances (app/damage3d.js)
+    for (const d of applyDamage(this, fs, rows, put)) { let a = d.im; while (a && a !== this.g1 && a !== this.g2) a = a.parent; d.group = a; }
     // rows that are not redrawn every frame (the fan) are rewritten here, once per change
     const m = new THREE.Matrix4(), zero = new THREE.Matrix4().makeScale(0, 0, 0), live = new Set(this.rotorRows.map((r) => r.im));
     for (const im of new Set([...(this._missStatic || []), ...this._miss.keys()])) {
@@ -1261,6 +1271,7 @@ export class Scene3D {
     this.ao.enabled = q === 'high' || q === 'ultra';
     setSurfaceQuality(q, this.renderer);
     for (const r of this._lodRings || []) this._applyLod(r);   // blade rows: three levels of detail
+    this._missKey = null;   // damaged copies are rebuilt from the new templates
     this.resize();
   }
 
@@ -1333,6 +1344,7 @@ export class Scene3D {
       this._reg(part, holder, parent); holder.userData.home = holder.position.x; holder.position.x += part.ex * this.explode * 1.5;
       taken.push(id);
     }
+    this.ports = manifest.ports || this.ports || []; this.ringsMeta = manifest.rings || this.ringsMeta || [];
     if (manifest.rings) this._loadRings(root, manifest);
     this.scene.remove(root);
     // generated rows and rings that were dropped no longer need updating
@@ -1430,7 +1442,7 @@ export class Scene3D {
   _updateVis() {
     if (!this._visGroups) return;
     const rm = (id) => this.byId[id] && this.byId[id].removed;
-    const inner = this.cutaway || this.explode > 0.01 || ['lpccase', 'hpccase', 'combcase', 'hptcase', 'lptcase', 'tec'].some(rm);
+    const inner = this.cutaway || this.explode > 0.01 || this.borescope.on || ['lpccase', 'hpccase', 'combcase', 'hptcase', 'lptcase', 'tec'].some(rm);
     const core = inner || rm('corecowl') || this.cowl.cd > 0.01;
     for (const g of this._visGroups.inner) g.visible = inner;
     for (const g of this._visGroups.core) g.visible = core;
@@ -1526,6 +1538,7 @@ export class Scene3D {
     this.camera.position.set(ob.target.x + ob.dist * Math.sin(ob.az) * ce, ob.target.y + ob.dist * Math.sin(ob.el), ob.target.z + ob.dist * Math.cos(ob.az) * ce);
     if (this.flash > 0.05) this.camera.position.add(new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, 0).multiplyScalar(0.05 * this.flash));
     this.camera.lookAt(ob.target); this.camera.updateMatrixWorld();
+    if (this.borescope.on) this.borescope.apply(this.camera, dt);
 
     // spools: display speed is compressed so blades stay readable; the blur disc sells the rest
     const p1 = Math.abs(o.N1pct) / 100, p2 = o.N2pct / 100;
@@ -1541,6 +1554,10 @@ export class Scene3D {
         im.instanceMatrix.needsUpdate = true;
       }
       this._deepShown = this.cutaway; this._missShown = anyMiss;
+    }
+    for (const d of this._dmgMeshes || []) {   // damaged copies follow the cutaway like the rows they belong to
+      const th = d.im.userData.ths[d.i] + (d.group ? d.group.rotation.x : 0);
+      d.mesh.visible = d.im.visible && !(this.cutaway && (d.rotor ? inDeep(th) : inCut(th)));
     }
     this.fanBlur.material.opacity = this.byId.fan.removed ? 0 : clamp(p1 * 0.2, 0, 0.16);
     this.fanBlur.position.x = 0.16 + this.byId.fan.ex * this.explode * 1.5;
@@ -1669,7 +1686,7 @@ export class Scene3D {
 
     // ---- surge: the flash fades (the fireball itself was emitted by surge())
     if (this.flash > 0.03) this.flash *= Math.pow(0.004, dt);
-    if (this.quality === 'low') {   // no post-processing: smoke and fire go in the one render, with plain depth testing
+    if (this.quality === 'low' && !this.borescope.on) {   // no post-processing: smoke and fire go in the one render, with plain depth testing
       FX.uSoftOn.value = 0; this.camera.layers.enable(2); this.renderer.render(this.scene, this.camera); this.camera.layers.disable(2);
     } else this.composer.render();
   }

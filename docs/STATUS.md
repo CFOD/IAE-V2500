@@ -4,6 +4,13 @@ Work since the switch is on branch `ccr-b314d629-a56f7k-opus` (the original bran
 The test website at iae.cfod.co.uk deploys from this branch automatically (see docs/WEB.md).
 
 ## Done recently
+- Damage you can see, and a borescope (docs/BORESCOPE.md): ingested objects leave dented, nicked, bent or
+  torn blades on the fan, booster and HP compressor; a streaking fuel nozzle burns the HP turbine guide
+  vanes behind it; overheated turbine blades take on straw, bronze and blue heat tints. The Inspect tab puts
+  a probe through the real inspection ports, with its own light, automatic gain and a fisheye lens. Turn the
+  spool a blade at a time, read what is in view, or press Look on a damage record to go straight to it.
+- The rest of the engine modelled in Blender: spinner, hinged core cowl, common nozzle, bleed valves,
+  case ribs and borescope ports, exhaust case instruments, tubes, combustor liners and cascades.
 - The engine on the apron (docs/APRON.md): an A320 modelled in Blender around it on a painted stand, with
   daylight. Intake suction with a ground vortex, a jet calibrated to the Airbus exhaust velocity contours,
   and birds, a traffic cone, rag, bag, bolt, stone and suitcase to drop near it. What goes in damages the
