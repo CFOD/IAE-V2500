@@ -97,6 +97,11 @@ export class Borescope {
       // Low has no post-processing; the lens needs the composer, so run it bare (no bloom, haze or SMAA)
       this.saved.fx = [v.bloom, v.haze, v.smaa].filter(Boolean).map((ps) => [ps, ps.enabled]);
       if (v.quality === 'low') for (const [ps] of this.saved.fx) ps.enabled = false;
+      // Polished metal lit from the lens shows nothing but one hot spot; real blades are matt enough with
+      // coatings, erosion and deposits that the LEDs light their whole surface. Roughen them while inspecting.
+      const mats = new Set(); this.v.engine.traverse((n) => { if (n.isMesh) for (const m of [].concat(n.material)) if (m && m.roughness != null) mats.add(m); });
+      this.saved.mats = [...mats].map((m) => [m, m.roughness, m.metalness]);
+      for (const m of mats) { m.roughness = Math.max(m.roughness, 0.52); m.metalness = Math.min(m.metalness, 0.8); }
     }
     this.on = true; this.port = port; this.L = this._layout(port);
     this.yaw = port.part === 'fan' ? 0.25 : port.part === 'combcase' ? 0 : 0.45; this.tilt = port.part === 'combcase' ? -0.1 : 0.12; this.depth = 0.5; this.turned = 0; this.turn = 0;
@@ -109,12 +114,13 @@ export class Borescope {
     v.scene.environmentIntensity = this.saved.env; v.scene.background = this.saved.bg; v.camera.near = this.saved.near; v.camera.up.set(0, 1, 0);
     if (this.saved.cut) v.setCutaway(true);
     for (const [ps, en] of this.saved.fx || []) ps.enabled = en;
-    this.light.intensity = 0; this.glow.intensity = 0; this.on = false; this.port = null; this.target = null;
+    for (const [m, r, mt] of this.saved.mats || []) { m.roughness = r; m.metalness = mt; }
+    this.light.intensity = 0; this.glow.intensity = 0; this.on = false; this.port = null; this.target = null; this.want = null;
     if (v.bsPass) v.bsPass.enabled = false;
     v.resize();
   }
   /** Turn the spool by n blades (it eases round). */
-  stepBlade(n) { if (this.L && this.L.rotor) this.turn += (n * TAU) / this.L.rotor.count; }
+  stepBlade(n) { this.want = null; if (this.L && this.L.rotor) this.turn += (n * TAU) / this.L.rotor.count; }
   look(dx, dy) { this.yaw = wrap(this.yaw - dx * 0.005); this.tilt = clamp(this.tilt + dy * 0.005, -1.2, 1.2); }
   push(d) { this.depth = clamp(this.depth + d, 0, 1); }
   /**
@@ -135,7 +141,7 @@ export class Borescope {
   }
   /** Where a blade's surface is at radius r, in its template (angle 0): mean axial station and angle. */
   _surf(im, r) {
-    const k = this.L && this.L.look < 0 ? 0.75 : 0.25;   // a probe behind the row sees the trailing edge
+    const fan = /^ring_fan_/.test(im.name), k = fan ? 0.25 : 0.5;   // the fan from in front; a core blade at mid-chord
     const key = `${im.geometry.uuid}:${r.toFixed(3)}:${k}`; this._sc = this._sc || new Map();
     if (this._sc.has(key)) return this._sc.get(key);
     const p = im.geometry.attributes.position; let r0 = Infinity, r1 = 0;
@@ -160,11 +166,17 @@ export class Borescope {
     // the blade itself at that span: staggered and swept, its surface is well round from its root line
     const S = this._surf(im, ri + clamp(T.span, 0.05, 0.95) * (ro - ri)), xt = S.x ?? xm, rt = S.r;
     const rp = this._radius(), th0 = this.port.th * DEG, F = this._frame(), dx = xt - L.x;
-    if (im.userData.row && L.group) {   // a rotor: tilt to the span, then turn the blade to where the tip looks
-      this.tilt = clamp(Math.atan2(rp - rt, Math.abs(dx) / Math.max(0.2, Math.abs(Math.cos(this.yaw)))), -1.2, 1.2);
+    if (im.userData.row && L.group) {   // a rotor: look across at it, tilt to the span, then turn the blade round
+      // a core probe sits in a gap of a few millimetres, so it looks sideways along the row to see a blade from
+      // a few centimetres away
+      const D = fan ? 0 : 0.03, h0 = Math.abs(dx), y0 = fan ? 0.25 : 0.45;
+      this.yaw = D ? Math.max(y0, Math.acos(clamp(h0 / D, 0, 1))) : y0;
+      if (dx * L.look < 0) this.yaw = Math.PI - this.yaw;   // the row is behind the way the port faces
+      this.tilt = clamp(Math.atan2(rp - rt, h0 / Math.max(0.2, Math.abs(Math.cos(this.yaw)))), -1.2, 1.2);
       const d = this._dir(F), t = Math.abs(d.x) > 1e-3 ? dx / d.x : 0.05;
       const p = new THREE.Vector3(L.x, 0, 0).addScaledVector(F.rad, rp).addScaledVector(d, t), thc = Math.atan2(p.z, p.y);
       this.turn += wrap(thc - (im.userData.ths[T.i] + S.d + L.group.rotation.x + this.turn));
+      this.want = { im, i: T.i, tries: 2 };   // checked against what the probe sees once the spool stops
     } else {   // a vane: steer the tip round to it
       const dth = wrap(im.userData.ths[T.i] + S.d - th0), s = rt * Math.sin(dth), dr = rp - rt * Math.cos(dth);
       this.yaw = Math.atan2(s, dx * L.look); this.tilt = clamp(Math.atan2(dr, Math.hypot(dx, s)), -1.2, 1.2);
@@ -198,7 +210,7 @@ export class Borescope {
   _probe(camera) {
     const ray = new THREE.Raycaster(), E = this.v.engine.children, ds = [];
     ray.far = 0.8;
-    let what = '', dmg = '';
+    let what = ''; let dmg = ''; this._hit = null;
     for (const [k, [sx, sy]] of [[0, 0], [-0.35, -0.35], [0.35, -0.35], [-0.35, 0.35], [0.35, 0.35]].entries()) {
       ray.setFromCamera(new THREE.Vector2(sx, sy), camera);
       const hits = ray.intersectObjects(E, true).filter((h) => shown(h.object));
@@ -208,11 +220,17 @@ export class Borescope {
         const o = h.object, nm = rowName(o.name || '');
         if (!nm) { if (o.isMesh && !/^damaged:/.test(o.name)) break; continue; }   // something else is in the way
         const dd = (this.v._dmgMeshes || []).find((q) => q.mesh === o);
-        if (dd) { what = `${nm} ${number(dd.im, dd.i)} of ${dd.im.userData.ths.length}`; dmg = describe(dd.list); }
-        else if (o.isInstancedMesh && h.instanceId != null) { what = `${nm} ${number(o, h.instanceId)} of ${o.userData.ths.length}`; dmg = this._heat(o, h.instanceId); }
+        if (dd) { what = `${nm} ${number(dd.im, dd.i)} of ${dd.im.userData.ths.length}`; dmg = describe(dd.list); this._hit = { im: dd.im, i: dd.i }; }
+        else if (o.isInstancedMesh && h.instanceId != null) { what = `${nm} ${number(o, h.instanceId)} of ${o.userData.ths.length}`; dmg = this._heat(o, h.instanceId); this._hit = { im: o, i: h.instanceId }; }
         else what = nm;
         break;
       }
+    }
+    // once the spool has stopped, check the blade in the middle is the one asked for, and turn on if not
+    if (this.want && Math.abs(this.turn) < 1e-4 && this.L.group) {
+      const W = this.want, hit = this._hit;
+      if (hit && hit.im === W.im && hit.i !== W.i && W.tries-- > 0) this.turn += wrap(W.im.userData.ths[hit.i] - W.im.userData.ths[W.i]);
+      else this.want = null;
     }
     const c = ds[0]; ds.sort((a, b) => a - b); this.dist = clamp(Math.sqrt(c * ds[2]), 0.008, 0.6);   // centre-weighted: the centre and the median set the gain
     const L = this.L, n = L && L.rotor ? L.rotor.count : 0, k = n ? Math.round(this.turned / (TAU / n)) : 0;

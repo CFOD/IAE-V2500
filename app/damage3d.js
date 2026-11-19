@@ -57,9 +57,9 @@ export function deformBlade(src, recs) {
   return g;
 }
 
-// The streaking nozzle is No. 13 (9 + 12 x 18 = 225 deg). The swirl in the combustor carries its hot streak about
-// 13 deg round before it reaches the guide vanes, so it lands in front of the stage 1 borescope port at 210 deg.
-export const STREAK_TH = 212 * Math.PI / 180;
+// The streaking nozzle is No. 13 (9 + 12 x 18 = 225 deg), 15 deg round from the stage 1 borescope port at 210 deg:
+// the probe sees the vanes behind it by looking along the row.
+export const STREAK_TH = 225 * Math.PI / 180;
 /** How badly the stage 1 guide vane at angle th is burnt, 0-1, for the engine's burn figure (damage.js ngvBurn). */
 export function ngvBurnAt(th, burn) {
   const d = Math.abs(((th - STREAK_TH) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI);

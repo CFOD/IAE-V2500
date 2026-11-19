@@ -42,8 +42,8 @@ blades and curls one tip right back; a bolt leaves one nick.
 ### A streaking fuel nozzle
 
 The **Streaking fuel nozzle** fault (nozzle No. 13, at 225 degrees) burns the HP turbine stage 1 guide vanes
-in its path. The swirl in the combustor carries the streak about 13 degrees round, so it lands on the vanes in
-front of the stage 1 borescope port at 210 degrees.
+in its path, 15 degrees round from the stage 1 borescope port at 210 degrees. To see them, turn the probe
+tip to look along the row of vanes.
 
 - The burn grows while the engine runs lit with the fault on, with the fuel flow and N2. At take-off power
   it reaches full in about two and a half minutes, at climb power in about six; at idle it takes over an
