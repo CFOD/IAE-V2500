@@ -102,5 +102,5 @@ fs.writeFileSync(path.join(out, '404.html'), '<!doctype html><meta charset="utf-
 // fail here rather than at Cloudflare's upload, where the whole deploy is refused
 const big = [];
 (function scan(d) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const f = path.join(d, e.name); if (e.isDirectory()) scan(f); else if (fs.statSync(f).size > 25 * 1048576) big.push(path.relative(out, f)); } })(out);
-if (big.length) { console.error(`dist-web/: over Cloudflare Pages' 25 MiB file limit: ${big.join(', ')}`); process.exit(1); }
+if (big.length && !process.argv.includes('--local')) { console.error(`dist-web/: over Cloudflare Pages' 25 MiB file limit: ${big.join(', ')}`); process.exit(1); }   // the apps load local files: no limit
 console.log(`dist-web/: ${n} files, ${(bytes / 1048576).toFixed(1)} MB${sounds || ' (no sound pack)'}${packed}, no third-party models`);
