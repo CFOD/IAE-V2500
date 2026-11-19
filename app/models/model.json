@@ -272,6 +272,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_fan_blade_lo",
+      "mid": "ring_fan_blade_mid",
       "x": 0.168,
       "blade": true
     },
@@ -314,6 +315,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_fan_ogv_lo",
+      "mid": "ring_fan_ogv_mid",
       "x": 1.065,
       "blade": true
     },
@@ -326,6 +328,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpc_igv_lo",
+      "mid": "ring_lpc_igv_mid",
       "x": 0.4225,
       "blade": true
     },
@@ -338,6 +341,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpc_r1_lo",
+      "mid": "ring_lpc_r1_mid",
       "x": 0.49,
       "blade": true
     },
@@ -350,6 +354,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpc_s1_lo",
+      "mid": "ring_lpc_s1_mid",
       "x": 0.5375,
       "blade": true
     },
@@ -362,6 +367,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpc_r2_lo",
+      "mid": "ring_lpc_r2_mid",
       "x": 0.585,
       "blade": true
     },
@@ -374,6 +380,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpc_s2_lo",
+      "mid": "ring_lpc_s2_mid",
       "x": 0.6325,
       "blade": true
     },
@@ -386,6 +393,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpc_r3_lo",
+      "mid": "ring_lpc_r3_mid",
       "x": 0.68,
       "blade": true
     },
@@ -398,6 +406,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpc_s3_lo",
+      "mid": "ring_lpc_s3_mid",
       "x": 0.7275,
       "blade": true
     },
@@ -410,6 +419,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpc_r4_lo",
+      "mid": "ring_lpc_r4_mid",
       "x": 0.775,
       "blade": true
     },
@@ -422,6 +432,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpc_s4_lo",
+      "mid": "ring_lpc_s4_mid",
       "x": 0.8225,
       "blade": true
     },
@@ -434,6 +445,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpccase_strut_lo",
+      "mid": "ring_lpccase_strut_mid",
       "x": 1.02,
       "blade": true
     },
@@ -446,6 +458,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpccase_igv_lo",
+      "mid": "ring_hpccase_igv_mid",
       "xs": 1.1475,
       "x": 1.1475,
       "blade": true
@@ -459,6 +472,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpccase_vsv1_lo",
+      "mid": "ring_hpccase_vsv1_mid",
       "xs": 1.218,
       "x": 1.218,
       "blade": true
@@ -472,6 +486,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpccase_vsv2_lo",
+      "mid": "ring_hpccase_vsv2_mid",
       "xs": 1.286,
       "x": 1.286,
       "blade": true
@@ -485,6 +500,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpccase_vsv3_lo",
+      "mid": "ring_hpccase_vsv3_mid",
       "xs": 1.354,
       "x": 1.354,
       "blade": true
@@ -498,6 +514,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpc_r3_lo",
+      "mid": "ring_hpc_r3_mid",
       "x": 1.187,
       "blade": true
     },
@@ -510,6 +527,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpc_r4_lo",
+      "mid": "ring_hpc_r4_mid",
       "x": 1.2542,
       "blade": true
     },
@@ -522,6 +540,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpc_r5_lo",
+      "mid": "ring_hpc_r5_mid",
       "x": 1.3215,
       "blade": true
     },
@@ -534,6 +553,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpc_r6_lo",
+      "mid": "ring_hpc_r6_mid",
       "x": 1.3887,
       "blade": true
     },
@@ -546,6 +566,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpccase_s6_lo",
+      "mid": "ring_hpccase_s6_mid",
       "x": 1.422,
       "blade": true
     },
@@ -558,6 +579,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpc_r7_lo",
+      "mid": "ring_hpc_r7_mid",
       "x": 1.456,
       "blade": true
     },
@@ -570,6 +592,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpccase_s7_lo",
+      "mid": "ring_hpccase_s7_mid",
       "x": 1.49,
       "blade": true
     },
@@ -582,6 +605,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpc_r8_lo",
+      "mid": "ring_hpc_r8_mid",
       "x": 1.5232,
       "blade": true
     },
@@ -594,6 +618,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpccase_s8_lo",
+      "mid": "ring_hpccase_s8_mid",
       "x": 1.558,
       "blade": true
     },
@@ -606,6 +631,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpc_r9_lo",
+      "mid": "ring_hpc_r9_mid",
       "x": 1.5905,
       "blade": true
     },
@@ -618,6 +644,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpccase_s9_lo",
+      "mid": "ring_hpccase_s9_mid",
       "x": 1.626,
       "blade": true
     },
@@ -630,6 +657,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpc_r10_lo",
+      "mid": "ring_hpc_r10_mid",
       "x": 1.6578,
       "blade": true
     },
@@ -642,6 +670,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpccase_s10_lo",
+      "mid": "ring_hpccase_s10_mid",
       "x": 1.694,
       "blade": true
     },
@@ -654,6 +683,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpc_r11_lo",
+      "mid": "ring_hpc_r11_mid",
       "x": 1.725,
       "blade": true
     },
@@ -666,6 +696,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpccase_s11_lo",
+      "mid": "ring_hpccase_s11_mid",
       "x": 1.762,
       "blade": true
     },
@@ -678,6 +709,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpc_r12_lo",
+      "mid": "ring_hpc_r12_mid",
       "x": 1.7923,
       "blade": true
     },
@@ -690,6 +722,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpccase_s12_lo",
+      "mid": "ring_hpccase_s12_mid",
       "x": 1.833,
       "blade": true
     },
@@ -738,6 +771,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_combcase_pdstrut_lo",
+      "mid": "ring_combcase_pdstrut_mid",
       "x": 1.901,
       "blade": true
     },
@@ -813,6 +847,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hptcase_ngv1_lo",
+      "mid": "ring_hptcase_ngv1_mid",
       "x": 2.245,
       "blade": true
     },
@@ -825,6 +860,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpt_r1_lo",
+      "mid": "ring_hpt_r1_mid",
       "x": 2.295,
       "blade": true
     },
@@ -837,6 +873,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hptcase_ngv2_lo",
+      "mid": "ring_hptcase_ngv2_mid",
       "x": 2.345,
       "blade": true
     },
@@ -849,6 +886,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_hpt_r2_lo",
+      "mid": "ring_hpt_r2_mid",
       "x": 2.395,
       "blade": true
     },
@@ -879,6 +917,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lptcase_v3_lo",
+      "mid": "ring_lptcase_v3_mid",
       "x": 2.476,
       "blade": true
     },
@@ -891,6 +930,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpt_r3_lo",
+      "mid": "ring_lpt_r3_mid",
       "x": 2.528,
       "blade": true
     },
@@ -903,6 +943,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lptcase_v4_lo",
+      "mid": "ring_lptcase_v4_mid",
       "x": 2.584,
       "blade": true
     },
@@ -915,6 +956,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpt_r4_lo",
+      "mid": "ring_lpt_r4_mid",
       "x": 2.636,
       "blade": true
     },
@@ -927,6 +969,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lptcase_v5_lo",
+      "mid": "ring_lptcase_v5_mid",
       "x": 2.692,
       "blade": true
     },
@@ -939,6 +982,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpt_r5_lo",
+      "mid": "ring_lpt_r5_mid",
       "x": 2.744,
       "blade": true
     },
@@ -951,6 +995,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lptcase_v6_lo",
+      "mid": "ring_lptcase_v6_mid",
       "x": 2.8,
       "blade": true
     },
@@ -963,6 +1008,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpt_r6_lo",
+      "mid": "ring_lpt_r6_mid",
       "x": 2.852,
       "blade": true
     },
@@ -975,6 +1021,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lptcase_v7_lo",
+      "mid": "ring_lptcase_v7_mid",
       "x": 2.908,
       "blade": true
     },
@@ -987,6 +1034,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_lpt_r7_lo",
+      "mid": "ring_lpt_r7_mid",
       "x": 2.96,
       "blade": true
     },
@@ -1076,6 +1124,7 @@
       "phase": 0.0,
       "cut": true,
       "lo": "ring_tec_strut_lo",
+      "mid": "ring_tec_strut_mid",
       "x": 3.0725,
       "blade": true
     },

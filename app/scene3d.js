@@ -53,7 +53,7 @@ const INT_MATS = {
   i_hot: { color: 0x8a7f72, metalness: 0.9, roughness: 0.45, f: 'hotCase' }, i_lptb: { color: 0x9a8a68, metalness: 1, roughness: 0.4, f: 'turbineBlade' },
   i_tec: { color: 0x9c8263, metalness: 0.9, roughness: 0.45, f: 'hotCase' }, i_shaft: { color: 0x7a8188, metalness: 1, roughness: 0.28, f: 'bareSteel' },
   i_race: { color: 0xc4c9cd, metalness: 1, roughness: 0.18, f: 'bareSteel', bottom: 0, grime: 0.05 }, i_bronze: { color: 0xb58a4c, metalness: 1, roughness: 0.35, f: 'cadmium' },
-  i_carbon: { color: 0x1a1a1c, metalness: 0, roughness: 0.5, f: 'darkBox' },
+  i_carbon: { color: 0x1a1a1c, metalness: 0, roughness: 0.5, f: 'darkBox' }, i_hole: { color: 0x0e0b09, metalness: 0, roughness: 0.9, f: 'darkBox' },
 };
 const INT_PART_MAT = { fan: ['i_tifan'], lpc: ['i_ti'], hpc: ['i_ti'], hpt: ['i_hptb'], lpt: ['i_lptb'], liner: ['i_liner'], tec: ['i_tec'], lpshaft: ['i_shaft'], hpshaft: ['i_shaft'],
   lpccase: ['i_case'], hpccase: ['i_case'], combcase: ['i_case'], hptcase: ['i_hot'], lptcase: ['i_hot'] };
@@ -1239,7 +1239,7 @@ export class Scene3D {
     this.renderer.shadowMap.enabled = q !== 'low'; this.key.castShadow = q !== 'low';
     this.ao.enabled = q === 'high' || q === 'ultra';
     setSurfaceQuality(q, this.renderer);
-    for (const r of this._lodRings || []) r.im.geometry = q === 'low' ? r.lo : r.hi;   // blade rows: simple templates on low
+    for (const r of this._lodRings || []) this._applyLod(r);   // blade rows: three levels of detail
     this.resize();
   }
 
@@ -1368,6 +1368,12 @@ export class Scene3D {
     const empty = []; holder.traverse((n) => { if (n !== holder && !n.isMesh && !/^vis_/.test(n.name) && !n.children.length) empty.push(n); });
     for (const n of empty) n.parent.remove(n);
   }
+  /** Detail for the quality setting: the full templates (cooling holes, squealer tips, dense airfoils) on high and ultra, a lighter set on medium, simple airfoils on low. */
+  _lodGeo(lod) { const q = this.quality; return q === 'low' ? lod.lo : q === 'medium' ? lod.mid : lod.hi; }
+  _applyLod(r) {
+    r.im.geometry = this._lodGeo(r.lod);
+    if (r.inner) r.im.castShadow = this.quality === 'high' || this.quality === 'ultra';   // blades inside the cases cast shadows only at the top settings
+  }
   /** Material for an authored internal: the part's own where it has one for that role, else a finished copy owned by the part. */
   _intMat(part, name) {
     const key = `${part.id}:${name}`; this._intMats ||= {};
@@ -1435,8 +1441,9 @@ export class Scene3D {
       const part = this.byId[e.part]; if (!part) continue;
       if (!dropped.has(part.id)) { dropped.add(part.id); part.objs = part.objs.filter((ob) => { const d = ob.userData.tag === 'internal'; if (d && ob.parent) ob.parent.remove(ob); return !d; }); }
       const hi = template(e.node); if (!hi) continue;
-      const lo = template(e.lo);
+      const lo = template(e.lo), mid = template(e.mid);
       if (lo) { lo.geo.clearGroups(); lo.geo.addGroup(0, lo.geo.index ? lo.geo.index.count : lo.geo.attributes.position.count, 0); }
+      if (mid && !mid.mats.every((m, i) => hi.mats[i] && hi.mats[i].name === m.name)) mid.geo = null;   // the levels share their materials (the full one may add some: cooling holes, nuts)
       const spool = e.kind === 'rotor' ? e.spool || 0 : 0, base = e.node.replace(/^ring_/, '');
       const lvl = this._visLevel(manifest.vis, part.id, base);
       const parent = lvl ? this._visGroup(groups[spool], lvl) : groups[spool];
@@ -1451,8 +1458,8 @@ export class Scene3D {
       }
       const hide = spool ? null : e.cut === 'deep' ? inDeep : e.cut ? inCut : null;
       if (hide) ths.sort((p, q) => hide(p) - hide(q));
-      const useLo = lo && this.quality === 'low';
-      const im = new THREE.InstancedMesh(useLo ? lo.geo : hi.geo, mats, e.count);
+      const lod = { hi: hi.geo, mid: (mid && mid.geo) || hi.geo, lo: lo ? lo.geo : (mid && mid.geo) || hi.geo };
+      const im = new THREE.InstancedMesh(this._lodGeo(lod), mats, e.count);
       ths.forEach((th, i) => { place(m, th); im.setMatrixAt(i, m); });
       im.userData.ths = ths; im.userData.place = place; im.name = e.node;
       if (hide) { im.userData.kept = ths.filter((t) => !hide(t)).length; this.cutInst.push(im); }
@@ -1462,9 +1469,8 @@ export class Scene3D {
       if (e.kind === 'vsv') { im.userData.vsvAt = e._vsvAt; this.vsvRows.push(im); }
       im.computeBoundingSphere();
       this._reg(part, im, parent);
-      if (e.blade && lvl === 'inner') im.castShadow = false;   // blades inside the cases: shadows from the discs and cases are enough
       im.userData.home = 0; im.position.x = part.ex * this.explode * 1.5;
-      if (lo) this._lodRings.push({ im, hi: hi.geo, lo: lo.geo });
+      const lr = { im, lod, inner: !!e.blade && lvl === 'inner' }; this._lodRings.push(lr); this._applyLod(lr);
     }
     this._vsv = null;   // re-place the variable vanes on the next frame
   }

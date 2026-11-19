@@ -156,8 +156,18 @@ velocity triangles and typical solidity, because IAE does not publish them.
   - Bearing chambers have carbon seals where the shafts leave them.
 
 **Rows and rings.** Every row of identical items (blades, vanes, bolts, swirlers, injectors, rolling
-elements) is exported once, as a template of a single item at angle 0. Blade rows also get a simple
-`_lo` template. `model.json` lists them under `rings`, each with:
+elements) is exported once, as a template of a single item at angle 0. Blade rows come in three levels of
+detail, picked by the Quality button:
+
+- **High and Ultra:** dense airfoils (about 1.5 times the section points and four more span stations),
+  finer platforms, film-cooling holes along the leading edges and pressure sides of the HP turbine blades
+  and vanes, full-resolution squealer tips, spindle nuts on the variable vanes. The blades inside the cases
+  cast shadows.
+- **Medium (`_mid`):** a lighter airfoil, with no cooling holes and no blade shadows inside the cases.
+- **Low (`_lo`):** a plain airfoil.
+
+At High with the cutaway on, the frame is about 14 million triangles counting the shadow and
+ambient-occlusion passes; Medium is about 3 million and Low about 1 million. `model.json` lists them under `rings`, each with:
 
 - its part and count
 - its kind: rotor, static or vsv (variable stator)
@@ -173,14 +183,14 @@ elements) is exported once, as a template of a single item at angle 0. Blade row
 - Variable stators turn about their spindles with the simulated stator angle. The inlet guide vanes move
   most; each row behind them moves less.
 - The released-blade failures hide instances, as they did with the generated rows.
-- The Low quality setting uses the `_lo` templates.
 
 The vane and blade airfoils follow the sloping annulus walls along the chord. This matters most in the
 flared LP turbine and the steep booster inlet.
 
 **Bodies of revolution.** Discs, cases, liners and seals are lathed whole and as a cut copy with section
-faces: the wedge for casings, the deep cut for rotor internals. The number of steps round the axis scales
-with radius. Corners of the section profile are kept sharp. In the app, the static meshes of each part
+faces: the wedge for casings, the deep cut for rotor internals. They use up to 144 steps round the axis
+(at least 72, more for larger radii), so the facet error stays under about 0.1 mm. Corners of the section
+profile are kept sharp. In the app, the static meshes of each part
 are merged per material, so hundreds of small bodies cost a handful of draw calls.
 
 **Visibility tiers.** `model.json` `vis` sorts the internals into three tiers:
@@ -196,7 +206,7 @@ The closed engine therefore draws fewer triangles than it did with the old gener
 the model loads, then the manifest drops them.
 
 **Download size.** The web host sends the GLB uncompressed. `tools/build-web.mjs` therefore also
-publishes a gzipped copy (`manifest.packed`, about 12 MB instead of 29 MB), which the page unpacks with
+publishes a gzipped copy (`manifest.packed`, about 14 MB instead of 35 MB), which the page unpacks with
 `DecompressionStream`. The plain file is the fallback. App builds (`--local`) load from local files and
 skip the packed copy.
 

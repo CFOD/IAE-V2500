@@ -73,8 +73,8 @@ class Kit:
     # ------------------------------------------------------------------ bodies of revolution
     def lathe(self, name, loop, mat, cut='wedge', steps=144):
         """Whole body, plus (cut = 'wedge' | 'deep') a copy with the cutaway sector removed and section faces.
-        Small radii need fewer steps round the axis to look round (the facet error stays under about 0.3 mm)."""
-        steps = min(steps, max(36, int(max(r for _, r in loop) * 300)))
+        Small radii need fewer steps round the axis to look round (the facet error stays under about 0.1 mm)."""
+        steps = min(steps, max(72, int(max(r for _, r in loop) * 500)))
         full = self._spin(name, loop, mat, 0.0, 360.0, steps, caps=False)
         out = [full]
         if cut:
@@ -213,12 +213,15 @@ class Kit:
         return self.cyl(name, (x, 0, r), (x + facing * h, 0, r), d * 0.5 * 1.15, mat, seg=6)
 
     # ------------------------------------------------------------------ rings
-    def ring(self, name, hi, lo, part, count, kind, spool=0, phase=0.0, cut=True, extra=None):
-        """Template for a ring of identical items (blades, vanes, bolts...) placed at count equal angles."""
+    def ring(self, name, hi, lo, part, count, kind, spool=0, phase=0.0, cut=True, extra=None, mid=None):
+        """Template for a ring of identical items (blades, vanes, bolts...) placed at count equal angles. Blade rows
+        have three levels of detail: hi (the node; high and ultra quality), mid (medium) and lo (low)."""
         hi.name = hi.data.name = f'ring_{name}'
         entry = {'node': hi.name, 'part': part, 'count': count, 'kind': kind, 'spool': spool, 'phase': phase, 'cut': cut}
         if lo is not None:
             lo.name = lo.data.name = f'ring_{name}_lo'; entry['lo'] = lo.name; self.made.append(lo)
+        if mid is not None:
+            mid.name = mid.data.name = f'ring_{name}_mid'; entry['mid'] = mid.name; self.made.append(mid)
         if extra: entry.update(extra)
         self.made.append(hi); self.rings.append(entry)
         return entry
@@ -231,6 +234,7 @@ def blade_count(r_mean, chord, solidity):
 
 # ====================================================================== rows of blades and vanes
 D2R = math.pi / 180
+M_BOLT = [None]   # set by build_front (the bolt material, for small hardware on blade templates)
 OMEGA_LP = 0.95 * 5650 * 2 * math.pi / 60      # design speeds, rad/s (sizes the velocity triangles)
 OMEGA_HP = 0.97 * 14950 * 2 * math.pi / 60
 
@@ -261,38 +265,41 @@ def row(K, name, part, x0, x1, hub, tip, angles, tmax, mat, kind, spool=0, solid
     dh, dt = rh - hub(xm), rt - tip(xm)
     rad = lambda f, x: (hub(x) + dh) + ((tip(x) + dt) - (hub(x) + dh)) * f
     hub_r = lambda x: hub(x) + dh; tip_r = lambda x: tip(x) + dt
-    hi_parts = [K.blade(name + '_af', stations(n_st), mat, n=n_pts, caps=(not hub_plat, not (tip_plat or shroud)), te=te, le_round=le_round, rad=rad)]
-    st0 = stations(n_st)
-    def skew(r_s):   # angle offsets of a platform edge that follows the blade's camber at radius r_s
+    def skew(st0, r_s):   # angle offsets of a platform edge that follows the blade's camber at radius r_s
         sec = K.section(*[st0[0][3], st0[0][4], st0[0][5], st0[0][6]], n=8)
         le = min(sec, key=lambda p: p[0]); te_ = max(sec, key=lambda p: p[0])
         return le[1] / r_s, te_[1] / r_s
-    npl = 2 if pitch < 0.14 else 4   # platform facets round the engine: narrow platforms are nearly flat
-    if hub_plat:
-        s0, s1 = skew(rh)
-        hi_parts.append(K.sector_band(name + '_hp', x0 - 0.003, x1 + 0.003, lambda x: hub_r(x) - 0.005, lambda x: hub_r(x) + 0.0005, pitch * 0.985, mat, s0, s1, nx=4, nt=npl))
-    if tip_plat:
-        s0, s1 = skew(rt)
-        hi_parts.append(K.sector_band(name + '_tp', x0 - 0.003, x1 + 0.003, lambda x: tip_r(x) - 0.0005, lambda x: tip_r(x) + 0.006, pitch * 0.985, mat, s0, s1, nx=4, nt=npl))
-    if shroud:   # tip shroud with two knife edges (LP turbine); the shroud sits on the cone, the knife edges are rings
-        s0, s1 = skew(rt)
-        hi_parts.append(K.sector_band(name + '_sh', x0 + 0.002, x1 - 0.002, lambda x: tip_r(x) - 0.0005, lambda x: tip_r(x) + 0.005, pitch * 0.995, mat, s0, s1, nx=4, nt=3))
-        for f in (0.3, 0.7):
-            x = x0 + 0.002 + (x1 - x0 - 0.004) * f; rk = tip_r(x)
-            hi_parts.append(K.sector_band(name + '_ke', x - 0.0012, x + 0.0012, rk + 0.004, rk + 0.0105, pitch * 0.995, mat, s0 * (1 - f) + s1 * f, s0 * (1 - f) + s1 * f, nx=1, nt=3))
-    if vsv:   # variable vane: trunnion button, spindle out through the case, lever towards the unison ring
-        xs, r_top, xu = vsv
-        hi_parts.append(K.cyl(name + '_bt', (xs, 0, rt - 0.001), (xs, 0, rt + 0.005), 0.0075, mat, seg=14))
-        hi_parts.append(K.cyl(name + '_sp', (xs, 0, rt + 0.005), (xs, 0, r_top + 0.004), 0.0032, mat, seg=10))
-        lever = K.box(name + '_lv', ((xs + xu) / 2, 0, r_top + 0.002), (abs(xs - xu) + 0.012, 0.009, 0.004), 0, mat)
-        pin = K.cyl(name + '_pn', (xu, 0, r_top + 0.004), (xu, 0, r_top + 0.012), 0.0026, mat, seg=8)
-        hi_parts += [lever, pin]
-    if extra_hi: hi_parts += extra_hi(pitch, st0, rad)
-    hi = K.join(name, hi_parts)
+    def build(suffix, ns, npts, pnx, pnt, hd):
+        st0 = stations(ns)
+        parts = [K.blade(name + suffix + '_af', st0, mat, n=npts, caps=(not hub_plat, not (tip_plat or shroud)), te=te, le_round=le_round, rad=rad)]
+        if hub_plat:
+            s0, s1 = skew(st0, rh)
+            parts.append(K.sector_band(name + suffix + '_hp', x0 - 0.003, x1 + 0.003, lambda x: hub_r(x) - 0.005, lambda x: hub_r(x) + 0.0005, pitch * 0.985, mat, s0, s1, nx=pnx, nt=pnt))
+        if tip_plat:
+            s0, s1 = skew(st0, rt)
+            parts.append(K.sector_band(name + suffix + '_tp', x0 - 0.003, x1 + 0.003, lambda x: tip_r(x) - 0.0005, lambda x: tip_r(x) + 0.006, pitch * 0.985, mat, s0, s1, nx=pnx, nt=pnt))
+        if shroud:   # tip shroud with two knife edges (LP turbine); the shroud sits on the cone, the knife edges are rings
+            s0, s1 = skew(st0, rt)
+            parts.append(K.sector_band(name + suffix + '_sh', x0 + 0.002, x1 - 0.002, lambda x: tip_r(x) - 0.0005, lambda x: tip_r(x) + 0.005, pitch * 0.995, mat, s0, s1, nx=pnx, nt=max(3, pnt)))
+            for f in (0.3, 0.7):
+                x = x0 + 0.002 + (x1 - x0 - 0.004) * f; rk = tip_r(x)
+                parts.append(K.sector_band(name + suffix + '_ke', x - 0.0012, x + 0.0012, rk + 0.004, rk + 0.0105, pitch * 0.995, mat, s0 * (1 - f) + s1 * f, s0 * (1 - f) + s1 * f, nx=1, nt=max(3, pnt)))
+        if vsv:   # variable vane: trunnion button, spindle out through the case, lever towards the unison ring
+            xs, r_top, xu = vsv; sg = 20 if hd else 14
+            parts.append(K.cyl(name + suffix + '_bt', (xs, 0, rt - 0.001), (xs, 0, rt + 0.005), 0.0075, mat, seg=sg))
+            parts.append(K.cyl(name + suffix + '_sp', (xs, 0, rt + 0.005), (xs, 0, r_top + 0.004), 0.0032, mat, seg=sg - 4))
+            parts.append(K.box(name + suffix + '_lv', ((xs + xu) / 2, 0, r_top + 0.002), (abs(xs - xu) + 0.012, 0.009, 0.004), 0, mat))
+            parts.append(K.cyl(name + suffix + '_pn', (xu, 0, r_top + 0.004), (xu, 0, r_top + 0.012), 0.0026, mat, seg=sg - 6))
+            if hd: parts.append(K.cyl(name + suffix + '_nt', (xs, 0, r_top + 0.004), (xs, 0, r_top + 0.008), 0.0045, M_BOLT[0] or mat, seg=6))   # spindle nut on the lever
+        if extra_hi: parts += extra_hi(pitch, st0, rad, hd)
+        return K.join(name + suffix, parts)
+    # three levels: hd (high and ultra quality), mid (medium), lo (low)
+    hi = build('', n_st + 4, (round(n_pts * 1.5) // 2) * 2, 6, (2 if pitch < 0.14 else 4) + 2, True)
+    mid = build('_mid', n_st, n_pts, 4, 2 if pitch < 0.14 else 4, False)
     lo = K.blade(name + '_lo', stations(4), mat, n=6, caps=(True, True), rad=rad)
     extra = {'xs': vsv[0]} if vsv else {}
     extra['x'] = round(xm, 4); extra['blade'] = True
-    return K.ring(name, hi, lo, part, count, 'vsv' if vsv else kind, spool=spool, cut=cut, extra=extra), count
+    return K.ring(name, hi, lo, part, count, 'vsv' if vsv else kind, spool=spool, cut=cut, extra=extra, mid=mid), count
 
 
 def comp_rotor_angles(omega, vx, swirl_in_deg, turn_hub, turn_tip):
@@ -347,6 +354,7 @@ def radial_holes(K, specs, mat):
 # ====================================================================== fan, booster, intermediate case, HP compressor
 def build_front(K, M):
     """M: materials by name. Returns nothing; adds to K.made and K.rings."""
+    M_BOLT[0] = M['bolt']
     # ---------------------------------------------------------------- fan
     # 22 hollow titanium wide-chord blades: about 0.26 m chord at the root, 0.42 m at the tip, twisted
     # some 30 degrees; thick at the root for the dovetail, thin at the tip.
@@ -360,9 +368,10 @@ def build_front(K, M):
             t = 0.11 * (1 - f) ** 1.6 + 0.026
             out.append((r, 0.168 + 0.018 * f ** 1.5, -0.012 * f ** 2, c, -b1 * D2R, -b2 * D2R, t))
         return out
-    fan_hi = K.blade('fanblade', fan_st(22), M['ti_fan'], n=26, caps=(True, True), te=0.003)
+    fan_hi = K.blade('fanblade', fan_st(32), M['ti_fan'], n=40, caps=(True, True), te=0.003)
+    fan_mid = K.blade('fanblade_mid', fan_st(22), M['ti_fan'], n=26, caps=(True, True), te=0.003)
     fan_lo = K.blade('fanblade_lo', fan_st(6), M['ti_fan'], n=8, caps=(True, True))
-    K.ring('fan_blade', fan_hi, fan_lo, 'fan', 22, 'rotor', spool=1, extra={'x': 0.168, 'blade': True})
+    K.ring('fan_blade', fan_hi, fan_lo, 'fan', 22, 'rotor', spool=1, extra={'x': 0.168, 'blade': True}, mid=fan_mid)
     # annulus fillers: the hub between each pair of blades is a separate panel following the blade roots,
     # with a rubber seal strip along both edges
     pitch = 2 * math.pi / 22
@@ -592,10 +601,10 @@ def build_rear(K, M):
     K.ring('ign_plug', ign, None, 'ign', 2, 'static', phase=47.5, cut=False)
 
     # ---------------------------------------------------------------- HP turbine: 2 stages
-    def squealer(pitch, st0, rad):   # HPT blade tip: a thin rim round a recessed cap, so a rub only wears the rim
+    def squealer(st0, rad, hd):   # HPT blade tip: a thin rim round a recessed cap, so a rub only wears the rim
         r, xs, sl, c, a1, a2, tm = st0[-1]
-        bm = bmesh.new()
-        outer_ = K.section(c, a1, a2, tm, 16, 0.03, 1.4); inner_ = K.section(c * 0.84, a1, a2, tm * 0.42, 16, 0.03, 1.4)
+        bm = bmesh.new(); n = 24 if hd else 16
+        outer_ = K.section(c, a1, a2, tm, n, 0.03, 1.4); inner_ = K.section(c * 0.84, a1, a2, tm * 0.42, n, 0.03, 1.4)
         def ring_(sec, dz):
             out = []
             for x, s in sec:
@@ -608,15 +617,35 @@ def build_rear(K, M):
             for i in range(k): bm.faces.new((A[i], A[(i + 1) % k], B[(i + 1) % k], B[i]))
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         return [K.obj('sq', bm, [M['hptb']])]
+    def cool_holes(st0, rad, offs, te, le_round, per=9, span=(0.12, 0.88), d=0.0011):
+        """Rows of film-cooling holes near the leading edge (and gill holes on the pressure side): small dark
+        bores through the airfoil skin, at loop offsets offs from the leading edge."""
+        parts, n = [], 16
+        for j in range(per):
+            f = span[0] + (span[1] - span[0]) * j / (per - 1)
+            q = f * (len(st0) - 1); i0 = min(int(q), len(st0) - 2); w = q - i0
+            r, xs, sl, c, a1, a2, tm = [p0 + (p1 - p0) * w for p0, p1 in zip(st0[i0], st0[i0 + 1])]
+            sec = K.section(c, a1, a2, tm, n, te, le_round)
+            for off in offs:
+                i = n + off + (j % 2 if off else 0)   # stagger alternate rows
+                px, ps = sec[i]; tx = sec[i + 1][0] - sec[i - 1][0]; ts = sec[i + 1][1] - sec[i - 1][1]
+                nx, ns = ts, -tx; l = math.hypot(nx, ns) + 1e-12; nx /= l; ns /= l
+                if nx * px + ns * ps < 0: nx, ns = -nx, -ns
+                rr = rad(f, xs + px); a = (ps + sl) / rr
+                P = Vector((xs + px, -rr * math.sin(a), rr * math.cos(a))); N3 = Vector((nx, -ns * math.cos(a), -ns * math.sin(a)))
+                parts.append(K.cyl('ch', P - N3 * 0.0005, P + N3 * 0.00025, d, M['hole'], seg=6))
+        return parts
+    blade_x = lambda te, le: lambda pitch, st0, rad, hd: squealer(st0, rad, hd) + (cool_holes(st0, rad, (0, -2, 2, 6), te, le) if hd else [])
+    vane_x = lambda te, le: lambda pitch, st0, rad, hd: cool_holes(st0, rad, (-3, 0, 3, 7), te, le, per=8) if hd else []
     hpt_tip = lambda q: co(q) - 0.0035
     row(K, 'hptcase_ngv1', 'hptcase', 2.225, 2.265, ci, co, vane_angles(0, 0, 72), lambda f: 0.26, M['tbc'], 'stator', solidity=1.25, hub_plat=True, tip_plat=True,
-        te=0.03, le_round=1.45, n_st=6, n_pts=16)
+        te=0.03, le_round=1.45, n_st=6, n_pts=16, extra_hi=vane_x(0.03, 1.45))
     row(K, 'hpt_r1', 'hpt', 2.275, 2.315, lambda q: ci(q) + 0.001, hpt_tip, lambda f, r: (42 - 6 * f, -62 - 3 * f), lambda f: 0.27 - 0.08 * f, M['hptb'], 'rotor', spool=2,
-        solidity=1.3, hub_plat=True, te=0.03, le_round=1.45, n_st=8, n_pts=16, extra_hi=squealer)
+        solidity=1.3, hub_plat=True, te=0.03, le_round=1.45, n_st=8, n_pts=16, extra_hi=blade_x(0.03, 1.45))
     row(K, 'hptcase_ngv2', 'hptcase', 2.325, 2.365, ci, co, vane_angles(-26, -20, 66), lambda f: 0.22, M['tbc'], 'stator', solidity=1.25, hub_plat=True, tip_plat=True,
-        te=0.025, le_round=1.35, n_st=6, n_pts=16)
+        te=0.025, le_round=1.35, n_st=6, n_pts=16, extra_hi=vane_x(0.025, 1.35))
     row(K, 'hpt_r2', 'hpt', 2.375, 2.415, lambda q: ci(q) + 0.001, hpt_tip, lambda f, r: (38 - 8 * f, -58 - 4 * f), lambda f: 0.23 - 0.08 * f, M['hptb'], 'rotor', spool=2,
-        solidity=1.25, hub_plat=True, te=0.025, le_round=1.4, n_st=8, n_pts=16, extra_hi=squealer)
+        solidity=1.25, hub_plat=True, te=0.025, le_round=1.4, n_st=8, n_pts=16, extra_hi=blade_x(0.025, 1.4))
     # blade outer air seals over each rotor, and the vane supports between
     for k, (a, b) in enumerate(((2.268, 2.322), (2.368, 2.422))):
         K.lathe(f'hptcase_oas{k + 1}', prof_band(CORE_OUTER, a, b, 0.0005, 0.013), M['honey'], steps=144)
