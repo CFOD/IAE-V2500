@@ -4,6 +4,15 @@ Work since the switch is on branch `ccr-b314d629-a56f7k-opus` (the original bran
 The test website at iae.cfod.co.uk deploys from this branch automatically (see docs/WEB.md).
 
 ## Done recently
+- The accessory drive train modelled gear by gear (docs/MODEL.md, The accessory drive train): internal
+  gearbox, tower shaft, angle gearbox, lay shaft and the main gearbox's two planes of involute gears, with
+  bearings, couplings and sectioned housings. It turns at tooth-count ratios from the HP spool's angle, and
+  each part has a card with live speeds.
+- Decals and finishes (docs/MODEL.md, Decals and Surface finishes): etched data plates on the engine and
+  every unit, safety placards, fluid-line tapes, stencils, wire markers, tags, fan blade numbers and
+  torque-seal stripes; edge wear, lathe marks, composite weave and finer detail textures.
+- The website deploys again: the model is published compressed (and split when needed) under Cloudflare
+  Pages' 25 MiB file limit (docs/WEB.md).
 - Damage you can see, and a borescope (docs/BORESCOPE.md): ingested objects leave dented, nicked, bent or
   torn blades on the fan, booster and HP compressor; a streaking fuel nozzle burns the HP turbine guide
   vanes behind it; overheated turbine blades take on straw, bronze and blue heat tints. The Inspect tab puts
