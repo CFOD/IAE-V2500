@@ -47,6 +47,13 @@ test('LP shaft failure: the free LP turbine bursts at take-off, runs away safely
   assert.ok(r.e.out.NlptPct > 2 * r.e.out.N1pct, `turbine ${r.e.out.NlptPct} fan ${r.e.out.N1pct}`);
 });
 
+test('HP shaft failure at idle: the compressor runs down and the flame goes out for lack of air', () => {
+  const { e, f } = idling(); e.fail.set('hpShear'); let litAt = null;
+  run(e, f, 40, (o, t) => { if (o.lit) litAt = o.N2pct; });
+  assert.ok(!e.out.lit && litAt > 9, `flame held down to N2 ${litAt}`);
+  assert.ok(e.out.NhptPct > 2 * e.out.N2pct, 'the free HP turbine keeps turning faster than the compressor');
+});
+
 test('fuel system: a sheared pump drive flames the engine out; a jammed metering valve ignores the lever', () => {
   let r = idling(); r.e.fail.set('fuelPump'); run(r.e, r.f, 5);
   assert.ok(!r.e.out.lit);

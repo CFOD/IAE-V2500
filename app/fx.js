@@ -14,9 +14,10 @@
 //
 // GPU-safe GLSL: no pow() of a negative base, smoothstep edges always ordered, no normalize(0).
 import * as THREE from './vendor/three.module.js';
+import { Pass, FullScreenQuad } from './vendor/jsm/postprocessing/Pass.js';
 
 /** Shared by every effect: the baked noise, the key light direction in view space, and the camera for sorting. */
-export const FX = { uNoise: { value: null }, uLightV: { value: new THREE.Vector3(0.3, 0.8, 0.5) }, uSky: { value: new THREE.Vector3(0.42, 0.45, 0.5) }, uSun: { value: new THREE.Vector3(1.0, 0.96, 0.9) }, camera: null };
+export const FX = { uDepth: { value: null }, uSoftOn: { value: 0 }, uScreen: { value: new THREE.Vector2(1, 1) }, uNear: { value: 0.1 }, uFar: { value: 100 }, uNoise: { value: null }, uLightV: { value: new THREE.Vector3(0.3, 0.8, 0.5) }, uSky: { value: new THREE.Vector3(0.42, 0.45, 0.5) }, uSun: { value: new THREE.Vector3(1.0, 0.96, 0.9) }, camera: null };
 
 // ------------------------------------------------------------------ noise texture
 /** 256 x 256 tileable noise, four kinds in RGBA: smooth fbm, fine fbm, billows (inverted cellular fbm), ridged turbulence. */
@@ -66,7 +67,7 @@ export function noiseTexture(size = 256) {
 const VERT = `
   attribute vec3 iPos; attribute vec3 iVel; attribute vec4 iSeed; attribute vec3 iMisc;   // size, rotation, age 0..1
   uniform float uStretch;
-  varying vec2 vUv; varying float vAge; varying vec4 vSeed; varying float vFade; varying vec2 vDir;
+  varying vec2 vUv; varying float vAge; varying vec4 vSeed; varying float vFade; varying vec2 vDir; varying float vViewZ;
   void main(){
     float size = iMisc.x, rot = iMisc.y; vAge = iMisc.z; vSeed = iSeed;
     vec4 mv = modelViewMatrix * vec4(iPos, 1.0);
@@ -83,7 +84,7 @@ const VERT = `
     vec2 off = mix(vec2(q.x * c - q.y * s, q.x * s + q.y * c), perp * q.x + along * (q.y * st), useS) * size;
     vDir = mix(vec2(s, c), vec2(0.0, 1.0), useS);   // the view's "up" in the quad's own frame, for lighting
     mv.xy += off;
-    vFade = smoothstep(0.12, 0.9, -mv.z);   // never fill the camera
+    vFade = smoothstep(0.12, 0.9, -mv.z); vViewZ = -mv.z;   // never fill the camera
     gl_Position = projectionMatrix * mv;
     vUv = q;
   }`;
@@ -91,6 +92,15 @@ const SMOKE = `
   uniform sampler2D uNoise; uniform vec3 uColA, uColB, uColC, uLightV, uSky, uSun, uGlow;
   uniform float uAlpha, uLit, uSoft, uDetail;
   varying vec2 vUv; varying float vAge; varying vec4 vSeed; varying float vFade; varying vec2 vDir;
+  uniform sampler2D uDepth; uniform float uSoftOn, uNear, uFar, uSoftDist; uniform vec2 uScreen; varying float vViewZ;
+  // Soft particles: compare with the depth of the solid scene. Behind a surface the puff is hidden; close in
+  // front of it the puff fades, so smoke meets the engine and the floor without a hard line.
+  float soft(){
+    if (uSoftOn < 0.5) return 1.0;
+    float d = texture2D(uDepth, gl_FragCoord.xy / uScreen).x;
+    float sceneZ = (2.0 * uNear * uFar) / (uFar + uNear - (d * 2.0 - 1.0) * (uFar - uNear));
+    return smoothstep(0.0, uSoftDist, sceneZ - vViewZ);
+  }
   float dens(vec2 p){ vec4 n = texture2D(uNoise, p); vec4 m = texture2D(uNoise, p * 2.13 + 0.37); return n.b * 0.62 + n.r * 0.28 + (m.g - 0.5) * 0.32 * uDetail; }
   void main(){
     vec2 uv = vUv * 2.0; float r = length(uv);
@@ -103,6 +113,7 @@ const SMOKE = `
     float a = smoothstep(erode, erode + 0.6, d);
     a *= smoothstep(0.0, 0.1, vAge) * (1.0 - smoothstep(0.6, 1.0, vAge)) * vFade;
     if (a < 0.004) discard;
+    a *= soft(); if (a < 0.004) discard;
     // normal: a dome over the puff, roughened by the density gradient
     float e = 0.012, gx = dens(base + vec2(e, 0.0)) - n, gy = dens(base + vec2(0.0, e)) - n;
     vec2 g2 = uv * 0.8 - vec2(gx, gy) * 14.0;
@@ -122,6 +133,15 @@ const SMOKE = `
 const FIRE = `
   uniform sampler2D uNoise; uniform float uT, uAlpha, uHeat, uGain, uOcc, uBall;
   varying vec2 vUv; varying float vAge; varying vec4 vSeed; varying float vFade; varying vec2 vDir;
+  uniform sampler2D uDepth; uniform float uSoftOn, uNear, uFar, uSoftDist; uniform vec2 uScreen; varying float vViewZ;
+  // Soft particles: compare with the depth of the solid scene. Behind a surface the puff is hidden; close in
+  // front of it the puff fades, so smoke meets the engine and the floor without a hard line.
+  float soft(){
+    if (uSoftOn < 0.5) return 1.0;
+    float d = texture2D(uDepth, gl_FragCoord.xy / uScreen).x;
+    float sceneZ = (2.0 * uNear * uFar) / (uFar + uNear - (d * 2.0 - 1.0) * (uFar - uNear));
+    return smoothstep(0.0, uSoftDist, sceneZ - vViewZ);
+  }
   vec3 blackbody(float t){   // temperature 0..1.3 -> colour, linear HDR
     vec3 c = mix(vec3(0.0), vec3(0.55, 0.035, 0.0), smoothstep(0.0, 0.25, t));
     c = mix(c, vec3(1.0, 0.3, 0.02), smoothstep(0.2, 0.5, t));
@@ -142,15 +162,26 @@ const FIRE = `
     float heat = body * (0.55 + 0.6 * n) * mix(1.2 - 0.6 * yy, 1.0, uBall) * (1.0 - 0.8 * vAge) * uHeat;
     float a = clamp(body * (1.0 - smoothstep(0.55, 1.0, vAge)) * smoothstep(0.0, 0.06, vAge) * uAlpha * vFade, 0.0, 1.0);
     if (a < 0.003) discard;
+    a *= soft(); if (a < 0.003) discard;
     gl_FragColor = vec4(blackbody(heat) * a * uGain, a * uOcc);   // emitted light, with some occlusion of what is behind
   }`;
 const GLOW = `
   uniform sampler2D uNoise; uniform vec3 uColA, uColB, uColC; uniform float uAlpha;
   varying vec2 vUv; varying float vAge; varying vec4 vSeed; varying float vFade; varying vec2 vDir;
+  uniform sampler2D uDepth; uniform float uSoftOn, uNear, uFar, uSoftDist; uniform vec2 uScreen; varying float vViewZ;
+  // Soft particles: compare with the depth of the solid scene. Behind a surface the puff is hidden; close in
+  // front of it the puff fades, so smoke meets the engine and the floor without a hard line.
+  float soft(){
+    if (uSoftOn < 0.5) return 1.0;
+    float d = texture2D(uDepth, gl_FragCoord.xy / uScreen).x;
+    float sceneZ = (2.0 * uNear * uFar) / (uFar + uNear - (d * 2.0 - 1.0) * (uFar - uNear));
+    return smoothstep(0.0, uSoftDist, sceneZ - vViewZ);
+  }
   void main(){
     float r = length(vUv) * 2.0; if (r > 1.0) discard;
     float n = texture2D(uNoise, vUv * 0.5 + vSeed.xy * 5.0 + vec2(-vAge * 0.3, 0.0)).r;
     float a = (1.0 - smoothstep(0.0, 1.0, r + (n - 0.5) * 0.6)) * smoothstep(0.0, 0.1, vAge) * (1.0 - smoothstep(0.5, 1.0, vAge)) * uAlpha * vFade;
+    a *= soft();
     vec3 col = vAge < 0.3 ? mix(uColA, uColB, vAge / 0.3) : mix(uColB, uColC, (vAge - 0.3) / 0.7);
     gl_FragColor = vec4(col * a * (0.6 + 0.8 * n), 0.0);
   }`;
@@ -173,6 +204,7 @@ export class Billows {
       uAlpha: { value: o.alpha ?? 0.5 }, uLit: { value: o.lit ?? 0.5 }, uSoft: { value: o.soft ?? 1 }, uDetail: { value: o.detail ?? 0.6 }, uGlow: { value: V3([0, 0, 0]) },
       uHeat: { value: o.heat ?? 1 }, uBall: { value: o.ball ?? 0 }, uGain: { value: o.gain ?? 0.9 }, uOcc: { value: o.occ ?? 0.6 }, uStretch: { value: o.stretch ?? (this.mode === 'fire' ? 0.05 : 0) },
       uT: { value: 0 }, uNoise: FX.uNoise, uLightV: FX.uLightV, uSky: FX.uSky, uSun: FX.uSun,
+      uDepth: FX.uDepth, uSoftOn: FX.uSoftOn, uScreen: FX.uScreen, uNear: FX.uNear, uFar: FX.uFar, uSoftDist: { value: o.softDist ?? (this.mode === 'fire' ? 0.12 : 0.35) },
     };
     // particle state
     this.P = new Float32Array(n * 3); this.V = new Float32Array(n * 3); this.age = new Float32Array(n).fill(1); this.life = new Float32Array(n).fill(1);
@@ -190,7 +222,7 @@ export class Billows {
     const blending = this.mode === 'smoke' ? THREE.NormalBlending : this.mode === 'glow' ? THREE.AdditiveBlending : THREE.CustomBlending;
     const mat = new THREE.ShaderMaterial({ uniforms: this.u, vertexShader: VERT, fragmentShader: frag, transparent: true, depthWrite: false, blending, side: THREE.DoubleSide });
     if (this.mode === 'fire') { mat.blendSrc = THREE.OneFactor; mat.blendDst = THREE.OneMinusSrcAlphaFactor; mat.blendEquation = THREE.AddEquation; }
-    this.mesh = new THREE.Mesh(g, mat); this.mesh.frustumCulled = false; this.mesh.visible = false; this.mesh.renderOrder = o.order ?? (this.mode === 'smoke' ? 5 : 6);
+    this.mesh = new THREE.Mesh(g, mat); this.mesh.frustumCulled = false; this.mesh.visible = false; this.mesh.userData.softFx = true; this.mesh.renderOrder = o.order ?? (this.mode === 'smoke' ? 5 : 6);
     this.order = new Uint16Array(n); this.depth = new Float32Array(n);
     scene.add(this.mesh);
   }
@@ -254,6 +286,42 @@ export class Billows {
     for (const at of [this.aPos, this.aVel, this.aSeed, this.aMisc]) { at.needsUpdate = true; at.clearUpdateRanges && at.clearUpdateRanges(); }
   }
   clear() { this.age.fill(1); this.acc = 0; this._draw(0); }
+}
+
+/** Records where the solid scene's depth is (the render pass's buffer), for the soft smoke and fire later in the chain. */
+export class DepthCapturePass extends Pass {
+  constructor() { super(); this.needsSwap = false; }
+  render(renderer, writeBuffer, readBuffer) { FX.uDepth.value = readBuffer.depthTexture || null; }
+}
+
+/**
+ * Smoke and fire (the Billows, on layer 2) drawn into a buffer of their own, hidden and softened against the
+ * captured scene depth, then laid over the image (premultiplied) before bloom, so flames still glow.
+ */
+export class SoftFxPass extends Pass {
+  constructor(scene, camera) {
+    super(); this.scene = scene; this.camera = camera; this.needsSwap = false;
+    this.rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, depthBuffer: false });
+    this.quad = new FullScreenQuad(new THREE.ShaderMaterial({
+      uniforms: { tFx: { value: null } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: 'uniform sampler2D tFx; varying vec2 vUv; void main(){ gl_FragColor = texture2D(tFx, vUv); }',
+      depthTest: false, depthWrite: false, transparent: true, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    }));
+    this._c = new THREE.Color();
+  }
+  setSize(w, h) { this.rt.setSize(w, h); FX.uScreen.value.set(w, h); }
+  render(renderer, writeBuffer, readBuffer) {
+    const cam = this.camera, mask = cam.layers.mask, bg = this.scene.background, auto = renderer.autoClear, sm = renderer.shadowMap.autoUpdate;
+    renderer.getClearColor(this._c); const ca = renderer.getClearAlpha();
+    FX.uNear.value = cam.near; FX.uFar.value = cam.far; FX.uSoftOn.value = FX.uDepth.value ? 1 : 0;
+    cam.layers.set(2); this.scene.background = null; renderer.shadowMap.autoUpdate = false;   // only the effects; no second shadow pass
+    renderer.setRenderTarget(this.rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(this.scene, cam);
+    this.scene.background = bg; cam.layers.mask = mask; renderer.shadowMap.autoUpdate = sm; renderer.setClearColor(this._c, ca);
+    this.quad.material.uniforms.tFx.value = this.rt.texture;
+    renderer.autoClear = false; renderer.setRenderTarget(this.renderToScreen ? null : readBuffer); this.quad.render(renderer); renderer.autoClear = auto;
+  }
+  dispose() { this.rt.dispose(); this.quad.dispose(); }
 }
 
 /** Short glowing or wet streaks along each particle's velocity: embers, hot fragments, liquid spray. */

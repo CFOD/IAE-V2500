@@ -14,7 +14,7 @@ import { OutputPass } from './vendor/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from './vendor/jsm/postprocessing/SMAAPass.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { P, ROWS, rAt, tempRGB, lipLoop, scarfX, scarfDroop } from './cutaway.js';
-import { Billows, Streaks, Shards, Sparks, Particles, FX, noiseTexture } from './fx.js';
+import { Billows, Streaks, Shards, Sparks, Particles, FX, noiseTexture, DepthCapturePass, SoftFxPass } from './fx.js';
 import { setSurfaceQuality, finish, FINISH } from './surfaces.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
@@ -243,6 +243,7 @@ export class Scene3D {
     // shell would be treated as a solid surface and show up as a black square or dark rings.
     this.scene.traverse((n) => { if ((n.isMesh || n.isPoints || n.isLine) && n.material && n.material.transparent && n.material.depthWrite === false) n.layers.set(1); });
     this.camera.layers.enable(1);
+    this.scene.traverse((n) => { if (n.userData.softFx) n.layers.set(2); });   // smoke and fire: drawn by their own pass (fx.js SoftFxPass)
     { const ao = this.ao, render = ao.render.bind(ao), cam = this.camera; ao.render = (...a) => { cam.layers.disable(1); try { render(...a); } finally { cam.layers.enable(1); } }; }
     this._controls();
     this.setCutaway(true);
@@ -895,12 +896,15 @@ export class Scene3D {
 
   _buildPost() {
     const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
+    rt.depthTexture = new THREE.DepthTexture(4, 4);   // the solid scene's depth, read by the soft smoke and fire
     const c = (this.composer = new EffectComposer(this.renderer, rt));
     c.addPass(new RenderPass(this.scene, this.camera));
+    c.addPass(new DepthCapturePass());
     c.addPass(new ShaderPass(Sanitize));
     this.ao = new GTAOPass(this.scene, this.camera, 4, 4);
     this.ao.updateGtaoMaterial({ radius: 0.35, distanceExponent: 1.4, thickness: 1.2, scale: 1.15, samples: 12 });
     this.ao.enabled = false; c.addPass(this.ao);
+    c.addPass(new SoftFxPass(this.scene, this.camera));   // smoke and fire after the ambient occlusion, before bloom
     this.bloom = new UnrealBloomPass(new THREE.Vector2(4, 4), 0.32, 0.5, 1.7); c.addPass(this.bloom);
     this.haze = new ShaderPass(HeatHaze); c.addPass(this.haze);
     c.addPass(new ShaderPass(Sanitize));
@@ -1434,6 +1438,8 @@ export class Scene3D {
 
     // ---- surge: the flash fades (the fireball itself was emitted by surge())
     if (this.flash > 0.03) this.flash *= Math.pow(0.004, dt);
-    if (this.quality === 'low') this.renderer.render(this.scene, this.camera); else this.composer.render();
+    if (this.quality === 'low') {   // no post-processing: smoke and fire go in the one render, with plain depth testing
+      FX.uSoftOn.value = 0; this.camera.layers.enable(2); this.renderer.render(this.scene, this.camera); this.camera.layers.disable(2);
+    } else this.composer.render();
   }
 }

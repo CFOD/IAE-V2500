@@ -336,13 +336,17 @@ export class Engine {
     const Wa = W4 - wfIn;
     const far = Wa > 0.02 ? wfIn / Wa : wfIn > 0 ? 1 : 0;
     const leanLimit = 0.0035 * Math.pow((3 * 101325) / Math.max(s.P3, 2e4), 0.25);
+    // The liner needs a pressure drop to drive the air jets that hold the flame. With the compressor delivering
+    // almost nothing above ambient (a compressor that has stopped turning) the flame cannot be held. Light-off
+    // needs a little more than that (a normal automatic start lights at about 1.14), so it does not flicker.
+    const pr3 = s.P3 / P0;
     if (dt > 0) {
       if (s.lit) {
-        if (far < leanLimit || far > 0.5 || Wa <= 0.02) { // far beyond stoichiometric the flame still holds; the excess burns downstream
+        if (far < leanLimit || far > 0.5 || Wa <= 0.02 || pr3 < 1.025) { // far beyond stoichiometric the flame still holds; the excess burns downstream
           s.lit = false; s.ignTimer = 0;
           this.events.push({ t: s.t, type: far < leanLimit ? 'flameout-lean' : 'flameout-rich' });
         }
-      } else if (u.ignition && far > Math.max(leanLimit * 1.5, 0.006) && far < 0.25 && Wa > 0.2) {
+      } else if (u.ignition && far > Math.max(leanLimit * 1.5, 0.006) && far < 0.25 && Wa > 0.2 && pr3 > 1.04) {
         s.ignTimer += dt;
         if (s.ignTimer > 0.7) { s.lit = true; this.events.push({ t: s.t, type: 'lightoff' }); }
       } else s.ignTimer = 0;

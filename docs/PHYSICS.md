@@ -19,6 +19,7 @@ Each step:
    handling bleeds, customer bleed and turbine cooling air are taken off.
 5. Combustor: energy balance with fuel lower heating value, combustion efficiency falling at low
    pressure, stoichiometric limit, lean and rich blow-out limits, ignition delay, pooled unburnt fuel.
+   The flame also needs compressor delivery pressure a little above ambient to be held (2.5 %; light-off needs 4 %).
 6. HPT and LPT: choking flow capacity (ellipse law), efficiency versus blade-speed ratio (finite stall
    torque, zero torque at runaway), cooling air re-mixing, heat exchange with turbine metal.
 7. Common nozzle assembly, as on the real engine: core and bypass streams meet at a mixing plane
