@@ -10,6 +10,13 @@
 //   B fine scratches and brushing marks
 //   A drip and flow streaks
 //
+// On top of those, per finish:
+//   edge   wear where the surface curves sharply (bevelled and machined edges): paint and plating rub through
+//          to bare metal, found from the curvature (rate of change of the normal over distance)
+//   turn   fine lathe marks on turned parts: rings round the part's own axis on faces, round it along its length
+//          on cylinders (the axis is the object's local X: the engine axis, or a gear's own)
+//   weave  woven fibre on composite parts
+//
 // Every shader line keeps to defined GLSL behaviour on real GPUs: no pow of a negative base,
 // smoothstep edges always ascending, no normalize of a possibly-zero vector.
 import * as THREE from './vendor/three.module.js';
@@ -73,27 +80,27 @@ export function makeSurfaceTexture(size = 512) {
 // ------------------------------------------------------------------ finishes
 // Each preset is a physically motivated look; colours come from the reference photos.
 export const FINISH = {
-  nacellePaint: { scale: 2.2, grain: 0.03, grime: 0.16, grimeCol: [0.44, 0.41, 0.36], bottom: 0.45, streak: 0.22, rough: 0.12, bump: 0.12 },
-  primer: { scale: 2.5, grain: 0.06, mottle: 0.1, grime: 0.32, grimeCol: [0.15, 0.14, 0.09], bottom: 0.7, streak: 0.35, rough: 0.16, bump: 0.2 },
+  nacellePaint: { scale: 2.2, grain: 0.03, grime: 0.16, grimeCol: [0.44, 0.41, 0.36], bottom: 0.45, streak: 0.22, rough: 0.12, bump: 0.12, edge: 0.45, edgeCol: [0.78, 0.79, 0.8] },
+  primer: { scale: 2.5, grain: 0.06, mottle: 0.1, grime: 0.32, grimeCol: [0.15, 0.14, 0.09], bottom: 0.7, streak: 0.35, rough: 0.16, bump: 0.2, edge: 0.4, edgeCol: [0.72, 0.72, 0.7] },
   acoustic: { scale: 3, grain: 0.05, grime: 0.28, grimeCol: [0.06, 0.06, 0.05], bottom: 0.4, rough: 0.12, bump: 0.25 },
-  castPaint: { scale: 4.5, grain: 0.07, mottle: 0.09, grime: 0.24, grimeCol: [0.13, 0.11, 0.08], bottom: 0.7, streak: 0.16, rough: 0.18, bump: 0.5 },
-  castBare: { scale: 5, grain: 0.11, mottle: 0.1, grime: 0.34, grimeCol: [0.12, 0.1, 0.07], bottom: 0.6, streak: 0.3, rough: 0.2, bump: 0.8, metalLoss: 0.25 },
-  bareSteel: { scale: 6, grain: 0.05, mottle: 0.05, scratch: 0.35, grime: 0.2, grimeCol: [0.1, 0.09, 0.08], bottom: 0.3, streak: 0.1, rough: 0.24, bump: 0.18 },
-  titanium: { scale: 6, grain: 0.05, scratch: 0.25, mottle: 0.05, grime: 0.12, grimeCol: [0.12, 0.11, 0.1], bottom: 0.0, rough: 0.2, bump: 0.15, tintVar: [0.94, 0.96, 1.06] },
-  chromate: { scale: 5, grain: 0.05, grime: 0.2, grimeCol: [0.16, 0.12, 0.06], bottom: 0.45, streak: 0.12, rough: 0.16, bump: 0.25, tintVar: [0.86, 0.8, 0.42], tintAmt: 0.9 },
-  cadmium: { scale: 8, grain: 0.05, grime: 0.18, grimeCol: [0.15, 0.12, 0.07], bottom: 0.3, rough: 0.15, bump: 0.12, tintVar: [0.85, 1.0, 0.72], tintAmt: 0.6 },
+  castPaint: { scale: 4.5, grain: 0.07, mottle: 0.09, grime: 0.24, grimeCol: [0.13, 0.11, 0.08], bottom: 0.7, streak: 0.16, rough: 0.18, bump: 0.5, edge: 0.6, edgeCol: [0.74, 0.75, 0.75] },
+  castBare: { scale: 5, grain: 0.11, mottle: 0.1, grime: 0.3, grimeCol: [0.12, 0.1, 0.07], bottom: 0.6, streak: 0.14, rough: 0.2, bump: 0.8, metalLoss: 0.25, edge: 0.35, edgeCol: [0.86, 0.86, 0.84] },
+  bareSteel: { scale: 6, grain: 0.05, mottle: 0.05, scratch: 0.35, grime: 0.2, grimeCol: [0.1, 0.09, 0.08], bottom: 0.3, streak: 0.1, rough: 0.24, bump: 0.18, turn: 0.6, turnF: 900 },
+  titanium: { scale: 6, grain: 0.05, scratch: 0.25, mottle: 0.05, grime: 0.12, grimeCol: [0.12, 0.11, 0.1], bottom: 0.0, rough: 0.2, bump: 0.15, tintVar: [0.94, 0.96, 1.06], turn: 0.3, turnF: 700 },
+  chromate: { scale: 5, grain: 0.05, grime: 0.2, grimeCol: [0.16, 0.12, 0.06], bottom: 0.45, streak: 0.12, rough: 0.16, bump: 0.25, tintVar: [0.86, 0.8, 0.42], tintAmt: 0.9, edge: 0.3, edgeCol: [0.76, 0.76, 0.72] },
+  cadmium: { scale: 8, grain: 0.05, grime: 0.18, grimeCol: [0.15, 0.12, 0.07], bottom: 0.3, rough: 0.15, bump: 0.12, tintVar: [0.85, 1.0, 0.72], tintAmt: 0.6, edge: 0.3, edgeCol: [0.78, 0.78, 0.74] },
   stainlessTube: { scale: 10, grain: 0.04, mottle: 0.08, scratch: 0.3, grime: 0.22, grimeCol: [0.12, 0.1, 0.08], bottom: 0.35, streak: 0.16, rough: 0.26, bump: 0.08, tintVar: [1.0, 0.96, 0.86], tintAmt: 0.35 },
-  darkBox: { scale: 6, grain: 0.06, grime: 0.18, grimeCol: [0.2, 0.19, 0.17], bottom: 0.3, rough: 0.14, bump: 0.3 },
+  darkBox: { scale: 6, grain: 0.06, grime: 0.18, grimeCol: [0.2, 0.19, 0.17], bottom: 0.3, rough: 0.14, bump: 0.3, edge: 0.5, edgeCol: [0.52, 0.52, 0.5] },
   rubber: { scale: 9, grain: 0.08, grime: 0.2, grimeCol: [0.12, 0.08, 0.06], bottom: 0.3, rough: 0.1, bump: 0.35 },
   braid: { scale: 10, grain: 0.03, grime: 0.3, grimeCol: [0.32, 0.29, 0.24], bottom: 0.5, rough: 0.05, bump: 0.0 },
   connector: { scale: 10, grain: 0.05, grime: 0.15, grimeCol: [0.1, 0.1, 0.08], rough: 0.12, bump: 0.15, tintVar: [0.9, 1.0, 0.8], tintAmt: 0.4 },
-  hotCase: { scale: 4, grain: 0.08, mottle: 0.12, scratch: 0.1, grime: 0.22, grimeCol: [0.1, 0.08, 0.06], bottom: 0.25, streak: 0.25, rough: 0.2, bump: 0.45, metalLoss: 0.2 },
+  hotCase: { scale: 4, grain: 0.08, mottle: 0.12, scratch: 0.1, grime: 0.22, grimeCol: [0.1, 0.08, 0.06], bottom: 0.25, streak: 0.25, rough: 0.2, bump: 0.45, metalLoss: 0.2, edge: 0.15, edgeCol: [0.7, 0.66, 0.6] },
   turbineBlade: { scale: 12, grain: 0.06, mottle: 0.1, grime: 0.08, grimeCol: [0.18, 0.12, 0.08], rough: 0.15, bump: 0.2 },
-  gearSteel: { scale: 14, grain: 0.03, mottle: 0.06, scratch: 0.22, grime: 0.1, grimeCol: [0.16, 0.12, 0.06], bottom: 0.15, rough: 0.14, bump: 0.06, tintVar: [1.0, 0.95, 0.85], tintAmt: 0.25 },
+  gearSteel: { scale: 14, grain: 0.03, mottle: 0.06, scratch: 0.22, grime: 0.1, grimeCol: [0.16, 0.12, 0.06], bottom: 0.15, rough: 0.14, bump: 0.06, tintVar: [1.0, 0.95, 0.85], tintAmt: 0.25, turn: 0.4, turnF: 1200, edge: 0.3, edgeCol: [0.86, 0.87, 0.89] },
   compressorBlade: { scale: 12, grain: 0.03, scratch: 0.2, grime: 0.06, grimeCol: [0.2, 0.19, 0.17], rough: 0.12, bump: 0.08 },
   nozzle: { scale: 9, grain: 0.03, scratch: 0.05, mottle: 0.05, grime: 0.1, grimeCol: [0.1, 0.09, 0.08], bottom: 0.2, streak: 0.12, rough: 0.1, bump: 0.06, metalLoss: 0.1 },
-  composite: { scale: 6, grain: 0.05, grime: 0.2, grimeCol: [0.05, 0.05, 0.05], bottom: 0.3, rough: 0.12, bump: 0.2 },
-  polished: { scale: 4, grain: 0.015, scratch: 0.25, grime: 0.06, grimeCol: [0.3, 0.29, 0.27], rough: 0.1, bump: 0.05 },
+  composite: { scale: 6, grain: 0.05, grime: 0.2, grimeCol: [0.05, 0.05, 0.05], bottom: 0.3, rough: 0.12, bump: 0.2, weave: 0.6 },
+  polished: { scale: 4, grain: 0.015, scratch: 0.25, grime: 0.06, grimeCol: [0.3, 0.29, 0.27], rough: 0.1, bump: 0.05, turn: 0.5, turnF: 1500 },
   fireSleeve: { scale: 12, grain: 0.1, grime: 0.3, grimeCol: [0.2, 0.1, 0.05], bottom: 0.3, rough: 0.08, bump: 0.5 },
 };
 
@@ -103,13 +110,13 @@ export const setSurfaceTexture = (t) => { SHARED.uSurf.value = t; };
 const texCache = {};
 /**
  * Detail level follows the renderer quality. Low: plain materials (heat tint and soot stay, they show
- * temperature). Medium: grain, mottling, scratches, grime. High: adds the micro-bump. Ultra: the detail
- * texture at twice the resolution with 16x anisotropic filtering, for close-ups.
+ * temperature). Medium: grain, mottling, scratches, grime. High: adds the micro-bump. High: the detail
+ * texture at 1024 pixels; Ultra: 2048 with 16x anisotropic filtering, for close-ups.
  */
 export function setSurfaceQuality(q, renderer) {
   SHARED.uSurfQ.value = q === 'low' ? 0 : 1;
   SHARED.uSurfBumpQ.value = q === 'high' || q === 'ultra' ? 1 : 0;
-  const size = q === 'ultra' ? 1024 : 512;
+  const size = q === 'ultra' ? 2048 : q === 'high' ? 1024 : 512;   // finer grain for close-ups on the higher settings
   if (!texCache[size]) texCache[size] = makeSurfaceTexture(size);
   const t = texCache[size];
   t.anisotropy = Math.min(q === 'ultra' ? 16 : 8, renderer ? renderer.capabilities.getMaxAnisotropy() : 8); t.needsUpdate = true;
@@ -132,6 +139,7 @@ export function finish(mat, cfg) {
       uSurfA: { value: new THREE.Vector4(c.grain || 0, c.mottle || 0, c.scratch || 0, c.streak || 0) },
       uSurfB: { value: new THREE.Vector4(c.grime || 0, c.bottom || 0, c.rough || 0, c.bump || 0) },
       uSurfMetalLoss: { value: c.metalLoss || 0 },
+      uSurfC: { value: new THREE.Vector4(c.edge || 0, c.turn || 0, c.weave || 0, c.turnF || 900) }, uEdgeCol: { value: v3(c.edgeCol, [0.75, 0.76, 0.77]) },
       uGrimeCol: { value: v3(c.grimeCol, [0.12, 0.1, 0.08]) },
       uTintVar: { value: v3(c.tintVar, [1, 1, 1]) }, uTintAmt: { value: c.tintAmt ?? (c.tintVar ? 0.5 : 0) },
       uHeat: { value: new THREE.Vector3(...(c.heat || [0, 1, 0])) }, uSoot: { value: new THREE.Vector3(...(c.soot || [0, 1, 0])) },
@@ -150,8 +158,10 @@ export function finish(mat, cfg) {
         varying vec3 vSurfP; varying vec3 vSurfN;
         uniform sampler2D uSurf; uniform float uSurfScale; uniform vec4 uSurfA; uniform vec4 uSurfB; uniform float uSurfMetalLoss; uniform float uSurfQ; uniform float uSurfBumpQ;
         uniform vec3 uGrimeCol; uniform vec3 uTintVar; uniform float uTintAmt; uniform vec3 uHeat; uniform vec3 uSoot;
+        uniform vec4 uSurfC; uniform vec3 uEdgeCol;
         vec4 surfTri(vec3 p, vec3 w, float s) {
-          return texture2D(uSurf, p.yz * s) * w.x + texture2D(uSurf, p.zx * s) * w.y + texture2D(uSurf, p.xy * s) * w.z;
+          // projections chosen so the texture's v runs along engine y on every face that can drip: streaks fall
+          return texture2D(uSurf, p.zy * s) * w.x + texture2D(uSurf, p.xz * s) * w.y + texture2D(uSurf, p.xy * s) * w.z;
         }
         vec3 surfPerturb(vec3 sp, vec3 sn, vec2 dH, float fd) {
           vec3 dx = dFdx(sp), dy = dFdy(sp);
@@ -177,6 +187,34 @@ export function finish(mat, cfg) {
         float down = clamp(-sN.y, 0.0, 1.0) * 0.6 + (1.0 - smoothstep(-0.9, 0.1, vSurfP.y)) * 0.4;
         float sGrime = clamp(sB.x * (sBig.g * 1.3 + sFine.g * 0.4) + sB.y * down * (0.35 + sBig.g) + sA.w * sFine.a * (0.4 + down), 0.0, 0.92);
         diffuseColor.rgb = mix(diffuseColor.rgb, uGrimeCol, sGrime);
+        // edge wear: paint and plating rub through where the surface turns sharply
+        float sEdge = 0.0;
+        if (uSurfC.x * uSurfQ > 0.0) {
+          float sCurv = length(fwidth(sN)) / max(length(fwidth(vSurfP)), 1e-6);
+          sEdge = smoothstep(70.0, 280.0, sCurv) * smoothstep(0.3, 0.7, sFine.r * 0.55 + sBig.g * 0.45 + 0.12) * clamp(uSurfC.x, 0.0, 1.0) * uSurfQ;
+          diffuseColor.rgb = mix(diffuseColor.rgb, uEdgeCol, clamp(sEdge, 0.0, 1.0) * (1.0 - sGrime));
+        }
+        // lathe marks round the part's axis (faces) or along it (cylinders), faded out before they alias
+        float sTurn = 0.0;
+        if (uSurfC.y * uSurfQ > 0.0) {
+          float rr = length(vSurfP.yz), coord = mix(vSurfP.x, rr, abs(sN.x));
+          float fw = fwidth(coord) * uSurfC.w;
+          sTurn = sin(coord * uSurfC.w * 6.2831853 + sFine.r * 1.4) * (1.0 - smoothstep(0.2, 0.8, fw)) * uSurfC.y * uSurfQ;
+          diffuseColor.rgb *= 1.0 + sTurn * 0.07;
+          surfH += sTurn * 0.12;
+        }
+        // woven fibre on composites: tows alternate direction cell by cell
+        float sWeave = 0.0;
+        if (uSurfC.z * uSurfQ > 0.0) {
+          vec3 aw = abs(sN);
+          vec2 wuv = aw.x > aw.y && aw.x > aw.z ? vSurfP.yz : (aw.y > aw.z ? vSurfP.zx : vSurfP.xy);
+          vec2 cell = wuv * 170.0, ic = floor(cell), fc = fract(cell);
+          float over = mod(ic.x + ic.y, 2.0);
+          float ridge = over > 0.5 ? sin(fc.y * 3.14159265) : sin(fc.x * 3.14159265);
+          sWeave = (ridge - 0.62) * (1.0 - smoothstep(0.25, 0.85, fwidth(cell.x))) * uSurfC.z * uSurfQ;
+          diffuseColor.rgb *= 1.0 + sWeave * 0.3;
+          surfH += sWeave * 0.6;
+        }
         // heat discolouration along the axis
         float sHeat = 0.0;
         if (uHeat.z > 0.0) {
@@ -195,9 +233,9 @@ export function finish(mat, cfg) {
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.045, 0.04), sSoot * 0.85);
         }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        roughnessFactor = clamp(roughnessFactor + (sFine.r - 0.5) * sB.z + sGrime * 0.35 - sFine.b * sA.z * 0.1 + sSoot * 0.4 + sHeat * uHeat.z * 0.08, 0.04, 1.0);`)
+        roughnessFactor = clamp(roughnessFactor + (sFine.r - 0.5) * sB.z + sGrime * 0.35 - sFine.b * sA.z * 0.1 + sSoot * 0.4 + sHeat * uHeat.z * 0.08 - sEdge * 0.16 + sTurn * 0.05 + sWeave * 0.1, 0.04, 1.0);`)
       .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
-        metalnessFactor = clamp(metalnessFactor * (1.0 - sGrime * 0.7 - sSoot * 0.8 - uSurfMetalLoss * uSurfQ * sBig.g), 0.0, 1.0);`)
+        metalnessFactor = clamp(mix(metalnessFactor * (1.0 - sGrime * 0.7 - sSoot * 0.8 - uSurfMetalLoss * uSurfQ * sBig.g), 1.0, sEdge * 0.85), 0.0, 1.0);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         if (sB.w * uSurfBumpQ > 0.0) { vec2 dHs = vec2(dFdx(surfH), dFdy(surfH)) * sB.w * 0.02; normal = surfPerturb(-vViewPosition, normal, dHs, faceDirection); }`);
   };

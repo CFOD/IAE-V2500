@@ -688,6 +688,15 @@ def build():
                                     'cast': DM['cast'], 'nut': IM['bolt'], 'gold': DM['gold'], 'steel': IM['steel'], 'dark': DM['dark']}, section)
     made.extend(dt_objs)
 
+    # ---- decals: data plates, placards, stencils, tags, blade numbers (tools/blender/decals.py)
+    import decals
+    fan_r = lambda x: r_at(P['bypOuter'], x) + 0.0335
+    sp = bpy.data.objects.get('spinner_fairing')
+    def spinner_r(x):   # outer radius of the spinner fairing at x, from its mesh
+        vs = [v.co for v in sp.data.vertices if abs(v.co.x - x) < 0.006] if sp else []
+        return max((math.hypot(v.y, v.z) for v in vs), default=0.3)
+    decals.build(material, link, made, fan_r, spinner_r, oml)
+
     for helper in (wedge, latch): bpy.data.objects.remove(helper, do_unlink=True)
     os.makedirs(OUT, exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, 'v2500.glb'), export_apply=True, export_yup=True)

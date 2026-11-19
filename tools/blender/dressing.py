@@ -51,7 +51,17 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
         'valve': material('steel', (0.62, 0.64, 0.66), 0.9, 0.4),         # cast valve bodies
         'act': material('gold', (0.8, 0.66, 0.3), 0.85, 0.35),            # chromated actuators
         'acc': material('tube_acc', (0.76, 0.76, 0.75), 1.0, 0.38),           # clearance-control spray tubes: fan air inside, so no heat tint
+        'torque': material('torqueseal', (0.96, 0.42, 0.06), 0.0, 0.5),       # torque-seal paint stripes on tightened unions
     }
+    # Fluid identification tapes (MIL-STD-1247 colour and symbol, drawn by the app from the material name) by line
+    FLUID = {'hyd': 'HYDRAULIC', 'fuelsupply': 'FUEL', 'fcoc': 'FUEL', 'servofuel': 'FUEL', 'meteredfuel': 'FUEL', 'acocoil': 'LUBE',
+             'oilpress': 'LUBE', 'idgcooler': 'LUBE', 'no4oil': 'LUBE', 'p3servo': 'PNEUMATIC', 'bufferair': 'PNEUMATIC'}
+    tape = lambda prefix: (material('dec:tape:' + FLUID[prefix[5:]], (0.9, 0.9, 0.9), 0.0, 0.5) if prefix.startswith('line_') and prefix[5:] in FLUID else None)
+    # wire-marker sleeves: each harness its own wire number, printed on the sleeve
+    WIRES = {}
+    def wire(prefix):
+        if prefix not in WIRES: WIRES[prefix] = material(f'dec:wire:W{2040 + 7 * len(WIRES)}-P{1 + len(WIRES) % 4}', (0.92, 0.92, 0.88), 0.0, 0.45)
+        return WIRES[prefix]
 
     # ------------------------------------------------------------------ surfaces the routes follow
     RIBS = [(-0.012, 0.045), (0.09, 0.03), (0.2, 0.03), (0.31, 0.03), (0.42, 0.045), (0.62, 0.03), (0.8, 0.045), (1.0, 0.03), (1.18, 0.05)]
@@ -101,10 +111,11 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
         # boss: True (both ends), or (start, end) - the ends that go into a casing through a cast port
         dr.tubes(R, way, n=n, d=d, radius=radius, mat=[M[m] for m in mat] if isinstance(mat, (list, tuple)) else M[mat],
                  clamp_mat=M['clamp'] if clamp else None, bracket_mat=M['brk'], nut_mat=M['nut'] if nuts else None,
-                 layers=layers, rb=rb, end_boss=boss if boss else None, boss_mat=M['boss'], clamp_every=every)
+                 layers=layers, rb=rb, end_boss=boss if boss else None, boss_mat=M['boss'], clamp_every=every,
+                 tape_mat=tape(dr.prefix), torque_mat=M['torque'] if nuts else None)
 
     def H(dr, R, way, radius=0.009, bands=True, conn=(True, True), rb=0.05):
-        dr.loom(R, way, radius=radius, mat=M['loom'], band_mat=M['band'] if bands else None, clamp_mat=M['red'], bracket_mat=M['brk'],
+        dr.loom(R, way, radius=radius, mat=M['loom'], band_mat=wire(dr.prefix + str(len(WIRES) if not dr.prefix.startswith('line_') else '')) if bands else None, clamp_mat=M['red'], bracket_mat=M['brk'],
                 conn_mat=M['conn'], connectors=conn, rb=rb)
 
     # ================================================================== FAN CASE, RIGHT SIDE (EEC side)

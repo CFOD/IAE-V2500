@@ -305,8 +305,11 @@ class Dresser:
 
     # ---------------------------------------------------------------- public runs
     def tubes(self, R, way, n=1, d=0.024, radius=0.005, mat=None, clamp_mat=None, bracket_mat=None, nut_mat=None,
-              clamp_every=0.2, layers=1, rb=0.04, end_boss=None, boss_mat=None, union_every=0.55, kind=''):
-        """A group of n rigid tubes side by side (and `layers` deep) along route `way`."""
+              clamp_every=0.2, layers=1, rb=0.04, end_boss=None, boss_mat=None, union_every=0.55, kind='',
+              tape_mat=None, torque_mat=None, tape_every=0.7):
+        """A group of n rigid tubes side by side (and `layers` deep) along route `way`. tape_mat: fluid
+        identification tape wrapped near each end and every tape_every metres; torque_mat: a torque-seal paint
+        stripe across every union nut onto the tube, as mechanics mark a tightened joint."""
         radii = list(radius) if isinstance(radius, (list, tuple)) else [radius] * n
         mats = list(mat) if isinstance(mat, (list, tuple)) else [mat] * n
         offs = [(k - (n - 1) / 2) * d for k in range(n)]
@@ -322,6 +325,20 @@ class Dresser:
                         if (i == 1 or i == len(s) - 1 or (L - last > union_every and not s[i][2])):
                             last = L; p, t, up, lat = self._frame(s, i)
                             self._put(s[i][1], lambda a, p=p, t=t: a.cyl(p - t * 0.008, p + t * 0.008, radius * 1.9, nut_mat, 6), kind)
+                            if torque_mat:   # across the nut's flat and on along the tube
+                                self._put(s[i][1], lambda a, p=p, t=t, up=up, lat=lat: (a.box(p + up * (radius * 1.68), t, lat, up, 0.017, 0.0016, 0.0011, torque_mat),
+                                                                                        a.box(p + t * 0.0125 + up * (radius * 1.04), t, lat, up, 0.009, 0.0016, 0.0011, torque_mat)), kind)
+                if tape_mat:   # identification tape near each end, then at intervals
+                    total = sum((s[i][0] - s[i - 1][0]).length for i in range(1, len(s)))
+                    marks = [0.07, total - 0.07] + [tape_every * k for k in range(1, int(total / tape_every))]
+                    L = 0.0; mi = 0; marks = sorted(m for m in marks if 0.03 < m < total - 0.03)
+                    for i in range(1, len(s)):
+                        L += (s[i][0] - s[i - 1][0]).length
+                        while mi < len(marks) and L >= marks[mi]:
+                            mi += 1
+                            if s[i][2]: continue
+                            p, t, up, lat = self._frame(s, i)
+                            self._put(s[i][1], lambda a, p=p, t=t: a.sweep([p - t * 0.0125, p + t * 0.0125], radius * 1.12, tape_mat, 12, None, None, vlen=0.025), kind)
                 if end_boss is not None:
                     eb = end_boss if isinstance(end_boss, (list, tuple)) else (end_boss, end_boss)
                     for i, on in ((0, eb[0]), (len(s) - 1, eb[1])):
@@ -358,7 +375,7 @@ class Dresser:
             L += (s[i][0] - s[i - 1][0]).length
             p, t, up, lat = self._frame(s, i)
             if band_mat and L - lastb > band_every:
-                lastb = L; self._put(s[i][1], lambda a, p=p, t=t: a.sweep([p - t * 0.007, p + t * 0.007], radius * 1.22, band_mat, 8, band_mat, band_mat), kind)
+                lastb = L; self._put(s[i][1], lambda a, p=p, t=t: a.sweep([p - t * 0.007, p + t * 0.007], radius * 1.22, band_mat, 10, band_mat, band_mat, vlen=0.014), kind)
             if clamp_mat and L - lastc > clamp_every and not s[i][2]:
                 lastc = L; hgt = self._height_above(R, p)
 

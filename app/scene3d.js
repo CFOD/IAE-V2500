@@ -20,6 +20,7 @@ import { setSurfaceQuality, finish, FINISH } from './surfaces.js';
 import { ApronView } from './apron3d.js';
 import { applyDamage } from './damage3d.js';
 import { Borescope, BorescopeShader } from './borescope.js';
+import { decalMaterial } from './decals.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -1333,6 +1334,7 @@ export class Scene3D {
           const swap = (mt) => {
             if (/^i_/.test(mt.name)) return this._intMat(part, mt.name);
             if (/^txt:/.test(mt.name)) return (this._labels ||= {})[mt.name] ||= labelMaterial(mt.name.slice(4));
+            if (/^dec:/.test(mt.name)) return (this._labels ||= {})[mt.name] ||= decalMaterial(mt.name.slice(4));   // app/decals.js
             const sh = this.shared[mt.name];
             if (mt.name === 'section' || mt.name === 'liner_perf' || mt.name === 'grille') return sh || mt;
             const casting = mt.name === 'cast' && /oiltank|gearbox|agb_|angb_|layshaft_|dressing|eec|starter_|sav_|idg_|hydpump_|fuelpump_|fmu_|oilpump_|pma_|exciters_|vsvact_|fdv_|accvalves_|acac_|egtbox_|mounts_/i.test(m.name);

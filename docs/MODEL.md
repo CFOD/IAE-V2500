@@ -24,10 +24,55 @@ accessories, stainless and titanium tubes, white braided looms with red sleeves 
 green primer inside the cowls, straw-bronze-purple heat tint on the turbine cases and a bronze
 exhaust cone.
 
-The detail follows the Quality button: Low draws plain materials (heat tint and soot stay, since they
-show temperature), Medium adds grain, mottling, scratches and grime, High adds the micro-bump, and
-Ultra switches to a 1024-pixel detail texture with 16x anisotropic filtering for close-ups. The
-texture and level are shared uniforms, so switching never recompiles a shader.
+Three more effects come per finish:
+
+- **Edge wear:** where the surface curves sharply (bevelled and machined edges), paint, primer and
+  plating rub through to bare metal, and castings show lighter worn edges. The shader finds the
+  curvature from how fast the normal changes over distance, and breaks the wear up with the grain and
+  blotch layers so it is patchy.
+- **Turning marks:** discs, shafts, races and gears carry fine lathe rings round their own axis on
+  faces, and round it along their length on cylinders. The axis is the object's local X: the engine
+  axis, or a gear's own. The rings fade out before they would shimmer at a distance.
+- **Woven fibre:** composite parts show their tows alternating direction cell by cell.
+
+Drip streaks always run with gravity: each projection keeps the texture's down direction along the
+engine's.
+
+The detail follows the Quality button. Low draws plain materials; heat tint and soot stay, since they
+show temperature. Medium adds grain, mottling, scratches, grime, edge wear, turning marks and weave.
+High adds the micro-bump and a 1024-pixel detail texture. Ultra uses a 2048-pixel detail texture with
+16x anisotropic filtering, for close-ups. The texture and level are shared uniforms, so switching never
+recompiles a shader.
+
+## Decals
+
+The model carries no images: a decal's material is named `dec:<kind>:<text>`, and the app draws its texture
+from that name when the model loads (`app/decals.js`). `tools/blender/decals.py` lays each one on its
+surface: a small grid ray-cast point by point onto the part, so it follows a cylinder, a casting or a cowl
+without floating at the edges. Each decal is named after its part, so it moves, explodes and hides with it.
+Cowl decals swing with their door, and decals inside the cutaway sector hide with the casing they sit on.
+
+| Kind | Looks like | Where |
+|---|---|---|
+| `plate` | etched stainless data plate: title bar, fields, rivets, barcode, handling marks | engine data plate on the fan case (model V2527-A5, type certificates FAA E40NE and EASA IM.E.069, 26,500 lbf); a plate on every accessory and core unit |
+| `warn` | safety placard with the signal word and alert symbol | oil tank, IDG, starter and hydraulic pump servicing; ignition high voltage; cowl hold-open rods; reverser deactivation |
+| `tape` | fluid-line identification tape (MIL-STD-1247 colour and shape symbol) | wrapped near both ends of every named fuel, oil, hydraulic and pneumatic line, and at intervals along it |
+| `sten` | painted stencil lettering with bridges and wear | latches and access doors on the cowls, lift points, grounding stud, forward arrow, fan blade numbers on the spinner fairing (1 to 22, matching the borescope's count) |
+| `wire` | white wire-marker sleeve with its wire number | every harness, one number each |
+| `tag` | engraved aluminium tag with a lock-wire hole | chip detector, bulkhead panel lines |
+
+Torque-seal stripes are orange paint marks across every tube union nut and on along the tube, as mechanics
+mark a tightened joint. They are geometry, not decals. Part and serial numbers on the unit plates are made
+up.
+
+The fluid colours follow MIL-STD-1247:
+
+| Line | Colours | Symbol |
+|---|---|---|
+| Fuel | red | star |
+| Oil | yellow | square |
+| Hydraulic | blue, yellow, blue | circle |
+| Pneumatic | orange and blue | cross |
 
 ## Building the project's model
 
