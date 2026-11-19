@@ -26,7 +26,7 @@ CUT_A, CUT_B, DEEP_A = -8.0, 112.0, 60.0   # degrees, must match scene3d.js (wed
 # cases and is only drawn with the cutaway on, the engine exploded or a case removed.
 PARTS = ['fan', 'lpc', 'lpccase', 'hpc', 'hpccase', 'combcase', 'liner', 'fuel', 'ign', 'hpt', 'hptcase', 'lpt', 'lptcase', 'tec', 'lpshaft', 'hpshaft', 'bearings']
 VIS_OUT = r'^(fan_|lpc_(igv|r1|s1)$|tec_|lpt_r7$|lptcase_(v7|hc7)$)'
-VIS_CORE = r'^(lpccase_shell|hpccase_(front|rear|flange|unison|igv$|vsv\d$)|combcase_(outer|flange|pads|ignboss|bores)|hptcase_(shell|flange)|lptcase_(shell|flange)|fuel_|ign_)'
+VIS_CORE = r'^(lpccase_shell|hpccase_(front|rear|flange|unison|igv$|vsv\d$|hbv|bore)|combcase_(outer|flange|pads|ignboss|bores)|hptcase_(shell|flange|rib|bore)|lptcase_(shell|flange|rib|bore)|fuel_|ign_)'
 
 # flow path [x, r], in step with app/cutaway.js
 CORE_OUTER = [[0.4, 0.47], [0.85, 0.44], [1.15, 0.3], [1.85, 0.25], [1.92, 0.33], [2.18, 0.33], [2.22, 0.3], [2.42, 0.33], [3.0, 0.48], [3.12, 0.44]]

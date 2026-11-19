@@ -5,7 +5,8 @@
     "inlet": {
       "match": "^inlet_",
       "drop": [
-        "skin"
+        "skin",
+        "internal"
       ]
     },
     "lip": {
@@ -30,7 +31,8 @@
       "match": "^cna_",
       "drop": [
         "skin",
-        "liner"
+        "liner",
+        "internal"
       ]
     },
     "agb": {
@@ -158,6 +160,13 @@
       "drop": [
         "dress"
       ]
+    },
+    "spinner": {
+      "match": "^spinner_",
+      "spool": 1
+    },
+    "corecowl": {
+      "match": "^corecowl_"
     },
     "fan": {
       "match": "^fan_",
@@ -1246,6 +1255,174 @@
       "phase": 9.0,
       "cut": "deep",
       "x": 3.06
+    },
+    {
+      "node": "ring_cna_nozstrut",
+      "part": "cna",
+      "count": 4,
+      "kind": "stator",
+      "spool": 0,
+      "phase": 0.0,
+      "cut": true,
+      "lo": "ring_cna_nozstrut_lo",
+      "mid": "ring_cna_nozstrut_mid",
+      "x": 3.25,
+      "blade": true
+    }
+  ],
+  "ports": [
+    {
+      "id": "hpc3",
+      "part": "hpccase",
+      "x": 1.208,
+      "th": 300,
+      "r": 0.3209,
+      "rIn": 0.2959,
+      "sees": "HP compressor stage 3 blades"
+    },
+    {
+      "id": "hpc5",
+      "part": "hpccase",
+      "x": 1.344,
+      "th": 300,
+      "r": 0.3111,
+      "rIn": 0.2861,
+      "sees": "HP compressor stage 5 blades"
+    },
+    {
+      "id": "hpc7",
+      "part": "hpccase",
+      "x": 1.48,
+      "th": 300,
+      "r": 0.3014,
+      "rIn": 0.2764,
+      "sees": "HP compressor stage 7 blades"
+    },
+    {
+      "id": "hpc9",
+      "part": "hpccase",
+      "x": 1.646,
+      "th": 300,
+      "r": 0.2896,
+      "rIn": 0.2646,
+      "sees": "HP compressor stage 9 blades"
+    },
+    {
+      "id": "hpc11",
+      "part": "hpccase",
+      "x": 1.782,
+      "th": 300,
+      "r": 0.3009,
+      "rIn": 0.2549,
+      "sees": "HP compressor stage 11 blades"
+    },
+    {
+      "id": "hpt1",
+      "part": "hptcase",
+      "x": 2.27,
+      "th": 210,
+      "r": 0.3395,
+      "rIn": 0.3075,
+      "sees": "HP turbine stage 1 vanes (trailing edges) and blades (leading edges)"
+    },
+    {
+      "id": "hpt1b",
+      "part": "hptcase",
+      "x": 2.27,
+      "th": 300,
+      "r": 0.3395,
+      "rIn": 0.3075,
+      "sees": "HP turbine stage 1 vanes and blades"
+    },
+    {
+      "id": "hpt2",
+      "part": "hptcase",
+      "x": 2.37,
+      "th": 255,
+      "r": 0.3545,
+      "rIn": 0.3225,
+      "sees": "HP turbine stage 1 blades (trailing edges) and stage 2 vanes"
+    },
+    {
+      "id": "lpt3",
+      "part": "lptcase",
+      "x": 2.505,
+      "th": 240,
+      "r": 0.378,
+      "rIn": 0.352,
+      "sees": "LP turbine stage 3 blades"
+    },
+    {
+      "id": "lpt5",
+      "part": "lptcase",
+      "x": 2.721,
+      "th": 240,
+      "r": 0.4338,
+      "rIn": 0.4078,
+      "sees": "LP turbine stage 5 blades"
+    },
+    {
+      "id": "lpt7",
+      "part": "lptcase",
+      "x": 2.937,
+      "th": 240,
+      "r": 0.4897,
+      "rIn": 0.4637,
+      "sees": "LP turbine stage 7 blades"
+    },
+    {
+      "id": "comb1",
+      "part": "combcase",
+      "x": 2.12,
+      "th": 30,
+      "r": 0.392,
+      "rIn": 0.31,
+      "sees": "combustor liner, dome and fuel nozzles"
+    },
+    {
+      "id": "comb2",
+      "part": "combcase",
+      "x": 2.12,
+      "th": 90,
+      "r": 0.392,
+      "rIn": 0.31,
+      "sees": "combustor liner, dome and fuel nozzles"
+    },
+    {
+      "id": "comb3",
+      "part": "combcase",
+      "x": 2.12,
+      "th": 150,
+      "r": 0.392,
+      "rIn": 0.31,
+      "sees": "combustor liner, dome and fuel nozzles"
+    },
+    {
+      "id": "comb4",
+      "part": "combcase",
+      "x": 2.12,
+      "th": 210,
+      "r": 0.392,
+      "rIn": 0.31,
+      "sees": "combustor liner, dome and fuel nozzles"
+    },
+    {
+      "id": "comb5",
+      "part": "combcase",
+      "x": 2.12,
+      "th": 270,
+      "r": 0.392,
+      "rIn": 0.31,
+      "sees": "combustor liner, dome and fuel nozzles"
+    },
+    {
+      "id": "comb6",
+      "part": "combcase",
+      "x": 2.12,
+      "th": 330,
+      "r": 0.392,
+      "rIn": 0.31,
+      "sees": "combustor liner, dome and fuel nozzles"
     }
   ],
   "vis": {
@@ -1269,6 +1446,6 @@
       "bearings"
     ],
     "out": "^(fan_|lpc_(igv|r1|s1)$|tec_|lpt_r7$|lptcase_(v7|hc7)$)",
-    "core": "^(lpccase_shell|hpccase_(front|rear|flange|unison|igv$|vsv\\d$)|combcase_(outer|flange|pads|ignboss|bores)|hptcase_(shell|flange)|lptcase_(shell|flange)|fuel_|ign_)"
+    "core": "^(lpccase_shell|hpccase_(front|rear|flange|unison|igv$|vsv\\d$|hbv|bore)|combcase_(outer|flange|pads|ignboss|bores)|hptcase_(shell|flange|rib|bore)|lptcase_(shell|flange|rib|bore)|fuel_|ign_)"
   }
 }

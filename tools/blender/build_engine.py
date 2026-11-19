@@ -512,9 +512,13 @@ def build():
     halves('cna_sleeve', sleeve, paint, zones=cduct_zones)
     # cascades: turning-vane hoops and axial strongbacks in the bay the sleeve uncovers
     casL, casLc, casR = [], [], []
-    for k in range(10):
-        x = 1.775 + k * 0.047; lo, hi = duct(x) + 0.03, OML(x) - 0.035
-        hoop = [[x, lo], [x - 0.016, hi], [x - 0.008, hi], [x + 0.008, lo]]   # leaned forward to turn the flow
+    for k in range(14):
+        x = 1.772 + k * 0.0335; lo, hi = duct(x) + 0.03, OML(x) - 0.035
+        # cambered turning vane: picks the air up off the duct wall and turns it out and forward
+        sp = [i / 8 for i in range(9)]
+        mid = [(x + 0.012 - 0.03 * s - 0.011 * math.sin(math.pi * s), lo + (hi - lo) * s) for s in sp]
+        th_ = [0.0012 + 0.0022 * math.sin(math.pi * min(1, s * 1.15)) for s in sp]
+        hoop = [[mx - t, mr] for (mx, mr), t in zip(mid, th_)] + [[mx + t, mr] for (mx, mr), t in reversed(list(zip(mid, th_)))]
         casL.append(arc_solid('h', hoop, GAP_TOP, 179.75, comp, steps=48)); casLc.append(arc_solid('h', hoop, 112, 179.75, comp, steps=32))
         casR.append(arc_solid('h', hoop, 180.25, 360 - GAP_TOP, comp, steps=48))
     for k in range(24):
@@ -651,21 +655,39 @@ def build():
     internals.build_front(IK, IM); internals.build_rear(IK, IM)
     made.extend(IK.made)
 
+    # ---- the rest of the engine at the same detail (tools/blender/details.py)
+    import details
+    DM = {**IM, 'i_hot': IM['hot'], 'i_case': IM['case'], 'acoustic': acoustic, 'primer': primer, 'bare': bare, 'section': section,
+          **{k: material(k, c, mt, ro) for k, c, mt, ro in [
+              ('sp_dark', (0.17, 0.18, 0.2), 0.1, 0.4), ('sp_white', (0.94, 0.94, 0.92), 0.0, 0.5), ('sp_fair', (0.66, 0.68, 0.7), 0.35, 0.45),
+              ('blanket', (0.72, 0.73, 0.72), 0.7, 0.45), ('seal', (0.85, 0.36, 0.13), 0.0, 0.6), ('grille', (0.42, 0.43, 0.44), 0.8, 0.5),
+              ('liner_perf', (0.55, 0.56, 0.58), 0.5, 0.75), ('abradable', (0.61, 0.79, 0.9), 0.0, 0.8), ('icepanel', (0.44, 0.46, 0.49), 0.0, 0.85),
+              ('cast', (0.55, 0.56, 0.55), 0.45, 0.58), ('steel', (0.62, 0.64, 0.66), 1.0, 0.3), ('gold', (0.8, 0.68, 0.3), 0.6, 0.4), ('dark', (0.08, 0.085, 0.09), 0.2, 0.6),
+              ('composite', (0.32, 0.33, 0.33), 0.0, 0.6), ('connector', (0.5, 0.55, 0.45), 0.6, 0.4), ('fitting', (0.7, 0.71, 0.72), 1.0, 0.3), ('vband', (0.66, 0.67, 0.68), 1.0, 0.35),
+              ('tube_ss', (0.7, 0.71, 0.7), 1.0, 0.32), ('tube_cad', (0.78, 0.7, 0.42), 0.8, 0.35), ('clamp_block', (0.5, 0.5, 0.5), 0.3, 0.6), ('bracket', (0.6, 0.62, 0.64), 1.0, 0.35),
+              ('panelline', (0.12, 0.13, 0.14), 0.0, 0.6), ('i_bare', (0.64, 0.66, 0.67), 1.0, 0.34)]}}
+    DD = details.D(IK, DM, P, r_at, smooth_nacelle)
+    for f in (details.build_spinner, details.build_core_cowl, details.build_common_nozzle, details.build_bleed_valves, details.build_case_details,
+              details.build_tec_instruments, details.build_tubes, details.build_liners):
+        f(DD)
+
     for helper in (wedge, latch): bpy.data.objects.remove(helper, do_unlink=True)
     os.makedirs(OUT, exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, 'v2500.glb'), export_apply=True, export_yup=True)
     manifest = {
         'file': 'v2500.glb', 'scale': 1,
         'parts': {
-            'inlet': {'match': '^inlet_', 'drop': ['skin']}, 'lip': {'match': '^lip_', 'drop': ['skin']},
+            'inlet': {'match': '^inlet_', 'drop': ['skin', 'internal']}, 'lip': {'match': '^lip_', 'drop': ['skin']},
             'fancowl': {'match': '^fancowl_', 'drop': ['skin']}, 'fancase': {'match': '^fancase_', 'drop': []},
-            'cna': {'match': '^cna_', 'drop': ['skin', 'liner']}, 'agb': {'match': '^agb_'}, 'eec': {'match': '^eec_'},
+            'cna': {'match': '^cna_', 'drop': ['skin', 'liner', 'internal']}, 'agb': {'match': '^agb_'}, 'eec': {'match': '^eec_'},
             **{c: {'match': f'^{c}_'} for c, _ in accessories.UNITS}, **{c: {'match': f'^{c}_'} for c in CORE_UNITS}, **{c: {'match': f'^{c}(B__full)?$'} for c in LINE_PARTS},
             'pylon': {'match': '^pylon_'}, 'ext': {'match': '^ext_', 'drop': ['dress']},
+            'spinner': {'match': '^spinner_', 'spool': 1}, 'corecowl': {'match': '^corecowl_'},
             # internals replace the generated stand-ins tagged 'internal' (app/scene3d.js); the fan case keeps its own
             **{c: {'match': f'^{c}_', 'drop': ['internal']} for c in internals.PARTS}, 'fancase': {'match': '^fancase_', 'drop': ['internal']},
         },
         'rings': IK.rings,
+        'ports': details.PORTS,
         'vis': {'parts': internals.PARTS, 'out': internals.VIS_OUT, 'core': internals.VIS_CORE},
     }
     json.dump(manifest, open(os.path.join(OUT, 'model.json'), 'w'), indent=2)

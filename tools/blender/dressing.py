@@ -214,7 +214,7 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     T(L('p3servo'), core, [(1.4, 182, hc), (1.43, 190, hc + 0.05), (1.43, 276, hc + 0.05), (1.75, 276, hc + 0.02), (1.76, 280, 0.05)], n=1, radius=0.0035, mat='ss', rb=0.04)
     T(L('p3servo'), core, [(1.4, 178, hc), (1.43, 170, hc + 0.035), (1.43, 132, hc + 0.035), (1.55, 130, 0.05)], n=1, radius=0.0035, mat='ss', rb=0.04)
     # No. 4 bearing oil: down the bottom to the diffuser case bosses
-    T(L('no4oil'), core, [(1.56, 181, hc), (1.6, 168, hc), (1.98, 166, hc), (2.02, 166, 0.0)], n=2, d=0.026, radius=0.008, mat='ss', rb=0.05, boss=True)
+    T(L('no4oil'), core, [(1.56, 181, hc), (1.6, 168, hc), (1.88, 162, hc), (1.932, 162, 0.0)], n=2, d=0.026, radius=0.008, mat='ss', rb=0.05, boss=True)   # into the combustor's dump gap (details.py)
     # core harness ring on the diffuser case, with breakouts
     H(L('harnessA'), core, [(1.66, 182, hc), (2.1, 186, 0.045), (2.1, 300, 0.045), (2.1, 318, 0.045)], radius=0.013, conn=(False, True))
     H(L('harnessB'), core, [(1.74, 178, hc), (2.1, 174, 0.045), (2.1, 120, 0.045)], radius=0.011, conn=(False, True))

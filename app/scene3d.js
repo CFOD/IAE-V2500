@@ -394,6 +394,9 @@ export class Scene3D {
     const conduit = new THREE.MeshStandardMaterial({ color: 0x1b1d20, metalness: 0.1, roughness: 0.7 });
     const unitGrey = new THREE.MeshStandardMaterial({ color: 0x8e9398, metalness: 0.7, roughness: 0.45 }); // cast accessory housings (exciters, valve bodies)
     this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughnessMap: T.brushed }), section: this.capMat, loom: new THREE.MeshStandardMaterial({ color: 0xffffff, map: T.braid, roughness: 0.85, metalness: 0, bumpMap: T.braid, bumpScale: 0.4 }) };
+    // the authored acoustic panels and bleed grilles use the perforated texture (they carry UVs)
+    this.shared.liner_perf = linerM;
+    { const t = T.liner.clone(); t.repeat.set(9, 9); t.needsUpdate = true; this.shared.grille = new THREE.MeshStandardMaterial({ color: 0x6c6e70, metalness: 0.8, roughness: 0.5, map: t, side: THREE.DoubleSide }); }
     const C = (K) => `${(K - 273.15).toFixed(0)} °C`, B = (p) => `${(p / 1e5).toFixed(2)} bar`;
     const A = (d) => this._part(d);
     const castM = { color: 0x8a9198, metalness: 0.45, roughness: 0.55 }, chromM = { color: 0xa8894a, metalness: 0.85, roughness: 0.42 };
@@ -401,15 +404,15 @@ export class Scene3D {
     // ---------------- nacelle
     const inlet = A({ id: 'inlet', name: 'Inlet cowl', ex: -1.5, mat: paint, desc: 'Slows and straightens the incoming air for the fan. The inner barrel is a perforated acoustic liner that absorbs fan noise.', live: (o) => `Airflow ${o.W2.toFixed(0)} kg/s · inlet ${C(o.T2)}, ${B(o.P2)}` });
     this._solid(inlet, [...sample(P.nacelle, -0.836, 0.0, 14), ...sample(offset(P.inletInner, 0.012), -0.836, 0.0, 14).reverse()], { tag: 'skin' });
-    this._solid(inlet, [...sample(offset(P.inletInner, 0.012), -0.8, 0.0, 12), ...sample(P.inletInner, -0.8, 0.0, 12).reverse()], { mat: linerM });
+    this._tagInt = true; this._solid(inlet, [...sample(offset(P.inletInner, 0.012), -0.8, 0.0, 12), ...sample(P.inletInner, -0.8, 0.0, 12).reverse()], { mat: linerM }); this._tagInt = false;
     const lip = A({ id: 'lip', name: 'Inlet lip', ex: -1.7, mat: polished, desc: 'Polished aluminium leading edge, heated with engine bleed air so ice cannot build up and break off into the fan.', live: () => '' });
     this._solid(lip, lipLoop(), { tag: 'skin' });
     const fanCase = A({ id: 'fancase', name: 'Fan case and outlet guide vanes', ex: -0.55, mat: paint, desc: 'Contains the fan, and a released blade if one ever fails. The outlet guide vanes take the swirl out of the bypass air.', live: (o) => `Bypass ${o.Wbypass.toFixed(0)} kg/s · fan pressure ratio ${o.fan.PR.toFixed(2)} · ${C(o.T13)}` });
     const fanCowl = A({ id: 'fancowl', name: 'Fan cowl doors', ex: -0.55, mat: paint, desc: 'Two hinged doors that close around the fan case. Remove them to see the bare fan case with the oil tank, the accessory gearbox and the pipework that normally hide underneath.', live: () => '' });
     this._solid(fanCowl, band(offset(P.bypOuter, 0.014), P.nacelle, 0.0, 1.2, 14), { tag: 'skin' });
-    this._solid(fanCase, band(P.bypOuter, offset(P.bypOuter, 0.014), 0.36, 1.2, 10), { mat: linerM });
+    this._tagInt = true; this._solid(fanCase, band(P.bypOuter, offset(P.bypOuter, 0.014), 0.36, 1.2, 10), { mat: linerM }); this._tagInt = false;
     // light blue abradable fan track liner around the blade tips (reference photos)
-    this._solid(fanCase, band(P.bypOuter, offset(P.bypOuter, 0.014), 0.0, 0.36, 4), { mat: new THREE.MeshStandardMaterial({ color: 0x9cc9e6, metalness: 0, roughness: 0.8, side: THREE.DoubleSide }) });
+    this._tagInt = true; this._solid(fanCase, band(P.bypOuter, offset(P.bypOuter, 0.014), 0.0, 0.36, 4), { mat: new THREE.MeshStandardMaterial({ color: 0x9cc9e6, metalness: 0, roughness: 0.8, side: THREE.DoubleSide }) }); this._tagInt = false;
     const cna = A({ id: 'cna', name: 'Thrust reverser cowls and common nozzle', ex: 0.2, mat: paint, desc: 'The long duct carries bypass air aft, where it mixes with the core exhaust and leaves through one common nozzle.', live: (o) => `Mixed jet ${o.V9.toFixed(0)} m/s (Mach ${o.M9.toFixed(2)}) · ${C(o.T7)} · ${o.W9.toFixed(0)} kg/s` });
     this._solid(cna, band(offset(P.bypOuter, 0.012), P.nacelle, 1.2, 2.86, 20), { tag: 'skin' });
     // unpainted common nozzle at the rear, with a visible step from the painted cowl
@@ -455,8 +458,8 @@ export class Scene3D {
       this._ring(fan, seam, 22, at(TAU / 44), { parent: this.g1, mat: dark }); this._ring(fan, seal, 22, at(0.012), { parent: this.g1, mat: dark }); }
     this._tagInt = false;
     // acoustic liner splices in the inlet barrel, and the grey ice-impact panel aft of the fan track
-    for (let k = 0; k < 6; k++) { const x = -0.6 + k * 0.1, r = rAt(P.inletInner, x) + 0.0125; this._ring(inlet, new THREE.BoxGeometry(0.1, 0.004, 0.035), 3, (m, th) => { m.makeRotationX(th); m.setPosition(x, r * Math.cos(th), r * Math.sin(th)); }, { phase: 1.05, mat: new THREE.MeshStandardMaterial({ color: 0x9a9fa4, metalness: 0.6, roughness: 0.5 }) }); }
-    this._solid(fanCase, band(offset(P.bypOuter, -0.001), offset(P.bypOuter, 0.003), 0.36, 0.52, 4), { mat: new THREE.MeshStandardMaterial({ color: 0x70767c, roughness: 0.85, side: THREE.DoubleSide }) });
+    this._tagInt = true; for (let k = 0; k < 6; k++) { const x = -0.6 + k * 0.1, r = rAt(P.inletInner, x) + 0.0125; this._ring(inlet, new THREE.BoxGeometry(0.1, 0.004, 0.035), 3, (m, th) => { m.makeRotationX(th); m.setPosition(x, r * Math.cos(th), r * Math.sin(th)); }, { phase: 1.05, mat: new THREE.MeshStandardMaterial({ color: 0x9a9fa4, metalness: 0.6, roughness: 0.5 }) }); } this._tagInt = false;
+    this._tagInt = true; this._solid(fanCase, band(offset(P.bypOuter, -0.001), offset(P.bypOuter, 0.003), 0.36, 0.52, 4), { mat: new THREE.MeshStandardMaterial({ color: 0x70767c, roughness: 0.85, side: THREE.DoubleSide }) }); this._tagInt = false;
     this._tagInt = true; this._row(fanCase, ROWS[1], 60, this.engine, { stagger: [-0.3, -0.3], camber: [-0.1, -0.1], thick: [0.07, 0.07], chordK: 1.3, tipK: 1 }, { mat: new THREE.MeshPhysicalMaterial({ ...titanium, color: 0x8c949b }) }); this._tagInt = false;
 
     // ---------------- compressors and turbines
@@ -513,11 +516,13 @@ export class Scene3D {
     // 7A, 7B and stage 10 on the right of the HPC case, 7C on the left beside the VSV actuator.
     const orange = new THREE.MeshStandardMaterial({ color: 0xc8502a, roughness: 0.6 }), perf = new THREE.MeshStandardMaterial({ color: 0x6c6a64, metalness: 0.9, roughness: 0.55, map: T.liner });
     const onCore = (part, ob, x, th, r, variantCheck = true) => { ob.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); ob.rotation.x = th * DEG; const o2 = this._reg(part, ob); if (variantCheck && inCut(th * DEG)) o2.userData.variant = 'full'; return o2; };
+    this._tagInt = true;   // stand-ins for the authored bleed valves (details.py)
     for (const [x, th] of [[1.6, 262], [1.6, 302], [1.8, 282], [1.6, 128]]) {
       const g = new THREE.Group(), neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.1, 20), pipeSteel), dome = new THREE.Mesh(new THREE.SphereGeometry(0.066, 20, 10, 0, TAU, 0, Math.PI / 2), perf), seal = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.012, 8, 28), orange), rim = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.012, 24), pipeGold);
       neck.position.y = 0.05; rim.position.y = 0.1; dome.position.y = 0.1; dome.scale.y = 0.45; seal.rotation.x = Math.PI / 2; seal.position.y = 0.105; g.add(neck, rim, dome, seal);
       onCore(hpcCase, g, x, th, co(x) + 0.03);
     }
+    this._tagInt = false;
     this._tagInt = true;
     // structural struts of the intermediate case, crossing the swan-neck duct
     this._row(lpcCase, { x0: 0.94, x1: 1.08, kind: 'stator', lo: P.coreInner, hi: P.coreOuter }, 9, this.engine, { stagger: [0, 0], camber: [0, 0], thick: [0.2, 0.2], chordK: 1, tipK: 1 });
@@ -562,7 +567,7 @@ export class Scene3D {
     this._solid(noz, [[1.905, 0.412], [1.905, 0.436], [1.929, 0.436], [1.929, 0.412]], { seg: 96, cut: false });
     const ng = new THREE.CylinderGeometry(0.009, 0.013, 0.175, 8); ng.translate(0, 0.33, 0); ng.rotateZ(0.4); ng.translate(0.13, 0, 0); // enter at a steep angle
     this._ring(noz, ng, 20, (m, th) => { m.makeRotationX(th + 0.157 - Math.PI / 2); m.setPosition(1.94, 0, 0); }, { cut: false });
-    this._tagInt = false; this._pipe(noz, [[0.95, 1.02, 180], [1.2, 0.72, 182], [1.6, 0.6, 186], [1.917, 0.44, 190]], 0.012); this._tagInt = true;
+    this._pipe(noz, [[0.95, 1.02, 180], [1.2, 0.72, 182], [1.6, 0.6, 186], [1.917, 0.44, 190]], 0.012);   // stand-in: the routed metered-fuel line replaces it
     const ign = A({ id: 'ign', name: 'Igniter plugs (2)', ex: 0.3, mat: { color: 0xe6e9ec, metalness: 0.9, roughness: 0.25 }, desc: 'Two high-energy spark igniters. Only needed to light the flame; combustion is self-sustaining afterwards.', live: (o) => (o.ignOn ? 'Sparking' : 'Off') });
     const ig = new THREE.CylinderGeometry(0.011, 0.014, 0.19, 10); ig.translate(0, 0.385, 0);
     this._ring(ign, ig, 2, (m, th) => { m.makeRotationX(th - Math.PI / 2); m.setPosition(2.01, 0, 0); }, { phase: 2.4, cut: false });
@@ -579,8 +584,7 @@ export class Scene3D {
     this._solid(tec, [[3.0, rAt(P.coreInner, 3.0)], [3.12, 0.262], [3.12, 0.1], [3.0, 0.1]]);                                 // inner hub of the exhaust case
     this._solid(tec, [[3.12, 0.262], [3.16, 0.258], [3.5, 0.17], [3.93, 0.055], [3.95, 0.045], [3.93, 0.04], [3.5, 0.158], [3.16, 0.246], [3.12, 0.25]], { seg: 96 }); // exhaust cone: thin perforated shell, open at the rear
     this._ring(tec, new THREE.BoxGeometry(0.05, 0.004, 0.02), 13, (m, th) => { m.makeRotationX(th); m.setPosition(3.21, 0.243 * Math.cos(th), 0.243 * Math.sin(th)); }, { mat: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 }) }); // slots round the mounting flange
-    this._tagInt = false;
-    // four struts inside the common nozzle (upper, lower and two side) carrying its inner duct
+    // four struts inside the common nozzle (authored: tools/blender/details.py) (upper, lower and two side) carrying its inner duct
     { const st = bladeGeo({ span: 0.2, chord: [0.26, 0.2], stagger: [0, 0], camber: [0, 0], thick: [0.12, 0.12], nSpan: 2 });
       this._ring(cna, st, 4, (m, th) => { m.makeRotationX(th); m.setPosition(3.22, 0.46 * Math.cos(th), 0.46 * Math.sin(th)); }, { mat: this.shared.bare });
       this._solid(cna, [[3.1, 0.45], [3.1, 0.462], [3.4, 0.43], [3.4, 0.42]], { mat: this.shared.bare, seg: 96 }); }
@@ -591,8 +595,7 @@ export class Scene3D {
       this._ring(tec, bolt, 13, (m, th) => m.makeTranslation(3.135, 0.2 * Math.cos(th), 0.2 * Math.sin(th)), { mat: this.boltMat });
       this._ring(tec, bolt, 56, (m, th) => m.makeTranslation(3.02, (co(3.02) + 0.035) * Math.cos(th), (co(3.02) + 0.035) * Math.sin(th)), { mat: this.boltMat });
       this._solid(tec, [[3.013, co(3.02) + 0.018], [3.013, co(3.02) + 0.05], [3.027, co(3.02) + 0.05], [3.027, co(3.02) + 0.018]], { seg: 96 });
-      this._tagInt = false;
-      const boss = new THREE.CylinderGeometry(0.018, 0.022, 0.03, 10);
+      const boss = new THREE.CylinderGeometry(0.018, 0.022, 0.03, 10);   // stand-ins for the authored bosses and ribs
       this._ring(hptCase, boss, 6, (m, th) => { m.makeRotationX(th); m.setPosition(2.3, (co(2.3) + 0.035) * Math.cos(th), (co(2.3) + 0.035) * Math.sin(th)); }, { phase: 0.4, mat: this.boltMat });
       this._ring(lptCase, boss, 8, (m, th) => { m.makeRotationX(th); m.setPosition(2.7, (co(2.7) + 0.03) * Math.cos(th), (co(2.7) + 0.03) * Math.sin(th)); }, { phase: 0.2, mat: this.boltMat });
       // stiffening ribs on both turbine cases
@@ -648,6 +651,7 @@ export class Scene3D {
       pts.forEach(([x, th], i) => { mm.makeRotationX(th * DEG - Math.PI / 2); const r = co(x) + 0.055; mm.setPosition(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); im.setMatrixAt(i, mm); });
       dress(this._reg(ext, im)); }
     for (const x of [1.45, 2.0, 2.55]) dress(this._solid(ext, [[x - 0.005, co(x) + 0.095], [x - 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.103], [x + 0.005, co(x) + 0.095]], { seg: 96, mat: harness })); // clamps
+    this._tagInt = true;
     // oil feed, scavenge and vent pipes to the bearing compartments, run through struts at the bottom of the engine
     for (const [pts, rad, mt] of [
       [[[0.98, 0.17, 180], [0.98, 0.3, 180], [0.985, 0.44, 180], [0.95, 0.56, 181], [0.85, 0.66, 182]], 0.009, pipeSteel], [[[1.028, 0.17, 180], [1.028, 0.3, 180], [1.025, 0.46, 181], [1.0, 0.58, 183]], 0.011, pipeGold],
@@ -656,9 +660,12 @@ export class Scene3D {
       [[[2.09, 0.135, 162], [2.03, 0.168, 162], [1.95, 0.181, 162], [1.908, 0.215, 162], [1.902, 0.3, 162], [1.89, 0.4, 163], [2.0, 0.445, 165], [2.3, 0.44, 166]], 0.011, pipeGold],
       // No. 5 bearing: out through exhaust-case struts 7 and 8
       [[[3.06, 0.105, 166.15], [3.07, 0.2, 166.15], [3.072, 0.3, 166.15], [3.07, 0.47, 168], [2.9, 0.54, 176], [2.5, 0.5, 182]], 0.008, pipeSteel], [[[3.07, 0.105, 193.85], [3.075, 0.3, 193.85], [3.07, 0.47, 194], [2.85, 0.53, 194]], 0.01, pipeGold]]) this._pipe(brg, pts, rad, mt);
+    this._tagInt = false;
+    this._tagInt = true;   // stand-ins for tools/blender/details.py
     // EGT thermocouples in the exhaust case struts (about 2, 4.30, 7.30 and 9.30 o'clock) with their harness ring
     for (const th of [60, 135, 225, 285]) { const pr = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 10), pipeSteel), r = co(3.07) + 0.05; pr.position.set(3.07, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); pr.rotation.x = th * DEG; const o2 = this._reg(tec, pr); if (inCut(th * DEG)) o2.userData.variant = 'full'; }
     this._pipe(tec, Array.from({ length: 22 }, (_, i) => [3.1, co(3.1) + 0.085, 118 + i * 11]), 0.007, harness);
+    this._tagInt = false;
     // thrust reverser drag links: one per blocker door, from the core cowl across the duct to the door. They pull the doors down as the sleeve slides aft.
     { const g = new THREE.CylinderGeometry(0.008, 0.008, 1, 8), mk = (ths) => { const im = new THREE.InstancedMesh(g, pipeSteel, ths.length); im.userData.ths = ths; return im; };
       const all = Array.from({ length: 10 }, (_, k) => (k * 36 + 18) * DEG);
@@ -666,16 +673,18 @@ export class Scene3D {
       this.dragLinks = [mk(L.filter((t) => !inCut(t))), mk(L.filter((t) => inCut(t))), mk(R)];
       this.dragLinks[1].userData.variant = 'full';
       this.dragLinks.forEach((im, i) => this._into(this._hingeInner(this.byId.cna, 'cd', i < 2 ? 'L' : 'R'), this.byId.cna, im)); }
+    this._tagInt = true;
     // P4.9 pressure rakes in three exhaust-case struts, joined by a small-bore manifold
     for (const k of [4, 7, 10]) { const th = ((k - 1) * 360) / 13, rk = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 8), pipeGold); onCore(tec, rk, 3.03, th, 0.37); } // struts 4, 7 and 10
     this._pipe(tec, Array.from({ length: 16 }, (_, i) => [3.0, co(3.0) + 0.07, 120 + i * 15]), 0.004, pipeGold);
+    this._tagInt = false;
     // lower and upper bifurcations: the walls where the two C-ducts meet, splitting the bypass duct at 6 and 12 o'clock
     { const bi = (th, full) => { const sh = new THREE.Shape(); const xs = full ? [1.22, 1.32, 3.06, 3.12] : [1.22, 1.32, 2.6, 2.86];   // the upper one runs aft over the aft mount sh.moveTo(xs[0], rAt(P.bypInner, xs[0])); sh.lineTo(xs[1], rAt(P.bypOuter, xs[1]) - 0.004); sh.lineTo(xs[2], rAt(P.bypOuter, xs[2]) - 0.004); sh.lineTo(xs[3], rAt(P.bypInner, xs[3]) + 0.02); sh.lineTo(2.4, rAt(P.bypInner, 2.4)); sh.lineTo(1.6, rAt(P.bypInner, 1.6)); sh.lineTo(xs[0], rAt(P.bypInner, xs[0]));
         const g = new THREE.ExtrudeGeometry(sh, { depth: 0.045, bevelEnabled: true, bevelSize: 0.012, bevelThickness: 0.012, bevelSegments: 2 }); g.translate(0, 0, -0.0225);
-        const m = new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ ...composite, side: THREE.DoubleSide })); m.rotation.x = th * DEG; const o2 = this._into(this._hingeInner(cna, 'cd', th < 180 ? 'L' : 'R'), cna, m); if (full) o2.userData.variant = 'full'; };
+        const m = new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ ...composite, side: THREE.DoubleSide })); m.rotation.x = th * DEG; const o2 = this._into(this._hingeInner(cna, 'cd', th < 180 ? 'L' : 'R'), cna, m); if (full) o2.userData.variant = 'full'; (this._genBifur ||= []).push(m); };
       bi(178.4, false); bi(181.6, false); bi(4, true); bi(356, true); }
     // fire detection: two sensing loops clipped side by side round the core, and the nacelle temperature sensor
-    for (const dx of [0, 0.012]) this._pipe(ext, Array.from({ length: 40 }, (_, i) => { const f = i / 39; return [1.45 + dx + 1.3 * f, co(1.45 + 1.3 * f) + 0.125, 122 + 226 * (0.5 - 0.5 * Math.cos(f * Math.PI * 3))]; }), 0.003, pipeGold);
+    for (const dx of [0, 0.012]) dress(this._pipe(ext, Array.from({ length: 40 }, (_, i) => { const f = i / 39; return [1.45 + dx + 1.3 * f, co(1.45 + 1.3 * f) + 0.125, 122 + 226 * (0.5 - 0.5 * Math.cos(f * Math.PI * 3))]; }), 0.003, pipeGold));
     for (const [x, th] of [[1.6, 262], [1.6, 302], [1.8, 282], [1.6, 128]]) { const h = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.012, 24), new THREE.MeshStandardMaterial({ color: 0x0c0d0e, roughness: 0.9 })); const r = rAt(P.bypInner, x) + 0.004; h.position.set(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); h.rotation.x = th * DEG; this._into(this._hingeInner(this.byId.corecowl, 'cd', th < 180 ? 'L' : 'R'), this.byId.corecowl, h); }
     // ---- core units placed from the component-location manual. Each is a part of its own; these simple shapes
     // stand in until the authored model loads (tools/blender/core_units.py builds the real ones).
@@ -721,9 +730,9 @@ export class Scene3D {
       LINE('accduct', 'Clearance control ducts', 0.6, 'Short ducts from the clearance control valves to the collector rings of the turbine case spray manifolds.', (o) => `HPT ${(100 * (o.accH || 0)).toFixed(0)} % · LPT ${(100 * (o.accL || 0)).toFixed(0)} %`);
       LINE('bufferair', 'Buffer air duct', 0.3, 'HP compressor air to the buffer air cooler, then on to pressurise the seals of the No. 4 bearing chamber.');
       // high-pressure bleed valve low on the left
-      unit(hpcCase, new THREE.CylinderGeometry(0.05, 0.05, 0.14, 18).rotateZ(Math.PI / 2), pipeGold, 1.86, 140, co(1.86) + 0.13);
+      this._tagInt = true; unit(hpcCase, new THREE.CylinderGeometry(0.05, 0.05, 0.14, 18).rotateZ(Math.PI / 2), pipeGold, 1.86, 140, co(1.86) + 0.13); this._tagInt = false;   // stand-in: the routed stage 10 duct carries the HP valve
       // fuel manifold pigtails from the distribution valve
-      for (let k = 0; k < 10; k++) this._pipe(ext, [[1.86, co(1.86) + 0.13 + 0.03 * Math.cos(k * 0.63), 318 + 4 * Math.sin(k * 0.63)], [1.9, 0.47, 318 + (k - 4.5) * 3], [1.917, 0.44, 318 + (k - 4.5) * 7]], 0.004, pipeSteel);
+      for (let k = 0; k < 10; k++) dress(this._pipe(ext, [[1.86, co(1.86) + 0.13 + 0.03 * Math.cos(k * 0.63), 318 + 4 * Math.sin(k * 0.63)], [1.9, 0.47, 318 + (k - 4.5) * 3], [1.917, 0.44, 318 + (k - 4.5) * 7]], 0.004, pipeSteel));
     }
     // ---- upper half of the core. This is the sector the cutaway removes, so it is only shown with the cutaway closed.
     const top = (ob) => { ob.userData.variant = 'full'; return ob; };
@@ -744,7 +753,7 @@ export class Scene3D {
     { const pts = []; for (let th = -8; th < 112; th += 13) for (const x of [1.3, 1.62, 1.95, 2.3, 2.66, 2.92]) if (((th * 7 + x * 31 + 400) | 0) % 3 !== 0) pts.push([x, th]);
       const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.022, 0.07, 0.012), pipeSteel, pts.length), mm = new THREE.Matrix4();
       pts.forEach(([x, th], i) => { mm.makeRotationX(th * DEG - Math.PI / 2); const r = co(x) + 0.055; mm.setPosition(x, r * Math.cos(th * DEG), r * Math.sin(th * DEG)); im.setMatrixAt(i, mm); });
-      top(this._reg(ext, im)); }
+      dress(top(this._reg(ext, im))); }
     // pylon the engine hangs from
     const pylon = A({ id: 'pylon', name: 'Pylon', ex: 0, mat: paint, desc: 'Carries the engine under the wing and transmits its thrust to the airframe. Fuel, bleed air, electrical and hydraulic lines run through it.', live: (o) => `Thrust carried ${(o.thrust / 1000).toFixed(1)} kN` });
     { const sh = new THREE.Shape(); sh.moveTo(0.35, 0.98); sh.lineTo(0.2, 1.32); sh.lineTo(3.0, 1.32); sh.lineTo(2.8, 1.02); sh.lineTo(2.2, 0.9); sh.lineTo(0.35, 0.98);
@@ -1271,6 +1280,8 @@ export class Scene3D {
         cast: casting ? FINISH.castBare : FINISH.castPaint, steel: FINISH.bareSteel, gold: FINISH.chromate, dark: FINISH.darkBox, composite: FINISH.composite,
         primer: FINISH.primer, acoustic: FINISH.acoustic, clamp_red: FINISH.rubber, loom_band: FINISH.rubber, connector: FINISH.connector, firesleeve: FINISH.fireSleeve,
         panelline: FINISH.nacellePaint, panelline2: FINISH.nacellePaint, panel2: FINISH.nacellePaint, placard: FINISH.nacellePaint, hazard: FINISH.nacellePaint, marking: FINISH.nacellePaint,
+        sp_dark: { ...FINISH.darkBox, bottom: 0, grime: 0.08 }, sp_white: { ...FINISH.nacellePaint, bottom: 0, grime: 0.06 }, sp_fair: { ...FINISH.titanium, bottom: 0 },
+        blanket: { ...FINISH.stainlessTube, scale: 7, grime: 0.18, bump: 0.3 }, seal: FINISH.rubber, abradable: { ...FINISH.castPaint, grime: 0.12, bottom: 0.1 }, icepanel: FINISH.castPaint,
       }[name] || null;
     };
     const gltf = (await this._loadPacked(base, manifest)) || await new GLTFLoader().loadAsync(base + manifest.file, (e) => this.onModelProgress && this.onModelProgress(e.lengthComputable ? e.loaded / e.total : null));
@@ -1300,7 +1311,7 @@ export class Scene3D {
             if (/^i_/.test(mt.name)) return this._intMat(part, mt.name);
             if (/^txt:/.test(mt.name)) return (this._labels ||= {})[mt.name] ||= labelMaterial(mt.name.slice(4));
             const sh = this.shared[mt.name];
-            if (mt.name === 'section') return sh || mt;
+            if (mt.name === 'section' || mt.name === 'liner_perf' || mt.name === 'grille') return sh || mt;
             const casting = mt.name === 'cast' && /oiltank|gearbox|agb_|dressing|eec|starter_|sav_|idg_|hydpump_|fuelpump_|fmu_|oilpump_|pma_|exciters_|vsvact_|fdv_|accvalves_|acac_|egtbox_|mounts_/i.test(m.name);
             const key = mt.name + (casting ? ':bare' : '');
             return (own[key] ||= (() => {
@@ -1327,7 +1338,8 @@ export class Scene3D {
     // generated rows and rings that were dropped no longer need updating
     const alive = (o) => { for (let a = o; a; a = a.parent) if (a === this.scene) return true; return false; };
     this.rotorRows = this.rotorRows.filter((r) => alive(r.im)); this.vsvRows = this.vsvRows.filter(alive); this.cutInst = this.cutInst.filter(alive);
-    for (const [id, kind] of [['fancowl', 'fan'], ['cna', 'cd']]) { const p = this.byId[id]; if (p && taken.includes(id)) for (const ob of p.objs) if (/^ext:/.test(ob.name)) this._rigExternalHinges(ob, kind); }
+    for (const [id, kind] of [['fancowl', 'fan'], ['cna', 'cd'], ['corecowl', 'cd']]) { const p = this.byId[id]; if (p && taken.includes(id)) for (const ob of p.objs) if (/^ext:/.test(ob.name)) this._rigExternalHinges(ob, kind); }
+    if (this._genBifur && this.byId.cna.objs.some((ob) => ob.getObjectByName && [...ob.children].some((c) => /^cna_bifur/.test(c.name) || [...c.children].some((g) => /^cna_bifur/.test(g.name))))) for (const m of this._genBifur) if (m.parent) m.parent.remove(m);
     this.setCutaway(this.cutaway); this.revNodes = null; this._rev = -1; this._cowlApplied = -1;
     return taken;
   }
@@ -1391,6 +1403,7 @@ export class Scene3D {
     const key = `${part.id}:${name}`; this._intMats ||= {};
     if (this._intMats[key]) return this._intMats[key];
     if (name === 'i_bolt') return (this._intMats[key] = this.boltMat);
+    if (name === 'i_bare') return (this._intMats[key] = this.shared.bare);
     if ((INT_PART_MAT[part.id] || []).includes(name)) return (this._intMats[key] = part.mat);
     const d = INT_MATS[name] || INT_MATS.i_steel, { f, bottom, grime, ...base } = d;
     const m = new THREE.MeshPhysicalMaterial({ ...base, side: THREE.DoubleSide });

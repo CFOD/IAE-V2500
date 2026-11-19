@@ -106,6 +106,53 @@ oil, core harnesses A and B, ignition leads A and B, EGT harness, IP and HP blee
 ducts and buffer air. `dressing.py` routes them through `L(name)`; everything else stays in the shared
 dressing nodes.
 
+### The rest of the engine
+
+`tools/blender/details.py` brings the remaining parts up to the same level as the internals. These were
+generated shapes before.
+
+- **Spinner.** A glass-fibre nose cone with a soft rubber tip and the white spiral marking, and a titanium
+  rear fairing. The fairing steps over the cone joint and has 18 bolt pockets drilled in it, each with a
+  socket-head bolt, plus balance screws round its rear edge.
+- **Core cowl (inner fixed structure).** Fixed bands front and rear, and two halves that hinge open with the
+  thrust reverser C-ducts. The halves carry:
+  - an acoustic skin on the duct side, with panel lines;
+  - quilted stainless thermal blankets in the hot zone;
+  - frames and edge beams;
+  - latches and keepers along the bottom, hinge fittings at the top;
+  - an orange fire seal along the forward edge;
+  - perforated grilles where the handling bleeds dump into the bypass duct;
+  - ram scoops for the clearance-control and buffer-air cooling air.
+- **Bifurcations.** Streamlined walls where the two C-ducts meet across the bypass duct, top and bottom.
+- **Common nozzle.** The inner core nozzle with a thin trailing edge, and its four struts.
+- **Handling bleed valves.** Stage 7A, 7B and 7C, and the stage 10 start bleed. Each has:
+  - the valve body on its manifold boss, with bolted flanges;
+  - a pneumatic actuator with its muscle-air port, a solenoid with its connector, and a position switch;
+  - an outlet duct with a bellows and a V-band, and the silicone seal it makes against the core cowl.
+- **Case details.** Stiffening ribs on the turbine cases, and borescope ports with plugs and lock-wire tabs:
+  - HP compressor stages 3, 5, 7, 9 and 11;
+  - HP turbine stage 1 (two ports) and stage 2;
+  - LP turbine stages 3, 5 and 7;
+  - the combustor's six.
+
+  Their positions go to `model.json` (`ports`) for the borescope.
+- **Exhaust case instruments.** Four EGT thermocouples, each with a flange, bolts, a terminal head and posts,
+  and a probe down its strut. A harness ring collects them and a lead runs forward to the junction box. There
+  are also three P4.9 rakes with three sensing heads each, joined by their manifold.
+- **Tubes.**
+  - Bearing oil feed and scavenge: down the bottom strut for the front compartment; through the
+    combustor's dump gap between two fuel injectors for No. 4, with a streamlined fairing where they cross
+    the air; up two exhaust-case struts for No. 5.
+  - The ten fuel pigtails from the distribution valve to the manifold, with B-nuts and tees.
+  - The fire detection loops on their clips.
+- **Liners.** The inlet's perforated acoustic barrel with its splice straps and fastener rows. In the fan
+  case, the light-blue abradable rub strip (with the shallow track the blade tips have worn in it), the
+  ice-impact panel and the acoustic panels.
+
+The reverser cascades now have cambered turning vanes: 14 per bay. The generated stand-ins for all of these
+are dropped when the model loads. Only the blocker-door drag links stay generated, because they move with
+the doors.
+
 ### The aircraft (apron scene)
 
 `tools/blender/apron.py` builds the A320 the engine hangs on, for the Apron tab, as `app/models/apron.glb`
