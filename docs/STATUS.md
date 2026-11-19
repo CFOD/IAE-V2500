@@ -23,6 +23,11 @@ The test website at iae.cfod.co.uk deploys from this branch automatically (see d
 - Core services run down a lower fan-frame strut from a bulkhead panel, instead of fanning across the
   bypass duct from one point.
 - Colours fixed: authored materials were one gamma step too light (near-white cases and tubes).
+- Part failures (docs/FAILURES.md): 68 of them, from a released fan blade or a sheared shaft to a jammed
+  metering valve, a broken pipe or a burnt harness, each acting through the physics; listed on every part's
+  card and in a searchable Faults tab, with red-pulsing broken parts, missing blades, debris, leak sprays,
+  fires where the leak is, engine shake, cowl doors torn off and engine separation. 21 pipes, ducts and
+  harnesses are parts of their own. An ENG 1 FIRE pushbutton shuts the LP fuel valve.
 - Phones: touch controls and phone layout on the website; an Android app (Capacitor) that packs the
   same page for offline use, sideloaded as a debug APK for now (docs/ANDROID.md).
 

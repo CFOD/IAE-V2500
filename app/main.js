@@ -2,6 +2,7 @@
 import { Engine, defaultMods } from '../src/sim/engine.js';
 import { Fadec, TRA } from '../src/sim/fadec.js';
 import { RATINGS } from '../src/sim/v2500.js';
+import { FAILURES, FAIL_GROUPS } from '../src/sim/failures.js';
 import { Cutaway } from './cutaway.js';
 import { Scene3D } from './scene3d.js';
 import { drawEcam, drawMaps, drawTrends, pushTrend } from './gauges.js';
@@ -144,7 +145,7 @@ const mulRow = (name, key, lo, hi, tip) => ({ name, tip, min: lo, max: hi, step:
   mulRow('Turbine cooling air', 'cooling', -100, 50, 'Cooling air taken from the HPC'),
   { name: 'Fuel heating value', tip: 'Lower heating value. Jet A ≈ 43.1 MJ/kg', min: 25, max: 50, step: 0.1, def: 43.1, get: () => m.lhv / 1e6, set: (v) => (m.lhv = v * 1e6), fmt: (v) => `${v.toFixed(1)} MJ/kg` },
 ].forEach((d) => { D[d.name] = d; addRow(hw, d); });
-$('hwReset').onclick = () => { resetRows(hw); Object.assign(m, defaultMods()); eng.damage.reset(); for (const f of FAULTS) if (f.active && f.mods) { f.active = false; } refreshFaults(); logMsg('Hardware restored to new condition'); };
+$('hwReset').onclick = () => { resetRows(hw); Object.assign(m, defaultMods()); eng.damage.reset(); eng.fail.reset(); view3d && view3d.resetFailures(); for (const f of FAULTS) if (f.active && f.mods) { f.active = false; } refreshFaults(); logMsg('Hardware restored to new condition: damage repaired, broken parts replaced'); };
 
 // ------------------------------------------------------------ faults
 const FAULTS = [
@@ -169,8 +170,27 @@ const FAULTS = [
   { id: 'flame', name: 'Flame-out', desc: 'Blow the flame out now (momentary). With protections on the FADEC relights it.', once: () => { eng.s.lit = false; eng.events.push({ t: eng.s.t, type: 'flameout-lean' }); } },
 ];
 const applyMods = (mods, undo) => { for (const [k, v] of Object.entries(mods)) { if (k.startsWith('eff')) m[k] += undo ? -v : v; else m[k] = undo ? m[k] / v : m[k] * v; } };
-function refreshFaults() { for (const f of FAULTS) for (const b of [f.btn, f.cardBtn]) if (b) { b.classList.toggle('on', !!f.active); b.textContent = f.once ? 'Trigger' : f.active ? 'Clear' : 'Inject'; } }
+// Part failures (src/sim/failures.js): break a blade, shear a shaft, jam a valve, cut a pipe. Momentary ones
+// (a blade letting go) are triggered; the rest are injected and cleared, clearing meaning the part is replaced.
+const PFAIL = FAILURES.map((fl) => ({ ...fl, sim: true, once: fl.once ? true : null }));
+const ALLF = [...FAULTS, ...PFAIL];
+const isOn = (f) => (f.sim ? eng.fail.isOn(f.id) : !!f.active);
+const countOf = (f) => (f.sim ? eng.fail.count[f.id] || 0 : 0);
+function refreshFaults() {
+  for (const f of ALLF) for (const b of [f.btn, f.cardBtn]) if (b) {
+    const on = isOn(f), n = countOf(f);
+    b.classList.toggle('on', on || n > 0); b.textContent = f.once ? (n ? `Again (${n})` : 'Trigger') : on ? 'Clear' : 'Inject';
+  }
+  if (view3d) view3d.setFailedParts([...PFAIL.filter((f) => isOn(f) || countOf(f)).flatMap((f) => f.parts.slice(0, 1)), ...Object.entries(PART_FAULTS).filter(([, ids]) => ids.some((id) => FAULTS.find((x) => x.id === id && x.active && !x.once))).map(([p]) => p)]);
+  const n = eng.fail.active + FAULTS.filter((f) => f.active).length;
+  $('fltCount').textContent = n ? `${n} active` : '';
+}
 function toggleFault(f) {
+  if (f.sim) {
+    if (f.once) { eng.fail.set(f.id, true); logMsg(`Failure: ${f.name}`); }
+    else { const on = !eng.fail.isOn(f.id); eng.fail.set(f.id, on); logMsg(on ? `Failure injected: ${f.name}` : `Repaired: ${f.name}`); }
+    refreshFaults(); return;
+  }
   if (f.once) { f.once(); logMsg(`Fault: ${f.name}`); return; }
   f.active = !f.active;
   if (f.mods) applyMods(f.mods, !f.active); else (f.active ? f.on : f.off)();
@@ -178,13 +198,34 @@ function toggleFault(f) {
   logMsg(`Fault ${f.active ? 'injected' : 'cleared'}: ${f.name}`); refreshFaults();
 }
 const flt = $('t-flt');
-for (const f of FAULTS) {
-  const el = document.createElement('div'); el.className = 'fault'; el.innerHTML = `<b>${f.name}</b><button></button><span>${f.desc}</span>`; flt.appendChild(el);
-  f.btn = el.querySelector('button');
-  f.btn.onclick = () => toggleFault(f);
-}
-refreshFaults();
-flt.insertAdjacentHTML('beforeend', '<p class="note">Faults stack with whatever you have set under Hardware and Control. Restore new-engine condition (Hardware tab) clears the damage-type faults.</p>');
+flt.innerHTML = '<div class="fhead"><input type="search" id="fltFind" placeholder="Find a failure or a part" aria-label="Find a failure or a part"><span id="fltCount"></span><button id="fltClear">Repair all</button></div>';
+const faultRow = (f, parent) => {
+  const el = document.createElement('div'); el.className = 'fault'; el.innerHTML = `<b></b><button></button><span></span>`;
+  el.querySelector('b').textContent = f.name; el.querySelector('span').textContent = f.desc; parent.appendChild(el);
+  f.btn = el.querySelector('button'); f.btn.onclick = () => toggleFault(f); f.row = el;
+  if (f.sim && view3d) { const b = el.querySelector('b'); b.classList.add('link'); b.title = 'Show this part'; b.onclick = () => { const p = view3d.byId[f.parts[0]]; if (p) { view3d.selected = p; showPart(p); } }; }
+  return el;
+};
+const fgroup = (title, items, open) => {
+  const d = document.createElement('details'); d.className = 'fgroup'; d.open = !!open;
+  d.innerHTML = `<summary>${esc(title)} <i>${items.length}</i></summary>`; flt.appendChild(d);
+  for (const f of items) faultRow(f, d);
+  return d;
+};
+const fGroups = [fgroup('Whole-engine faults', FAULTS, true), ...FAIL_GROUPS.map(([g, title]) => fgroup(title, PFAIL.filter((f) => f.group === g), false))];
+flt.insertAdjacentHTML('beforeend', '<p class="note">Every part can fail: pick one on the engine to see its own failures on its card. Faults stack with Hardware and Control settings. Broken parts pulse red. Repair all, or Restore new-engine condition (Hardware tab), replaces them.</p>');
+$('fltFind').oninput = () => {
+  const q = $('fltFind').value.trim().toLowerCase();
+  for (const f of ALLF) {
+    const partNames = f.sim && view3d ? f.parts.map((id) => (view3d.byId[id] || {}).name || '').join(' ') : '';
+    f.row.hidden = !!q && !`${f.name} ${f.desc} ${partNames}`.toLowerCase().includes(q);
+  }
+  for (const d of fGroups) { const any = [...d.querySelectorAll('.fault')].some((r) => !r.hidden); d.hidden = !any; if (q) d.open = any; }
+};
+$('fltClear').onclick = () => {
+  for (const f of FAULTS) if (f.active && !f.once) toggleFault(f);
+  eng.fail.reset(); view3d && view3d.resetFailures(); refreshFaults(); logMsg('All part failures repaired');
+};
 
 // ------------------------------------------------------------ pedestal
 const sel = $('rating');
@@ -199,6 +240,8 @@ const setManStart = (v, quiet) => { fadec.manStart = v; $('manStart').setAttribu
 $('manStart').onclick = () => setManStart(!fadec.manStart);
 const setApuBleed = (v, quiet) => { fadec.apuBleed = v; $('apuBleed').setAttribute('aria-pressed', v); if (!quiet) logMsg(`APU BLEED ${v ? 'ON' : 'OFF'}`); };
 $('apuBleed').onclick = () => setApuBleed(!fadec.apuBleed);
+const setFirePb = (v, quiet) => { fadec.firePb = v; $('firePb').setAttribute('aria-pressed', v); if (!quiet) logMsg(v ? 'ENG 1 FIRE pushbutton pushed: LP fuel valve shut' : 'ENG 1 FIRE pushbutton reset'); };
+$('firePb').onclick = () => setFirePb(!fadec.firePb);
 $('agent').onclick = () => { const out = eng.damage.extinguish(); logMsg(out ? 'Fire agent discharged - fire out' : 'Fire agent discharged - STILL BURNING: shut the fuel off first'); };
 // Thrust lever in degrees, as on the A320: TOGA 45, FLX/MCT 35, CL 25, IDLE 0, then lifted through
 // the latch into reverse: reverse idle -6, max reverse -20. The arrow keys stop at idle; press again to lift into reverse.
@@ -287,7 +330,8 @@ function reset(running) {
   fadec.reset(); setEngMode('norm', true); setManStart(false, true); setApuBleed(true, true); eng.damage.reset(); sparkK = 0; lostPrev = 0;
   eng.initCold(); eng.events.length = 0; evIdx = 0; eng.s.fuelUsed = 0;
   Object.assign(fadec.prot, { egt: true, n1: true, n2: true, accel: true, decel: true, surge: true, startAbort: true }); fadec.n1Mode = false;
-  for (const f of FAULTS) if (f.active) { if (f.mods) applyMods(f.mods, true); else if (f.off) f.off(); f.active = false; } refreshFaults();
+  for (const f of FAULTS) if (f.active) { if (f.mods) applyMods(f.mods, true); else if (f.off) f.off(); f.active = false; }
+  eng.fail.reset(); view3d && view3d.resetFailures(); setFirePb(false, true); refreshFaults();
   peaks.egt = peaks.n1 = peaks.n2 = 0; setLever(0); setMaster(running);
   if (running) { fadec.mode = 'ign'; for (let i = 0; i < 100 * 60; i++) { fadec.update(1 / 60); eng.step(1 / 60); } fadec.mode = fadec._modePrev = 'norm'; eng.s.t = 0; eng.s.fuelUsed = 0; eng.events.length = 0; fadec._evIdx = 0; }
   log.length = 0; logMsg(running ? 'Reset: engine running at ground idle' : 'Reset: cold and dark');
@@ -347,8 +391,9 @@ const PART_CTL = {
 const PART_FAULTS = {
   fan: ['bird'], hpc: ['fod'], hpt: ['hpt'], hpccase: ['vsv'], lpccase: ['b25'], ign: ['ignA', 'ignB'], eec: ['epr'], ext: ['accstuck'], liner: ['flame'], bearings: ['seal4'],
   starter: ['lowair', 'startv'], sav: ['svopen', 'startv'], oiltank: ['oilleak'], oilpump: ['oilpump', 'oilfilter'],
-  exciters: ['ignA', 'ignB'], vsvact: ['vsv'], accvalves: ['accstuck'],
+  exciters: ['ignA', 'ignB'], vsvact: ['vsv'], accvalves: ['accstuck'], line_acocoil: ['acoc'], line_htleadA: ['ignA'], line_htleadB: ['ignB'],
 };
+refreshFaults();
 // The card collapses to one line when its header is clicked. With nothing selected that choice is
 // remembered (the help text only needs reading once); picking a part opens it to show the details.
 let hintCollapsed = false; try { hintCollapsed = localStorage.getItem('v2500.cardCollapsed') === '1'; } catch (e) { /* ignore */ }
@@ -363,10 +408,12 @@ function showPart(p) {
   selPart = p; $('partcard').classList.toggle('empty', !p); setCardCollapsed(p ? false : hintCollapsed);
   $('pcCtl').replaceChildren();
   if (p) for (const k of PART_CTL[p.id] || []) if (D[k]) addRow($('pcCtl'), D[k]);
-  for (const f of FAULTS) f.cardBtn = null;
-  if (p) for (const id of PART_FAULTS[p.id] || []) {
-    const f = FAULTS.find((x) => x.id === id); if (!f) continue;
-    const el = document.createElement('div'); el.className = 'fault'; el.innerHTML = `<b>${f.name}</b><button></button>`;
+  for (const f of ALLF) f.cardBtn = null;
+  const mine = p ? [...(PART_FAULTS[p.id] || []).map((id) => FAULTS.find((x) => x.id === id)).filter(Boolean), ...PFAIL.filter((f) => f.parts.includes(p.id))] : [];
+  if (mine.length) $('pcCtl').insertAdjacentHTML('beforeend', '<h4>Failures</h4>');
+  for (const f of mine) {
+    const el = document.createElement('div'); el.className = 'fault'; el.innerHTML = '<b></b><button></button>';
+    el.querySelector('b').textContent = f.name;
     f.cardBtn = el.querySelector('button'); f.cardBtn.onclick = () => toggleFault(f); el.title = f.desc; $('pcCtl').appendChild(el);
   }
   refreshFaults();
@@ -402,9 +449,29 @@ const FAIL = {
   'chip-detector': 'Metal on the master chip detector - a main bearing is breaking up',
   'bearing-failure': 'MAIN BEARING FAILURE - HP rotor seized. ENGINE DESTROYED',
   'bowed-rotor-rub': 'BOWED ROTOR - hot engine restarted without motoring; blades rubbing',
+  // part failures (failures.js)
+  'fan-blade-off': 'FAN BLADE RELEASE - contained by the fan case; rotor badly out of balance',
+  'fan-crack-release': 'FAN BLADE RELEASE - the cracked blade let go',
+  'spinner-lost': 'Spinner fairing broke up and went through the fan',
+  'liner-ingested': 'Inlet acoustic panel ingested by the fan',
+  'lpc-blade-release': 'BOOSTER BLADE RELEASE - debris through the LP compressor',
+  'hpc-blade-release': 'HP COMPRESSOR BLADE RELEASE - stages behind it damaged',
+  'lp-shaft-shear': 'LP SHAFT FAILURE - fan running down, LP turbine racing',
+  'hp-shaft-shear': 'HP SHAFT FAILURE - compressor running down, HP turbine racing',
+  'lp-bearing-seized': 'FAN BEARING SEIZED - fan stopped dead',
+  'case-burn-through': 'TURBINE CASE BURN-THROUGH - flame cutting into the core compartment',
+  'tower-shaft-shear': 'TOWER SHAFT SHEARED - gearbox stopped: no fuel pump, oil pump, generator or hydraulics',
+  'starter-burst': 'STARTER DISINTEGRATED - back-driven through its seized clutch; gearbox holed, oil pouring out',
+  'starter-failure': 'STARTER FAILED',
+  'idg-overheat': 'IDG overheated with no oil - disconnected',
+  'fuel-fire': 'ENGINE FIRE - fuel burning in the nacelle',
+  'oil-fire': 'ENGINE FIRE - oil burning on the hot core',
+  'fire-harness': 'Fire has burnt through a core harness - EEC channel lost',
+  'fan-cowl-lost': 'FAN COWL DOORS TORN OFF by the airflow',
+  'engine-separation': 'ENGINE SEPARATED FROM THE PYLON',
 };
 const EV = { ...FAIL, lightoff: 'Light-off', 'flameout-lean': 'FLAME-OUT (mixture too lean)', 'flameout-rich': 'FLAME-OUT (rich / no airflow)', 'surge-fan': 'FAN SURGE', 'surge-lpc': 'LPC SURGE', 'surge-hpc': 'HPC SURGE' };
-let lastBang = -1, lastSurgeLog = -10, sparkK = 0, lostPrev = 0;
+let lastBang = -1, lastSurgeLog = -10, sparkK = 0, lostPrev = 0, failSig = '';
 function handleEvents(dt) {
   for (; evIdx < eng.events.length; evIdx++) {
     const ev = eng.events[evIdx];
@@ -414,9 +481,11 @@ function handleEvents(dt) {
     } else {
       logMsg(EV[ev.type] || ev.type);
       if (FAIL[ev.type]) {
-        const big = /burst|release|failure|burn-through/.test(ev.type) && ev.type !== 'chip-detector';
-        if (big) { audio.bang(/burst/.test(ev.type) ? 2 : 1.4); view3d && view3d.surge(/lp|fan/.test(ev.type) ? 'fan' : 'hpc'); view2d.surge('hpc'); }
-        if (/release|melting|burst|failure/.test(ev.type)) sparkK = 1;
+        const big = /burst|release|failure|burn-through|blade-off|shear|seized|separation|cowl-lost/.test(ev.type) && ev.type !== 'chip-detector';
+        if (big) { audio.bang(/burst|separation/.test(ev.type) ? 2 : 1.4); view3d && view3d.surge(/lp|fan/.test(ev.type) ? 'fan' : 'hpc'); view2d.surge('hpc'); }
+        if (/hpt-blade|lpt-blade|melting|burst|hpc-blade-failure|bearing-failure/.test(ev.type)) sparkK = 1;
+        view3d && view3d.failEvent(ev.type);
+        refreshFaults();
       }
     }
   }
@@ -431,7 +500,13 @@ function handleEvents(dt) {
   // failure visuals follow the damage state
   const dm = eng.damage.d, losing = dm.hptLost + dm.lptLost > lostPrev + 1e-5; lostPrev = dm.hptLost + dm.lptLost;
   sparkK = Math.max(losing && o.N2pct > 5 ? 0.8 : 0, sparkK - dt * 0.35);
-  if (view3d) Object.assign(view3d.fail, { sparks: sparkK, fire: dm.fire, smoke: Math.max(dm.fire, o.oilSmoke ? 0.45 : 0, o.W9 > 3 ? Math.min(1, 2 * (dm.hptLost + dm.lptLost) + (o.torch > 0.01 ? 0.5 : 0)) : 0) });
+  if (view3d) {
+    Object.assign(view3d.fail, { sparks: sparkK, fire: o.fire, smoke: Math.max(o.fire, o.oilSmoke ? 0.45 * o.oilSmoke : 0, o.W9 > 3 ? Math.min(1, 2 * (dm.hptLost + dm.lptLost) + (o.torch > 0.01 ? 0.5 : 0)) : 0) });
+    const fl = eng.fail; view3d.failState = { missing: fl.missing, hpt: dm.hptLost, lpt: dm.lptLost, leaks: fl.leaks, firePart: fl.firePart };
+  }
+  // failures can change by themselves (a crack becomes a released blade): keep the buttons honest
+  const sig = Object.keys(eng.fail.on).join() + JSON.stringify(eng.fail.count);
+  if (sig !== failSig) { failSig = sig; refreshFaults(); }
 }
 
 // ------------------------------------------------------------ stations page
@@ -448,7 +523,7 @@ function dataHtml(o, w) {
     ['Jet velocity', `${o.V9.toFixed(0)} m/s · Mach ${o.M9.toFixed(2)}`], ['Mixing plane static pressure', `${B(o.Pm)} bar`],
     ['Oil pressure / temperature / quantity', `${o.oilP.toFixed(0)} psi / ${o.oilT.toFixed(0)} °C / ${o.oilQ.toFixed(1)} qt`], ['Oil filter differential', `${o.oilFilterDp.toFixed(1)} psi`],
     ['Turbine metal', `${C(o.Tm)} °C`], ['HPT / LPT blade metal', `${C(o.TbH)} / ${C(o.TbL)} °C`], ['Vibration N1 / N2', `${o.vib1.toFixed(1)} / ${o.vib2.toFixed(1)} units`],
-    ['Creep life used HPT / LPT', `${(100 * eng.damage.d.hptCreep).toFixed(1)} / ${(100 * eng.damage.d.lptCreep).toFixed(1)} %`], ['Blading lost HPT / LPT', `${(100 * eng.damage.d.hptLost).toFixed(0)} / ${(100 * eng.damage.d.lptLost).toFixed(0)} %`], ['N1 / N2', `${o.N1.toFixed(0)} / ${o.N2.toFixed(0)} rpm`],
+    ['Creep life used HPT / LPT', `${(100 * eng.damage.d.hptCreep).toFixed(1)} / ${(100 * eng.damage.d.lptCreep).toFixed(1)} %`], ['Blading lost HPT / LPT', `${(100 * eng.damage.d.hptLost).toFixed(0)} / ${(100 * eng.damage.d.lptLost).toFixed(0)} %`], ['N1 / N2', `${o.N1.toFixed(0)} / ${o.N2.toFixed(0)} rpm`], ['LP / HP turbine speed', `${(o.NlptPct || 0).toFixed(0)} / ${(o.NhptPct || 0).toFixed(0)} %`],
     ['Bleeds 2.5 / stg 7 / stg 10', `${o.Wb25.toFixed(1)} / ${o.Wb7.toFixed(1)} / ${o.Wb10.toFixed(1)} kg/s`], ['Turbine cooling air', `${o.Wcool.toFixed(1)} kg/s`],
     ['Intake Mach / velocity', `${w.M.toFixed(2)} / ${w.V.toFixed(0)} m/s`], ['Intake static temp / dew point', `${(w.Ts - 273.15).toFixed(1)} / ${(w.Td - 273.15).toFixed(1)} °C`],
     ['Intake fog / ground vortex', `${(w.fog * 100).toFixed(0)} % / ${(w.vortex * 100).toFixed(0)} %`],
@@ -463,7 +538,7 @@ function statusHtml(o) {
   if (egt > RATINGS[fadec.rating].egtTO) add('EGT over limit', 'bad');
   if (o.N1pct > 100 || o.N2pct > 100) add('Overspeed', 'bad');
   const dm = eng.damage.d;
-  if (o.fire) add('ENGINE FIRE', 'bad');
+  if (o.fire > 0.01 && o.fire <= 0.5) add('Fire burning out', 'bad');   // above that the ECAM ENG 1 FIRE warning shows
   if (o.oilLowP) add('OIL LO PR - shut the engine down', 'bad'); else if (o.N2pct > 20 && o.oilP < 80) add(`Oil pressure ${o.oilP.toFixed(0)} psi`, 'warn'); else if (o.oilP > 390) add(`Oil pressure high ${o.oilP.toFixed(0)} psi`, 'warn');
   if (o.oilT >= 165) add(`OIL HI TEMP ${o.oilT.toFixed(0)} °C`, 'bad'); else if (o.oilT > 157) add(`Oil temperature ${o.oilT.toFixed(0)} °C`, 'warn');
   if (o.oilQ < 5 && o.N2pct > 20) add(`Oil quantity ${o.oilQ.toFixed(1)} qt`, o.oilQ < 2.5 ? 'bad' : 'warn');
@@ -476,7 +551,11 @@ function statusHtml(o) {
   if (o.torch > 0.004) add('Torching - fuel burning in the turbine', 'bad');
   if (o.vib1 > 4 || o.vib2 > 4) add(`High vibration N1 ${o.vib1.toFixed(1)} / N2 ${o.vib2.toFixed(1)}`, o.vib1 > 6 || o.vib2 > 6 ? 'bad' : 'warn');
   if (dm.bow > 0.25 && o.N2pct < 20) add(`Rotor bow ${(dm.bow * 100).toFixed(0)} % - motor before starting`, 'warn');
-  for (const m of fadec.ecam) add(`${m.title} · ${m.line}`, 'warn');
+  if ((o.NlptPct || 0) > o.N1pct + 8) add(`LP turbine ${o.NlptPct.toFixed(0)} % - shaft broken`, 'bad');
+  if ((o.NhptPct || 0) > o.N2pct + 8) add(`HP turbine ${o.NhptPct.toFixed(0)} % - shaft broken`, 'bad');
+  for (const m of fadec.ecam) add(`${m.title} · ${m.line}`, m.level === 'warning' ? 'bad' : 'warn');
+  const nf = eng.fail.active; if (nf) add(`${nf} part failure${nf > 1 ? 's' : ''}`, 'bad');
+  if (fadec.firePb) add('FIRE P/B pushed · LP valve shut', 'warn');
   if (fadec.msg && !fadec.ecam.length) add(fadec.msg[0] + fadec.msg.slice(1).toLowerCase(), /ABORT|STALL|FLAME|HUNG|CHECK|PURGE|SET MODE/.test(fadec.msg) ? 'warn' : 'ok');
   if (o.ignOn && fadec.ignSel) add(`Igniter ${fadec.ignSel}`, 'ok');
   add(o.lit ? 'Flame on' : 'No flame', o.lit ? 'ok' : '');

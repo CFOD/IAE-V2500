@@ -36,7 +36,9 @@ export class Damage {
   update(dt) {
     const e = this.eng, o = e.out, s = e.s, d = this.d, w = e.wear, T0 = (o.T0 = e.ambient().T0);
     if (this._ev > e.events.length) this._ev = 0;
-    const n1 = o.N1pct / 100, n2 = o.N2pct / 100;
+    const n1 = o.N1pct / 100, n2 = o.N2pct / 100, fl = e.fail;
+    // a streaking fuel nozzle (failures.js) puts a hot streak on part of the HP turbine
+    const streak = fl && fl.on.nozzleStreak ? 330 * clamp((o.wf || 0) / 1.05, 0, 1.3) : fl && fl.on.fdvHalf ? 150 * clamp((o.wf || 0) / 0.55, 0, 1) : 0;
 
     // ---- blade metal temperatures
     // HP turbine blades are film cooled with compressor delivery air; LP turbine blades are not cooled.
@@ -48,7 +50,7 @@ export class Damage {
 
     // ---- creep: life falls by half for every ~12 K of metal temperature and with the fourth power of speed
     if (d.hptLost < 1) {
-      d.hptCreep += (dt * Math.pow(Math.max(n2, 0.05), 4)) / (30 * Math.exp(-(d.TbH - 1400) / 18));
+      d.hptCreep += (dt * Math.pow(Math.max(n2, 0.05), 4)) / (30 * Math.exp(-(d.TbH + (o.lit ? streak : 0) - 1400) / 18));
       if (d.hptCreep >= 1) { d.hptCreep = 0.7; d.hptLost = Math.min(1, d.hptLost + 0.08); d.lptLost = Math.min(1, d.lptLost + 0.03); this._event('hpt-blade-release'); }
       // incipient melting of the nickel alloy: blades and guide vanes burn away
       if (d.TbH > 1600) { const b = d.hptLost; d.hptLost = Math.min(1, b + dt * 0.2 * (1 + (d.TbH - 1600) / 80)); if (b < 0.02 && d.hptLost >= 0.02) this._event('hpt-melting'); }
@@ -63,8 +65,9 @@ export class Damage {
 
     // ---- overspeed: discs are designed to hold together to roughly 120 % of red-line speed
     if (!d.burst) {
-      if (o.N2pct > 121) { d.burst = 'hp'; this._event('disc-burst-hp'); }
-      else if (o.N1pct > 123) { d.burst = 'lp'; this._event('disc-burst-lp'); }
+      // after a shaft failure the free turbine is the one that overspeeds
+      if (Math.max(o.N2pct, o.NhptPct || 0) > 121) { d.burst = 'hp'; this._event('disc-burst-hp'); }
+      else if (Math.max(o.N1pct, o.NlptPct || 0) > 123) { d.burst = 'lp'; this._event('disc-burst-lp'); }
       if (d.burst) { d.fire = 1; d.hptLost = 1; d.lptLost = Math.max(d.lptLost, d.burst === 'lp' ? 1 : 0.6); d.hpc = 1; if (d.burst === 'lp') d.fan = 1; }
     }
 
@@ -118,12 +121,16 @@ export class Damage {
     if ((w.dead || d.liner >= 1) && s.wf > 0.01) d.fire = 1;
 
     // ---- vibration, in the cockpit's units (advisory at 5)
-    const v2 = 0.2 + 0.5 * n2 + 9 * B * n2 + 28 * H * n2 + 6 * (d.hpc >= 1 ? 1 : d.hpc * 0.3) * n2 + 9 * d.bow * bell(o.N2pct, 45, 25) + 3 * d.rub * n2 + (o.hpc && o.hpc.stalled ? 3 : 0);
-    const v1 = 0.2 + 0.4 * n1 + 24 * L * n1 + 30 * d.fan * n1 + (o.fan && o.fan.stalled ? 3 : 0);
+    const v2 = 0.2 + 0.5 * n2 + (fl ? fl.vib2 : 0) + 9 * B * n2 + 28 * H * n2 + 6 * (d.hpc >= 1 ? 1 : d.hpc * 0.3) * n2 + 9 * d.bow * bell(o.N2pct, 45, 25) + 3 * d.rub * n2 + (o.hpc && o.hpc.stalled ? 3 : 0);
+    const v1 = 0.2 + 0.4 * n1 + (fl ? fl.vib1 : 0) + 24 * L * n1 + 30 * d.fan * n1 + (o.fan && o.fan.stalled ? 3 : 0);
     d.vib2 += (clamp(v2, 0, 10) - d.vib2) * Math.min(1, dt / 0.4); d.vib1 += (clamp(v1, 0, 10) - d.vib1) * Math.min(1, dt / 0.4);
     o.vib1 = d.vib1; o.vib2 = d.vib2; o.fire = d.fire; o.TbH = d.TbH; o.TbL = d.TbL;
   }
 
-  /** Extinguisher: puts the fire out if the fuel has been shut off. */
-  extinguish() { if (this.eng.s.wf < 0.01) this.d.fire = 0; return this.d.fire === 0; }
+  /** Extinguisher: puts the fire out if the fuel has been shut off (and any leak fire whose source has stopped). */
+  extinguish() {
+    if (this.eng.s.wf < 0.01) this.d.fire = 0;
+    const leak = this.eng.fail ? this.eng.fail.extinguish() : true;
+    return this.d.fire === 0 && leak;
+  }
 }

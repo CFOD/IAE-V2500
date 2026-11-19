@@ -109,3 +109,46 @@ export class Sparks {
     this.lines.geometry.attributes.position.needsUpdate = true; this.lines.geometry.attributes.color.needsUpdate = true;
   }
 }
+
+/**
+ * Free particles for one-off bursts and steady leaks: each has a position, velocity, drag, gravity and a
+ * life, and fades out with age. Colours carry alpha, so dark fluids (oil) show against a bright background.
+ */
+export class Particles {
+  constructor(scene, n, { size = 0.03, map = null, additive = false, opacity = 1 } = {}) {
+    this.n = n; this.next = 0; this.live = 0;
+    this.p = new Float32Array(n * 3); this.v = new Float32Array(n * 3); this.c = new Float32Array(n * 4);
+    this.age = new Float32Array(n).fill(1); this.life = new Float32Array(n).fill(1); this.g = new Float32Array(n); this.drag = new Float32Array(n); this.grow = new Float32Array(n);
+    const geo = new THREE.BufferGeometry();
+    this.pos = new Float32Array(n * 3); this.col = new Float32Array(n * 4);
+    geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(this.col, 4));
+    this.points = new THREE.Points(geo, new THREE.PointsMaterial({ size, map, vertexColors: true, transparent: true, opacity, depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending, sizeAttenuation: true }));
+    this.points.frustumCulled = false; this.points.visible = false; this.points.renderOrder = 6; scene.add(this.points);
+  }
+  /** One particle: position, velocity (m/s), colour and alpha, life (s), gravity (m/s2), drag (1/s). */
+  emit(x, y, z, vx, vy, vz, r, g, b, a, life, grav = 9.81, drag = 0) {
+    const i = this.next; this.next = (i + 1) % this.n;
+    this.p.set([x, y, z], i * 3); this.v.set([vx, vy, vz], i * 3); this.c.set([r, g, b, a], i * 4);
+    this.age[i] = 0; this.life[i] = life; this.g[i] = grav; this.drag[i] = drag; this.live = Math.max(this.live, 1);
+  }
+  update(dt, floorY) {
+    if (!this.live) return;
+    let live = 0;
+    const { p, v, c, pos, col } = this;
+    for (let i = 0; i < this.n; i++) {
+      const j = i * 3, k = i * 4;
+      if (this.age[i] >= this.life[i]) { col[k + 3] = 0; continue; }
+      live++; this.age[i] += dt;
+      const dr = Math.max(0, 1 - this.drag[i] * dt);
+      v[j] *= dr; v[j + 1] = v[j + 1] * dr - this.g[i] * dt; v[j + 2] *= dr;
+      p[j] += v[j] * dt; p[j + 1] += v[j + 1] * dt; p[j + 2] += v[j + 2] * dt;
+      if (p[j + 1] < floorY) { p[j + 1] = floorY; v[j + 1] *= -0.25; v[j] *= 0.5; v[j + 2] *= 0.5; }   // land, splash, skid
+      const f = this.age[i] / this.life[i];
+      pos[j] = p[j]; pos[j + 1] = p[j + 1]; pos[j + 2] = p[j + 2];
+      col[k] = c[k]; col[k + 1] = c[k + 1]; col[k + 2] = c[k + 2]; col[k + 3] = c[k + 3] * (1 - f * f);
+    }
+    this.live = live; this.points.visible = live > 0;
+    this.points.geometry.attributes.position.needsUpdate = true; this.points.geometry.attributes.color.needsUpdate = true;
+  }
+  clear() { this.age.fill(1); this.live = 1; }
+}

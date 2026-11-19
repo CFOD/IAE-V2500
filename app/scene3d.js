@@ -14,7 +14,7 @@ import { OutputPass } from './vendor/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from './vendor/jsm/postprocessing/SMAAPass.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { P, ROWS, rAt, tempRGB, lipLoop, scarfX, scarfDroop } from './cutaway.js';
-import { Puffs, Sparks } from './fx.js';
+import { Puffs, Sparks, Particles } from './fx.js';
 import { setSurfaceQuality, finish, FINISH } from './surfaces.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
@@ -339,7 +339,7 @@ export class Scene3D {
     const q = new THREE.Quaternion(), ax = new THREE.Vector3(1, 0, 0), one = new THREE.Vector3(1, 1, 1);
     const im = this._ring(part, geo, count, (m, th) => { q.setFromAxisAngle(ax, th); m.compose(new THREE.Vector3(xm, lo * Math.cos(th), lo * Math.sin(th)), q, one); }, { parent, mat: o.mat });
     im.userData.row = { xm, lo };
-    if (parent !== this.engine && !o.whole) this.rotorRows.push({ im, group: parent });
+    if (parent !== this.engine && !o.whole) this.rotorRows.push({ im, group: parent, part });
     return im;
   }
   _flange(part, x, r, n = 40, o = {}) {
@@ -654,6 +654,31 @@ export class Scene3D {
       const egtbox = A({ id: 'egtbox', name: 'EGT junction box', ex: 0.6, mat: chromM, desc: 'Joins the leads from the thermocouples in the exhaust case struts. Their average is the exhaust gas temperature the EEC limits and the crew watch on the ECAM.', live: (o) => `EGT ${(o.egt - 273.15).toFixed(0)} °C` });
       unit(egtbox, new THREE.BoxGeometry(0.12, 0.03, 0.084), egtbox.mat, 2.64, 186, 0.487);
       A({ id: 'mounts', name: 'Engine mounts', ex: 0, mat: castM, desc: 'Forward mount on the intermediate case, at the top: a beam bolted to the pylon, a cross beam, two thrust links down to the engine and a support bearing on the engine\'s forward support shaft. It carries the thrust and the vertical and side loads. Aft mount on the turbine exhaust case: the pylon\'s aft adaptor on a curved beam, hung from the case lugs by two side links and a centre link. It carries torque and the vertical and side loads, and lets the engine grow lengthwise with heat. Shown with the cutaway closed (remove the pylon to see them).', live: (o) => `Thrust carried ${(o.thrust / 1000).toFixed(1)} kN` });
+      // ---- pipes, ducts and harnesses exported from the model as parts of their own (tools/blender/dressing.py).
+      // They have no stand-in shapes: they appear when the authored model loads, and each can be broken from its card.
+      const LINE = (k, name, ex, desc, live) => A({ id: `line_${k}`, name, ex, mat: pipeSteel, desc, live: live || (() => '') });
+      const kgh = (o) => `${(o.wf * 3600).toFixed(0)} kg/h`;
+      LINE('p3servo', 'P3 servo air lines', 0.1, 'Small steel tubes carrying compressor delivery air (P3) from the solenoid valves on the fan case, down the lower strut, to the handling bleed valves on the HP compressor, which it works.', (o) => `Stage 7 bleeds ${o.Wb7 > 0.05 ? 'open' : 'shut'} · stage 10 ${o.Wb10 > 0.05 ? 'open' : 'shut'}`);
+      LINE('acocoil', 'Air-cooled oil cooler lines', -0.55, 'Oil to and from the air-cooled oil cooler at the top of the fan case, where fan air takes heat out of the engine oil.', (o) => `Oil ${(o.oilT || 0).toFixed(0)} °C`);
+      LINE('antiice', 'Nacelle anti-ice duct', -0.55, 'Carries hot HP compressor air forward round the fan case, through the anti-ice valve at 2 o\'clock, to the inlet lip.');
+      LINE('starterduct', 'Starter air duct', -0.55, 'Brings air from the APU, a ground cart or the other engine down from the pylon, round the back of the fan case and through the starter air valve to the starter.', (o) => (o.starterAir ? `Air to the starter at ${o.starterPsi.toFixed(0)} psi` : 'No air flowing'));
+      LINE('hyd', 'Hydraulic lines', -0.55, 'Suction, pressure and case drain lines between the engine-driven pump and the fluid panel at the top of the fan case, where they join the aircraft\'s green system.');
+      LINE('fuelsupply', 'Fuel supply lines', -0.55, 'Fuel from the aircraft tanks, through the LP valve in the pylon, down the left side of the fan case to the fuel pump.', kgh);
+      LINE('fcoc', 'Fuel-cooled oil cooler lines', -0.55, 'All the engine\'s fuel passes the fuel-cooled oil cooler and LP filter on its way to the HP pump, picking up heat from the oil on the way.', (o) => `${kgh(o)} · oil ${(o.oilT || 0).toFixed(0)} °C`);
+      LINE('oilpress', 'Oil pressure sense line', -0.55, 'Thin line from the oil pump to the pressure transmitter and low-pressure switch whose readings go to the ECAM.', (o) => `Oil pressure ${(o.oilP || 0).toFixed(0)} psi`);
+      LINE('idgcooler', 'IDG oil cooler lines', -0.55, 'Oil from the drive generator round the back of the gearbox to its own cooler and back.');
+      LINE('servofuel', 'Servo fuel lines', 0.1, 'High-pressure fuel from the FMU that works the actuators on the core: the stator ram and the clearance control valves.', (o) => `Stators ${o.vsv.toFixed(1)}° shut`);
+      LINE('meteredfuel', 'Metered fuel line', 0.1, 'Carries the fuel the FMU has metered down the lower strut and round the core to the fuel distribution valve.', kgh);
+      LINE('no4oil', 'No. 4 bearing oil lines', 0.1, 'Feed and scavenge for the No. 4 bearing chamber under the combustor, the hottest bearing in the engine.', (o) => `Oil pressure ${(o.oilP || 0).toFixed(0)} psi`);
+      LINE('harnessA', 'Core harness, channel A', 0.1, 'Electrical harness carrying channel A of the EEC to the sensors and actuators on the core.');
+      LINE('harnessB', 'Core harness, channel B', 0.1, 'Electrical harness carrying channel B of the EEC to the sensors and actuators on the core.');
+      LINE('htleadA', 'Ignition lead A', 0.1, 'Shielded high-tension lead from exciter A to its igniter plug on the diffuser case.', (o, f) => (o.ignOn && f && /A/.test(f.ignSel) ? 'Sparking' : 'Off'));
+      LINE('htleadB', 'Ignition lead B', 0.1, 'Shielded high-tension lead from exciter B, over the top of the core, to its igniter plug.', (o, f) => (o.ignOn && f && /B/.test(f.ignSel) ? 'Sparking' : 'Off'));
+      LINE('egtharness', 'EGT harness', 0.4, 'Carries the averaged thermocouple signal from the junction box forward to the EEC.', (o) => (Number.isFinite(o.egtInd ?? o.egt) ? `EGT ${((o.egtInd ?? o.egt) - 273.15).toFixed(0)} °C` : 'EGT XX'));
+      LINE('bleed7', 'IP bleed duct (stage 7)', 0.1, 'Takes air from stage 7 of the HP compressor, through a check valve, up the upper bifurcation to the aircraft\'s bleed system (cabin, packs, wing anti-ice).');
+      LINE('bleed10', 'HP bleed duct (stage 10)', 0.1, 'Takes hotter air from stage 10 through the HP valve when stage 7 cannot supply enough, at low power.');
+      LINE('accduct', 'Clearance control ducts', 0.6, 'Short ducts from the clearance control valves to the collector rings of the turbine case spray manifolds.', (o) => `HPT ${(100 * (o.accH || 0)).toFixed(0)} % · LPT ${(100 * (o.accL || 0)).toFixed(0)} %`);
+      LINE('bufferair', 'Buffer air duct', 0.3, 'HP compressor air to the buffer air cooler, then on to pressurise the seals of the No. 4 bearing chamber.');
       // high-pressure bleed valve low on the left
       unit(hpcCase, new THREE.CylinderGeometry(0.05, 0.05, 0.14, 18).rotateZ(Math.PI / 2), pipeGold, 1.86, 140, co(1.86) + 0.13);
       // fuel manifold pigtails from the distribution valve
@@ -803,6 +828,14 @@ export class Scene3D {
     this.torch = new Puffs(S, 220, { origin: [3.3 + (P.X_EXIT - 3.55), 0, 0], dir: [1, 0, 0], speed: 7, radius: 0.26, spread: 0.12, buoy: [0, 1.0, 0], life: 0.6, size0: 0.4, size1: 1.3, turb: 0.12, drag: 0.45,
       colA: [3.0, 2.6, 1.6], colB: [2.8, 1.0, 0.15], colC: [0.4, 0.05, 0.0], alpha: 0.5, soft: 1.2, additive: true, seed: 29, order: 6 });
     this.fail = { sparks: 0, smoke: 0, fire: 0 };
+    // part failures (failures.js): bursts of debris, leaking fluids and air, parts torn off
+    this.debris = new Particles(this.scene, 700, { size: 0.045, map: this.sprite });
+    this.hotBits = new Particles(this.scene, 600, { size: 0.035, map: this.sprite, additive: true });
+    this.liquid = new Particles(this.scene, 1800, { size: 0.028, map: this.sprite });
+    this.gas = new Particles(this.scene, 900, { size: 0.11, map: this.puff, additive: true });
+    this.failedParts = new Set(); this.failState = null; this._leakPts = {}; this._torn = []; this._sep = null;
+    this._flameHome = { origin: this.flames.u.uOrigin.value.clone(), box: this.flames.u.uBox.value.clone(), radius: this.flames.u.uRadius.value, ring: this.flames.u.uRing.value, life: this.flames.u.uLife.value };
+    this._smokeHome = { origin: this.smokeFire.u.uOrigin.value.clone(), box: this.smokeFire.u.uBox.value.clone() };
     this.fireLight = new THREE.PointLight(0xff6a20, 0, 6, 1.4); this.fireLight.position.set(2.0, 0.5, 0.4); this.scene.add(this.fireLight);
 
     // ground vortex: a twisting rope of condensed air, bent in the vertex shader from the floor into the intake
@@ -985,6 +1018,136 @@ export class Scene3D {
   setExplode(v) { this.explode = v; for (const p of this.parts) for (const ob of p.objs) ob.position.x = ob.userData.home + p.ex * v * 1.5; }
   setRemoved(id, removed) { const p = this.byId[id]; if (!p) return; p.removed = removed; for (const ob of p.objs) { const v = ob.userData.variant; ob.visible = !removed && (!v || (v === 'cut') === this.cutaway); } if (removed && this.selected === p) this.selected = null; }
   restoreAll() { for (const p of this.parts) this.setRemoved(p.id, false); }
+
+  // ------------------------------------------------------------------ part failures (src/sim/failures.js)
+  /** Parts with an active failure pulse red. */
+  setFailedParts(ids) { this.failedParts = new Set(ids); }
+  /** Centre of a part, in world coordinates (first visible mesh's bounds). */
+  _partCentre(id) {
+    const p = this.byId[id], box = new THREE.Box3(), b = new THREE.Box3();
+    if (!p) return null;
+    for (const ob of p.objs) ob.traverse((m) => { if (m.isMesh && m.visible) { b.setFromObject(m); if (!b.isEmpty()) box.union(b); } });
+    return box.isEmpty() ? null : box.getCenter(new THREE.Vector3());
+  }
+  /** A point on a part's surface to leak from (engine coordinates) and the outward direction there. */
+  _leakPoint(id) {
+    const c = this._leakPts[id]; if (c && c.at > this.t - 1) return c;
+    const p = this.byId[id]; if (!p) return null;
+    let best = null, n = 0;
+    for (const ob of p.objs) ob.traverse((m) => { if (!m.isMesh || m.isInstancedMesh) return; let vis = true; for (let a = m; a; a = a.parent) if (!a.visible) { vis = false; break; } const k = m.geometry.attributes.position.count; if (vis && k > n) { n = k; best = m; } });
+    if (!best) return null;
+    const v = new THREE.Vector3().fromBufferAttribute(best.geometry.attributes.position, Math.floor(n * 0.47));
+    best.localToWorld(v); this.engine.worldToLocal(v);
+    const dir = new THREE.Vector3(0, v.y, v.z).normalize();
+    return (this._leakPts[id] = { pos: v, dir, at: this.t });
+  }
+  /** One-off visuals for a failure event. */
+  failEvent(type) {
+    const E = this.engine, w = new THREE.Vector3(), rnd = Math.random;
+    const burst = (x, r0, n, sp, axial, hot, spread = 1) => {
+      for (let i = 0; i < n; i++) {
+        const th = rnd() * TAU, r = r0 * (0.4 + 0.6 * rnd()), v = sp * (0.4 + 0.8 * rnd());
+        w.set(x, r * Math.cos(th), r * Math.sin(th)); E.localToWorld(w);
+        const vx = axial * (0.5 + rnd()), vy = Math.cos(th) * v * spread + 2 * rnd(), vz = Math.sin(th) * v * spread;
+        if (hot && i % 2) this.hotBits.emit(w.x, w.y, w.z, vx, vy, vz, 1.4, 0.75, 0.3, 1, 0.8 + rnd(), 9.81, 0.4);
+        else this.debris.emit(w.x, w.y, w.z, vx, vy, vz, 0.42, 0.44, 0.46, 1, 1.5 + rnd() * 1.5, 9.81, 0.2);
+      }
+    };
+    if (/fan-blade-off|fan-crack-release/.test(type)) { burst(0.15, 0.7, 90, 4, -7, false); burst(0.4, 0.75, 40, 3, 9, false); }
+    else if (/spinner-lost|liner-ingested/.test(type)) burst(0.1, 0.6, 50, 2, 7, false);
+    else if (/lpc-blade|hpc-blade|hpt-blade|lpt-blade/.test(type)) burst(P.X_EXIT, 0.3, 50, 1.5, 14, true, 0.4);   // through the core and out of the nozzle
+    else if (/disc-burst|case-burn/.test(type)) { const x = /hp/.test(type) ? 2.3 : 2.75; burst(x, 0.6, 140, 14, 1, true); burst(x, 0.6, 60, 9, -2, false); }   // uncontained
+    else if (type === 'starter-burst') { const c = this._partCentre('starter'); if (c) for (let i = 0; i < 70; i++) this.hotBits.emit(c.x, c.y, c.z, (rnd() - 0.5) * 6, rnd() * 3 - 1, (rnd() - 0.5) * 6, 1.4, 0.8, 0.35, 1, 0.6 + rnd(), 9.81, 0.5); }
+    else if (type === 'fan-cowl-lost') this._tearOff('fancowl');
+    else if (type === 'engine-separation') this._separate();
+  }
+  /** The fan cowl doors lift open and are blown away. */
+  _tearOff(id) {
+    const p = this.byId[id]; if (!p || p.removed) return;
+    for (const ob of p.objs) this._torn.push({ ob, part: p, t: 0, pos: ob.position.clone(), quat: ob.quaternion.clone(), v: new THREE.Vector3(3 + Math.random() * 2, 4 + Math.random() * 2, (Math.random() - 0.5) * 3), spin: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(3) });
+  }
+  /** Both mounts let go: the pylon stays, the engine drops to the floor. */
+  _separate() {
+    if (this._sep) return;
+    const py = this.byId.pylon, kept = py ? py.objs.slice() : [];
+    for (const ob of kept) this.scene.attach(ob);
+    this._sep = { t: 0, vy: 0, y: 0, kept, landed: false };
+  }
+  /** Put everything back as it was before any failure visuals. */
+  resetFailures() {
+    for (const tr of this._torn) { tr.ob.position.copy(tr.pos); tr.ob.quaternion.copy(tr.quat); }
+    const cowlTorn = this._torn.length > 0; this._torn = [];
+    if (cowlTorn) this.setRemoved('fancowl', false);
+    if (this._sep) { this.engine.position.set(0, 0, 0); this.engine.rotation.set(0, 0, 0); this.engine.updateMatrixWorld(true); for (const ob of this._sep.kept) this.engine.attach(ob); this._sep = null; }
+    for (const ps of [this.debris, this.hotBits, this.liquid, this.gas]) ps.clear();
+    this.failedParts = new Set(); this.failState = null; this._missKey = ''; this._leakPts = {};
+  }
+  /** Released blades: hidden instances, from the counts the simulation keeps. */
+  _missing(fs) {
+    const key = fs ? `${fs.missing.fan.length},${fs.missing.lpc.length},${fs.missing.hpc.length},${Math.round(fs.hpt * 100)},${Math.round(fs.lpt * 100)}` : '';
+    if (key === this._missKey) return; this._missKey = key; this._miss = new Map();
+    if (!fs) fs = { missing: { fan: [], lpc: [], hpc: [] }, hpt: 0, lpt: 0 };   // repaired: rows rewritten whole below
+    // the rotor rows of a part, in build order (the fan's row is drawn whole, so it is not among rotorRows)
+    const rows = (id) => { const out = []; for (const ob of (this.byId[id] || { objs: [] }).objs) if (ob.isInstancedMesh && ob.userData.row && ob.parent !== this.engine) out.push({ im: ob }); return out; };
+    const put = (im, idx) => { if (idx.length) this._miss.set(im, new Set(idx)); };
+    const pick = (n, count, seed) => { const out = []; let sd = seed; n = Math.min(n, count); while (out.length < n) { sd = (sd * 16807) % 2147483647; const i = sd % count; if (!out.includes(i)) out.push(i); } return out; };
+    for (const id of ['fan', 'lpc', 'hpc']) { const r = rows(id)[0]; if (r) put(r.im, fs.missing[id].map((f) => Math.floor(f * r.im.count) % r.im.count)); }
+    ['hpt', 'lpt'].forEach((id, k) => rows(id).forEach((r, j) => put(r.im, pick(Math.round(fs[id] * r.im.count * (j === 0 ? 1.5 : 0.5 / Math.max(1, j))), r.im.count, 97 + 31 * j + 7 * k))));
+    // rows that are not redrawn every frame (the fan) are rewritten here, once per change
+    const m = new THREE.Matrix4(), zero = new THREE.Matrix4().makeScale(0, 0, 0), live = new Set(this.rotorRows.map((r) => r.im));
+    for (const im of new Set([...(this._missStatic || []), ...this._miss.keys()])) {
+      if (live.has(im)) continue;
+      const gone = this._miss.get(im), ths = im.userData.ths, place = im.userData.place;
+      for (let i = 0; i < ths.length; i++) { if (gone && gone.has(i)) im.setMatrixAt(i, zero); else { place(m, ths[i]); im.setMatrixAt(i, m); } }
+      im.instanceMatrix.needsUpdate = true;
+    }
+    this._missStatic = [...this._miss.keys()].filter((im) => !live.has(im));
+  }
+  _failFrame(o, dt) {
+    const fs = this.failState, t = this.t, E = this.engine;
+    this._missing(fs);
+    // leaks: fuel mist, oil and hydraulic fluid streaming and dripping, air jets
+    if (fs && fs.leaks.length && dt > 0) {
+      const w = new THREE.Vector3(), d = new THREE.Vector3(), rnd = Math.random;
+      for (const L of fs.leaks) {
+        const lp = this._leakPoint(L.part); if (!lp) continue;
+        w.copy(lp.pos); E.localToWorld(w); d.copy(lp.dir).transformDirection(E.matrixWorld);
+        const air = L.kind === 'air', n = Math.min(40, Math.floor((air ? 70 : 160) * L.k * dt + rnd()));   // particles per second x dt
+        for (let i = 0; i < n; i++) {
+          const j = () => (rnd() - 0.5);
+          if (air) { const sp = 6 + 4 * rnd(); this.gas.emit(w.x, w.y, w.z, d.x * sp + j() * 2, d.y * sp + j() * 2, d.z * sp + j() * 2, 0.16, 0.17, 0.18, 0.5, 0.35 + 0.2 * rnd(), -0.5, 3.5); continue; }
+          const sp = L.kind === 'fuel' ? 2.5 + 2 * rnd() : 1.2 + 1.2 * rnd();
+          const [r, g, b, a] = L.kind === 'fuel' ? [0.93, 0.88, 0.66, 0.55] : L.kind === 'oil' ? [0.32, 0.19, 0.05, 0.92] : [0.56, 0.33, 0.86, 0.85];
+          this.liquid.emit(w.x, w.y, w.z, d.x * sp + j(), d.y * sp + j(), d.z * sp + j(), r, g, b, a, 1.4 + rnd(), 9.81, L.kind === 'fuel' ? 1.2 : 0.3);
+          if (L.kind === 'fuel' && i % 3 === 0) this.gas.emit(w.x, w.y, w.z, d.x * sp, d.y * sp, d.z * sp, 0.1, 0.095, 0.07, 0.4, 0.6, 0.3, 2);   // vapour
+        }
+      }
+    }
+    for (const ps of [this.debris, this.hotBits, this.liquid, this.gas]) ps.update(dt, FLOOR_Y + 0.01);
+    // a leak fire burns where the leak is
+    const fp = fs && fs.firePart ? this._leakPoint(fs.firePart) : null, fl = this.flames.u, sm = this.smokeFire.u;
+    if (fp) { fl.uOrigin.value.copy(fp.pos).add(fp.dir.clone().multiplyScalar(0.05)); fl.uBox.value.set(0.25, 0.05, 0.25); fl.uRadius.value = 0.06; fl.uRing.value = 0; fl.uLife.value = 0.55; sm.uOrigin.value.copy(fl.uOrigin.value); sm.uBox.value.set(0.3, 0.05, 0.3); this.fireLight.position.copy(fl.uOrigin.value).add(fp.dir.clone().multiplyScalar(0.3)); }
+    else { const h = this._flameHome; fl.uOrigin.value.copy(h.origin); fl.uBox.value.copy(h.box); fl.uRadius.value = h.radius; fl.uRing.value = h.ring; fl.uLife.value = h.life; sm.uOrigin.value.copy(this._smokeHome.origin); sm.uBox.value.copy(this._smokeHome.box); this.fireLight.position.set(2.0, 0.5, 0.4); }
+    if (this._sep) { const e = E.position; fl.uOrigin.value.add(e); sm.uOrigin.value.add(e); }
+    // torn-off parts tumble away, then are gone
+    for (const tr of this._torn) {
+      tr.t += dt; tr.v.y -= 9.81 * dt; tr.ob.position.addScaledVector(tr.v, dt);
+      tr.ob.quaternion.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(tr.spin.x * dt, tr.spin.y * dt, tr.spin.z * dt)));
+      if (tr.t > 1.6 && !tr.part.removed) this.setRemoved(tr.part.id, true);
+    }
+    // engine separation: a fall of about 0.6 m to the floor, a bounce, settling nose down
+    const sp = this._sep;
+    let y = 0, rz = 0;
+    if (sp) {
+      sp.t += dt; const floor = FLOOR_Y + 1.12;
+      if (!sp.landed) { sp.vy -= 9.81 * dt; sp.y += sp.vy * dt; if (sp.y < floor) { sp.y = floor; if (Math.abs(sp.vy) > 0.6) sp.vy *= -0.2; else { sp.vy = 0; sp.landed = true; } } }
+      y = sp.y; rz = -0.06 * clamp(sp.t / 0.5, 0, 1);
+    }
+    // heavy vibration shakes the engine on its mounts
+    const vib = Math.max(o.vib1 || 0, o.vib2 || 0), amp = sp ? 0 : clamp((vib - 3.5) * 0.0022, 0, 0.012);
+    E.position.set(amp ? (Math.random() - 0.5) * amp : 0, y + (amp ? (Math.random() - 0.5) * amp : 0), amp ? (Math.random() - 0.5) * amp : 0);
+    E.rotation.z = rz;
+  }
   surge(which) { this.flash = 1; this.flashFront = which !== 'hpc'; }
   /**
    * low    : plain render, no post-processing at all (the safe fallback)
@@ -1101,14 +1264,16 @@ export class Scene3D {
     const p1 = Math.abs(o.N1pct) / 100, p2 = o.N2pct / 100;
     this.g1.rotation.x += Math.sign(o.N1) * Math.pow(p1, 0.55) * 16 * dt;
     this.g2.rotation.x += Math.pow(p2, 0.55) * 26 * dt;
-    if (this.cutaway || this._deepShown) {
+    this._missing(this.failState);
+    const miss = this._miss, anyMiss = !!(miss && miss.size);
+    if (this.cutaway || this._deepShown || anyMiss || this._missShown) {
       const m = new THREE.Matrix4(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
       for (const { im, group } of this.rotorRows) {
-        const a = group.rotation.x, ths = im.userData.ths, place = im.userData.place;
-        for (let i = 0; i < ths.length; i++) { if (this.cutaway && inDeep(ths[i] + a)) im.setMatrixAt(i, zero); else { place(m, ths[i]); im.setMatrixAt(i, m); } }
+        const a = group.rotation.x, ths = im.userData.ths, place = im.userData.place, gone = anyMiss ? miss.get(im) : null;   // released blades stay hidden
+        for (let i = 0; i < ths.length; i++) { if ((this.cutaway && inDeep(ths[i] + a)) || (gone && gone.has(i))) im.setMatrixAt(i, zero); else { place(m, ths[i]); im.setMatrixAt(i, m); } }
         im.instanceMatrix.needsUpdate = true;
       }
-      this._deepShown = this.cutaway;
+      this._deepShown = this.cutaway; this._missShown = anyMiss;
     }
     this.fanBlur.material.opacity = this.byId.fan.removed ? 0 : clamp(p1 * 0.2, 0, 0.16);
     this.fanBlur.position.x = 0.16 + this.byId.fan.ex * this.explode * 1.5;
@@ -1131,10 +1296,12 @@ export class Scene3D {
       let r = 0, g = 0, b = 0;
       if (p.glow) { const k = clamp((p.glow(o) - 800) / 650, 0, 1); r = 2.2 * k; g = (0.2 + 0.75 * k) * k; b = 0.3 * k * k; }
       if (p === this.selected) { r += 0.03; g += 0.16; b += 0.26; } else if (p === this.hover) { r += 0.012; g += 0.07; b += 0.12; }
+      if (this.failedParts.has(p.id)) { const k = 0.5 + 0.5 * Math.sin(t * 6); r += 0.22 * k; g += 0.01 * k; }   // a failed part pulses red
       if (p.mat.emissive) p.mat.emissive.setRGB(r, g, b);
       if (p.extMats) for (const m of p.extMats) m.emissive.setRGB(r, g, b);
     }
 
+    this._failFrame(o, dt);
     const fill = (pts, n, fn) => { const pos = pts.geometry.attributes.position.array, col = pts.geometry.attributes.color.array; for (let i = 0; i < n; i++) fn(i, pos, col, i * 3); pts.geometry.attributes.position.needsUpdate = true; pts.geometry.attributes.color.needsUpdate = true; };
     // ---- airflow streaks
     const show = this.showFlow;

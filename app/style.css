@@ -142,6 +142,25 @@ h4 { margin: 16px 0 2px; font-size: 11px; font-weight: 600; color: var(--ink3); 
 .fault b { font-size: 12.5px; font-weight: 580; } .fault span { grid-column: 1; font-size: 12px; color: var(--ink3); line-height: 1.4; }
 .fault button { grid-row: 1 / 3; grid-column: 2; height: 28px; min-width: 76px; padding: 0 12px; border-radius: 8px; border: 0; background: var(--fill2); color: var(--ink); font-size: 12px; font-weight: 600; }
 .fault button.on { background: var(--bad); color: #fff; }
+.fault b.link { cursor: pointer; } .fault b.link:hover { text-decoration: underline; text-underline-offset: 2px; }
+.fault[hidden], .fgroup[hidden] { display: none; }
+/* Faults tab: search, then one fold per system */
+.fhead { display: flex; gap: 8px; align-items: center; margin: 4px 0 6px; }
+.fhead input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--fill); color: var(--ink); font-size: 12.5px; outline: none; }
+.fhead #fltCount { font-size: 11.5px; color: var(--bad); font-weight: 600; white-space: nowrap; } .fhead #fltCount:empty { display: none; }
+.fhead button { height: 30px; padding: 0 12px; border-radius: 9px; border: 0; background: var(--fill2); color: var(--ink); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.fgroup { border-bottom: 1px solid var(--line); }
+.fgroup summary { cursor: pointer; padding: 11px 0; font-size: 12.5px; font-weight: 620; list-style: none; display: flex; align-items: center; gap: 8px; }
+.fgroup summary::-webkit-details-marker { display: none; }
+.fgroup summary::before { content: ''; width: 6px; height: 6px; border-right: 1.5px solid var(--ink3); border-bottom: 1.5px solid var(--ink3); transform: rotate(-45deg); transition: transform .15s; }
+.fgroup[open] summary::before { transform: rotate(45deg); }
+.fgroup summary i { font-style: normal; font-size: 11px; color: var(--ink3); font-weight: 540; }
+.fgroup .fault:last-child { border-bottom: 0; }
+#pcCtl h4 { margin-top: 12px; }
+#pcCtl .fault { padding: 7px 0; } #pcCtl .fault b { font-size: 12px; font-weight: 540; }
+#partcard { max-height: calc(100vh - var(--top-h, 40px) - 190px); overflow: auto; }
+.firebtns { display: flex; gap: 4px; }
+.chip.firepb { color: #ffd2cf; } .chip.firepb[aria-pressed=true] { background: var(--bad); color: #fff; }
 
 /* HUD toggle: hides every overlay; a faint button in the corner brings it back */
 body.hud-off #top, body.hud-off #partcard, body.hud-off #drawer, body.hud-off #dock, body.hud-off #tip { display: none !important; }

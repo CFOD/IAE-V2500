@@ -148,10 +148,13 @@ npm run dist       # build an unpacked distributable in dist/ (electron-builder)
 - **FADEC protections** (bottom of Panel > Control) can each be switched off: EGT, N1 and N2 limiters,
   acceleration and deceleration schedules, surge recovery, hot-start abort. There is also an EPR /
   rated-N1 thrust mode switch.
-- **Faults** tab: bird strike, debris through the core, turbine burn-through, contaminated fuel,
-  jammed stators, stuck bleed valve, start valve that will not open or will not close, failed igniter
-  A or B, weak starter air, clearance control valves stuck open, loss of EPR sensing, oil system
-  failures, flame-out.
+- **Faults** tab: whole-engine faults (bird strike, contaminated fuel, jammed stators, start valve
+  faults, failed igniters, oil system failures, flame-out and more) and 68 part failures, one fold per
+  system with a search box: fan, booster, compressor and turbine blades letting go, LP and HP shaft
+  failures, bearings breaking up, combustor and case burn-through, fuel pump, metering valve and
+  distribution valve failures, tower shaft, starter, IDG, hydraulic pump, EEC channels, EGT signal,
+  uncommanded reverser, cowl doors left unlatched, engine separation, and every pipe, duct and harness
+  broken on its own. Each part's card lists its own failures. See docs/FAILURES.md.
 - **Ambient**: altitude, ISA deviation, Mach number, humidity. **Hardware**: component efficiencies,
   flow capacities, nozzle areas, cooling air, fuel heating value.
 - **Monitor**: compressor maps with live operating point and surge line, trends, station table,
@@ -185,6 +188,7 @@ The engine fails the way a real one would (details in [docs/PHYSICS.md](docs/PHY
 - **Restart it by hand ten minutes after a hot shut-down without the 30-second crank** and the bowed rotor rubs. The automatic start cranks for 30 seconds first, like the real one.
 
 - **Lose the oil** (Panel → Faults: leak, pump failure, seal failure) and the pressure goes, metal shows on the chip detector, and a main bearing seizes. Shut down when OIL LO PR comes on and it survives.
+- **Break a part**: release a fan blade, shear the LP shaft at take-off power, cut the metered fuel line on a hot engine (fire: MASTER OFF, then Agent), break the oil pressure sense line (a false OIL LO PR on a healthy engine), seize the starter clutch. Broken parts pulse red; leaks spray from the broken line.
 
 Reset repairs everything.
 

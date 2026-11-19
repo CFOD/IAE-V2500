@@ -15,6 +15,7 @@ import { makeCompressorMap, makeTableCompressor, makeTurbineTable, compressor, q
 import { DESIGN, LIMITS } from './v2500.js';
 import { Damage, defaultWear } from './damage.js';
 import { Oil } from './oil.js';
+import { Failures } from './failures.js';
 
 const RPM2RAD = 0.104719755;
 const T_REF = 298.15;
@@ -194,6 +195,7 @@ export class Engine {
     this.initCold();
     this.oil = new Oil(this);
     this.damage = new Damage(this);
+    this.fail = new Failures(this);
   }
 
   ambient() {
@@ -237,10 +239,13 @@ export class Engine {
     const n = Math.max(1, Math.round(dt / this.subDt));
     const h = dt / n;
     // hardware condition = the player's settings combined with accumulated damage
-    const me = this.mEff, mo = this.mods, w = this.wear;
-    for (const k in mo) me[k] = k.startsWith('eff') ? Math.max(mo[k] + (w[k] || 0), -0.9) : mo[k] * (w[k] ?? 1);
+    // and with broken parts (failures.js), which also change what the engine receives from its controls
+    const me = this.mEff, mo = this.mods, w = this.wear, fw = this.fail ? this.fail.w : {};
+    for (const k in mo) me[k] = k.startsWith('eff') ? Math.max(mo[k] + (w[k] || 0) + (fw[k] || 0), -0.9) : mo[k] * (w[k] ?? 1) * (fw[k] ?? 1);
     if (w.dead) { this.s.wf = 0; this.s.lit = false; this.s.pool = 0; }
-    for (let i = 0; i < n; i++) this._eval(h);
+    const uCmd = this.u;
+    if (this.fail) this.u = this.fail.filter(uCmd, dt);
+    try { for (let i = 0; i < n; i++) this._eval(h); } finally { this.u = uCmd; }
     // slow sensor: EGT thermocouples (lag grows when there is little flow over them)
     const tau = 1.5 + 40 / (1 + Math.max(0, this.out.W45) * 3);
     this.s.egt += (this.s.T5 - this.s.egt) * Math.min(1, dt / tau);
@@ -250,6 +255,7 @@ export class Engine {
     if (this.out.W45 < 0.5) this.s.Tm -= (this.s.Tm - (this.out.T0 = this.ambient().T0)) * Math.min(1, dt / 2400); // standing engine cools to ambient over an hour or so
     if (this.oil) this.oil.update(dt);
     if (this.damage) this.damage.update(dt);
+    if (this.fail) this.fail.update(dt);
   }
 
   _eval(dt) {
@@ -268,7 +274,7 @@ export class Engine {
       s.t += dt;
       s.wf += (Math.max(0, u.wfCmd) - s.wf) * Math.min(1, dt / 0.08);
       s.b25 += clamp(u.bleed25 - s.b25, -dt / 0.4, dt / 0.4);
-      s.rev = clamp((s.rev || 0) + (u.reverser ? dt : -dt) / 2.0, 0, 1); // about two seconds to travel
+      if (!u.revHold) s.rev = clamp((s.rev || 0) + (u.reverser ? dt : -dt) / 2.0, 0, 1); // about two seconds to travel; frozen without hydraulics
       // Active clearance control: fan air sprayed on the turbine cases shrinks them onto the blade tips.
       // The cases respond in tens of seconds (thin HPT case faster than the LPT's); with no fan pressure
       // there is no cooling air.
@@ -286,7 +292,7 @@ export class Engine {
     if (o.lpc.W > 0) s.T25 += (o.lpc.Tout - s.T25) * kT;
     const Wb25 = orifice(c.A25 * s.b25, s.P25, s.T25, s.P13);
     // clearance-control air leaves the bypass duct and is dumped in the core compartment
-    const Wacc = orifice(c.Aacc * (0.4 * (u.accHpt || 0) + 0.6 * (u.accLpt || 0)), s.P13, s.T13, P0);
+    const Wacc = orifice(c.Aacc * (0.4 * (u.accHpt || 0) + 0.6 * (u.accLpt || 0) + (u.accLeak || 0)), s.P13, s.T13, P0);   // accLeak: a broken supply duct
     // closer tips: up to about 1.2 points on the HP turbine and 0.8 on the LP turbine, once the cases are hot
     // enough to have grown away from the blades in the first place (worth about 1 % of cruise fuel burn)
     const hotCase = clamp(((s.Tm || T2) - 600) / 250, 0, 1);
@@ -358,7 +364,11 @@ export class Engine {
       far41 = wfBurn / Math.max(Wa + Wc1, 1e-3);
       T41 = tFromH((W4 * h(s.T4, farB) + Wc1 * h(s.T3)) / W41, far41, s.T4);
     }
-    turbineExpand(c.hpt, W41, T41, far41, P4 / s.P45, s.N2, m.effHpt + accEffH, o.hpt);
+    // a broken shaft leaves its turbine free to run at its own speed (failures.js)
+    const fl = this.fail ? this.fail.fx : {};
+    if (!fl.hpShear) s.Nhpt = s.N2;
+    if (!fl.lpShear) s.Nlpt = s.N1;
+    turbineExpand(c.hpt, W41, T41, far41, P4 / s.P45, s.Nhpt, m.effHpt + accEffH, o.hpt);
     const W45in = W41 + Wc2;
     let far45 = 0, T45 = o.hpt.Tout;
     if (W45in > 1e-3 && W41 > 0) {
@@ -377,7 +387,7 @@ export class Engine {
     // ---- LP turbine
     turbineFlow(c.lpt.K * m.flowLpt, s.T45, s.P45, s.P5, o.lptF);
     const W45 = o.lptF.W;
-    turbineExpand(c.lpt, W45, s.T45, far45, s.P45 / s.P5, s.N1, m.effLpt + accEffL, o.lpt);
+    turbineExpand(c.lpt, W45, s.T45, far45, s.P45 / s.P5, s.Nlpt, m.effLpt + accEffL, o.lpt);
     if (W45 > 0) s.T5 += (o.lpt.Tout - s.T5) * kT;
 
     // ---- nozzles
@@ -412,8 +422,13 @@ export class Engine {
     let tStart = 0;
     if (u.starterValve) // stall torque from the data sheet: 637 N.m at the starter pad (0.941 x N2), reached at full duct pressure (~50 psi)
       tStart = LIMITS.STARTER_TORQUE_MAX * LIMITS.STARTER_GEAR * (u.starterPsi / 50) * Math.max(0, 1 - s.N2 / (0.72 * LIMITS.N2_100));
-    const tq2 = o.hpt.torque - hpcTorque - (s.N2 > 1 ? fric2(s.N2) : 0) - accPower / w2 + tStart - (s.N2 > 1 ? this.wear.drag2 : 0);
-    const tq1 = o.lpt.torque - o.fan.torque - o.lpc.torque - (s.N1 > 1 ? fric1(s.N1) + this.wear.drag1 : 0);
+    const fd1 = this.fail ? this.fail.drag1 : 0, fd2 = this.fail ? this.fail.drag2 : 0;
+    const drv2 = fl.hpShear ? 0 : o.hpt.torque, drv1 = fl.lpShear ? 0 : o.lpt.torque;
+    const tq2 = drv2 - hpcTorque - (s.N2 > 1 ? fric2(s.N2) + this.wear.drag2 + fd2 : 0) - accPower / w2 + tStart;
+    const tq1 = drv1 - o.fan.torque - o.lpc.torque - (s.N1 > 1 ? fric1(s.N1) + this.wear.drag1 + fd1 : 0);
+    // free turbines: about a third of their spool's inertia; rubbing and any burst damage still act on them
+    const tqH = fl.hpShear ? o.hpt.torque - (s.Nhpt > 1 ? 0.3 * fric2(s.Nhpt) + this.wear.drag2 : 0) : 0;
+    const tqL = fl.lpShear ? o.lpt.torque - (s.Nlpt > 1 ? 0.3 * fric1(s.Nlpt) + this.wear.drag1 : 0) : 0;
 
     // ---- integrate
     if (dt > 0) {
@@ -432,6 +447,8 @@ export class Engine {
       s.P13 = P13; s.P25 = P25; s.P3 = P3; s.P45 = P45; s.P5 = P5; s.Pm = Pm;
       s.N2 = Math.max(0, s.N2 + (dt * tq2) / d.I2 / RPM2RAD);
       s.N1 = Math.max(0, s.N1 + (dt * tq1) / d.I1 / RPM2RAD);
+      if (fl.hpShear) s.Nhpt = Math.max(0, s.Nhpt + (dt * tqH) / (0.35 * d.I2) / RPM2RAD);
+      if (fl.lpShear) s.Nlpt = Math.max(0, s.Nlpt + (dt * tqL) / (0.3 * d.I1) / RPM2RAD);
       s.fuelUsed += s.wf * dt;
       if (o.fan.surgeEvent) this.events.push({ t: s.t, type: 'surge-fan' });
       if (o.lpc.surgeEvent) this.events.push({ t: s.t, type: 'surge-lpc' });
@@ -445,6 +462,7 @@ export class Engine {
     out.amb = amb;
     out.N1 = s.N1; out.N2 = s.N2;
     out.N1pct = (100 * s.N1) / LIMITS.N1_100; out.N2pct = (100 * s.N2) / LIMITS.N2_100;
+    out.NlptPct = (100 * (s.Nlpt ?? s.N1)) / LIMITS.N1_100; out.NhptPct = (100 * (s.Nhpt ?? s.N2)) / LIMITS.N2_100;   // turbine speeds (differ from N1 / N2 only after a shaft failure)
     out.thrust = o.n9.Fg - c.revTurn * o.ncas.Fg - W2 * V0;
     out.rev = rev; out.Wcas = o.ncas.W;
     out.Fg = o.n9.Fg;

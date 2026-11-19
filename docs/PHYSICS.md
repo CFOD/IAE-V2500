@@ -57,6 +57,9 @@ at maximum reverse is about -32 kN at sea level static (roughly 30 % of V2527 ta
 
 ## Failures (`src/sim/damage.js`)
 
+Part failures injected by the player (a blade, a shaft, a valve, a pipe) are in `src/sim/failures.js` and
+docs/FAILURES.md; they feed into the mechanisms below.
+
 Abuse turns into the damage a real engine would suffer. The mechanisms are real; the thresholds and
 rates are engineering estimates, not IAE data.
 

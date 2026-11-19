@@ -75,7 +75,7 @@
       <div class="field"><span class="cap">Master</span><button id="master" class="switch" aria-pressed="false" title="ENG MASTER (M). Opens the LP and HP fuel valves. Set it OFF to stop the engine or to reset a start fault."><i></i></button></div>
       <div class="field grow"><span class="cap">Rating</span><select id="rating"></select></div>
       <div class="field"><span class="cap">APU bleed</span><button id="apuBleed" class="switch" aria-pressed="true" title="Air for the starter. Shut it if the start valve will not close."><i></i></button></div>
-      <div class="field"><span class="cap">Fire</span><button id="agent" class="chip" title="Discharge the fire bottle. Only works once the fuel is off.">Agent</button></div>
+      <div class="field"><span class="cap">Fire</span><div class="firebtns"><button id="firePb" class="chip firepb" aria-pressed="false" title="ENG 1 FIRE pushbutton: shuts the LP fuel valve in the pylon (MASTER OFF shuts it too). Push again to reset.">ENG 1 FIRE</button><button id="agent" class="chip" title="Discharge the fire bottle. It puts out a fire whose fuel or oil has been stopped; one still being fed lights again.">Agent</button></div></div>
     </section>
     <section class="lever">
       <div class="cap">Thrust lever <output id="tlaOut">Idle</output></div>

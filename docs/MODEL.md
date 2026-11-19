@@ -98,6 +98,14 @@ forward support shaft); aft mount on the turbine exhaust case lugs (pylon aft ad
 side links and a centre link). The upper bifurcation runs aft over the aft mount. Both lie in the cutaway
 sector, so they show with it closed.
 
+Twenty-one of the routed lines are exported as parts of their own (`line_<name>` nodes, with a
+`line_<name>B__full` node for any length inside the cutaway sector), so each can be picked, removed and
+broken (docs/FAILURES.md): P3 servo air, air-cooled oil cooler, nacelle anti-ice, starter air, hydraulic,
+fuel supply, fuel-cooled oil cooler, oil pressure sense, IDG cooler, servo fuel, metered fuel, No. 4 bearing
+oil, core harnesses A and B, ignition leads A and B, EGT harness, IP and HP bleed ducts, clearance control
+ducts and buffer air. `dressing.py` routes them through `L(name)`; everything else stays in the shared
+dressing nodes.
+
 ## Nacelle shape
 
 From the Airbus A320 Aircraft Characteristics (airport and maintenance planning) document, figure

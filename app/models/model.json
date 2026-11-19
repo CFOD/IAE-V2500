@@ -85,6 +85,69 @@
     "mounts": {
       "match": "^mounts_"
     },
+    "line_p3servo": {
+      "match": "^line_p3servo(B__full)?$"
+    },
+    "line_acocoil": {
+      "match": "^line_acocoil(B__full)?$"
+    },
+    "line_antiice": {
+      "match": "^line_antiice(B__full)?$"
+    },
+    "line_starterduct": {
+      "match": "^line_starterduct(B__full)?$"
+    },
+    "line_hyd": {
+      "match": "^line_hyd(B__full)?$"
+    },
+    "line_fuelsupply": {
+      "match": "^line_fuelsupply(B__full)?$"
+    },
+    "line_fcoc": {
+      "match": "^line_fcoc(B__full)?$"
+    },
+    "line_oilpress": {
+      "match": "^line_oilpress(B__full)?$"
+    },
+    "line_idgcooler": {
+      "match": "^line_idgcooler(B__full)?$"
+    },
+    "line_servofuel": {
+      "match": "^line_servofuel(B__full)?$"
+    },
+    "line_meteredfuel": {
+      "match": "^line_meteredfuel(B__full)?$"
+    },
+    "line_no4oil": {
+      "match": "^line_no4oil(B__full)?$"
+    },
+    "line_harnessA": {
+      "match": "^line_harnessA(B__full)?$"
+    },
+    "line_harnessB": {
+      "match": "^line_harnessB(B__full)?$"
+    },
+    "line_htleadA": {
+      "match": "^line_htleadA(B__full)?$"
+    },
+    "line_htleadB": {
+      "match": "^line_htleadB(B__full)?$"
+    },
+    "line_egtharness": {
+      "match": "^line_egtharness(B__full)?$"
+    },
+    "line_bleed7": {
+      "match": "^line_bleed7(B__full)?$"
+    },
+    "line_bleed10": {
+      "match": "^line_bleed10(B__full)?$"
+    },
+    "line_accduct": {
+      "match": "^line_accduct(B__full)?$"
+    },
+    "line_bufferair": {
+      "match": "^line_bufferair(B__full)?$"
+    },
     "pylon": {
       "match": "^pylon_"
     },

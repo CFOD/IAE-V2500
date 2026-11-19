@@ -53,6 +53,7 @@ export class Fadec {
     this.manStart = false; // ENG MAN START pushbutton (latched; opens the start valve with MODE at CRANK or IGN START)
     this.mode = 'norm'; // ENG MODE selector: 'crank' | 'norm' | 'ign' (IGN/START)
     this.apuBleed = true; // APU BLEED pushbutton: air for the starter (shut it to stop a starter that will not disengage)
+    this.firePb = false; // ENG FIRE pushbutton pushed: LP fuel valve shut (also shut by MASTER OFF)
     // component faults the player can inject (Panel > Faults)
     this.faults = { svNoOpen: false, svNoClose: false, ignA: false, ignB: false };
     // manual overrides: null = FADEC authority
@@ -123,7 +124,7 @@ export class Fadec {
 
   /** Back to cold and dark: switches off, manual overrides released, start sequence forgotten. */
   reset() {
-    this.master = false; this.manStart = false; this.tla = 0; this.tra = 0; this.revCmd = null; this.mode = 'norm'; this.apuBleed = true; this._modePrev = 'norm';
+    this.master = false; this.manStart = false; this.tla = 0; this.tra = 0; this.revCmd = null; this.mode = 'norm'; this.apuBleed = true; this._modePrev = 'norm'; this.firePb = false;
     for (const k of Object.keys(this.ovr)) this.ovr[k] = null;
     for (const k of Object.keys(this.faults)) this.faults[k] = false;
     this.clearStart(); this.starterHeat = 0; this.starterFailed = ''; this.starterLimit = false; this._overspeedT = 0; this.startCount = 0;
@@ -135,7 +136,9 @@ export class Fadec {
     const eng = this.eng, o = eng.out, u = eng.u;
     const theta = Math.sqrt(o.T2 / 288.15);
     const n2 = o.N2pct, n2c = n2 / theta, n1c = o.N1pct / theta;
-    const egtC = o.egt - 273.15;
+    // the EEC sees the indicated EGT: a lost signal (failures.js) disables EGT limiting and hot-start aborts
+    const fl = eng.fail ? eng.fail.fx : {}, egtSeen = o.egtInd ?? o.egt, egtOk = Number.isFinite(egtSeen);
+    const egtC = egtOk ? egtSeen - 273.15 : -100;
     const p3bar = o.P3 / 1e5;
     const n2dot = dt > 0 ? (n2 - this._prevN2) / dt : 0;
     this._prevN2 = n2;
@@ -241,7 +244,8 @@ export class Fadec {
     if (!F.svNoClose) this._valveStuck = false;
     if (this._valveStuck && (this.cutout || this.phase === 'run')) this.svNotClosed = true;
     if (!this._valveStuck) this.svNotClosed = false;
-    const sparkOk = ign && ((ignSel.includes('A') && !F.ignA) || (ignSel.includes('B') && !F.ignB) || ignSel === '');
+    const deadA = F.ignA || fl.ignA, deadB = F.ignB || fl.ignB;   // igniter or its lead
+    const sparkOk = ign && ((ignSel.includes('A') && !deadA) || (ignSel.includes('B') && !deadB) || ignSel === '');
     this.ignSel = ign ? ignSel || 'A+B' : '';
     // Air starter limits (training manual): 4 min continuous then 30 min off to cool, so heat builds at 1/s
     // while it turns and falls at 1/7.5 s. Past the limit the ECAM warns but nothing aborts; far past it the
@@ -251,6 +255,7 @@ export class Fadec {
     this.starterHeat = Math.max(0, this.starterHeat + (turning ? dt : -dt / 7.5));
     if (this.starterHeat > 240) this.starterLimit = true; else if (this.starterHeat < 120) this.starterLimit = false;
     this._overspeedT = turning && n2 > 50 ? this._overspeedT + dt : Math.max(0, this._overspeedT - dt);
+    if (!this.starterFailed && eng.fail && eng.fail.st.starterBurst) this.starterFailed = 'OVERSPEED';   // back-driven through a seized clutch
     if (!this.starterFailed && (this.starterHeat > 480 || this._overspeedT > 90)) {
       this.starterFailed = this._overspeedT > 90 ? 'OVERSPEED' : 'OVERHEAT';
       eng.events.push({ t: eng.s.t, type: 'starter-failure' });
@@ -279,7 +284,8 @@ export class Fadec {
         // With the reverser out the core no longer exhausts against the bypass stream, so EPR stops
         // tracking thrust. Reverse is governed on fan speed instead, between idle and MAX_REVERSE_N1.
         const reverse = o.rev > 0.05;
-        const n1Cmd = 22 + (MAX_REVERSE_N1 - 22) * (o.rev > 0.95 ? this.tla : 0); // idle until the reverser is fully deployed
+        // idle until the reverser is fully deployed; a reverser that deploys without being commanded gets idle (auto-idle)
+        const n1Cmd = 22 + (MAX_REVERSE_N1 - 22) * (o.rev > 0.95 && (this.revCmd ?? !!u.reverser) ? this.tla : 0);
         const n1Rated = this.ratedN1(), lever = this.tla >= DETENT_MCT ? 0.93 + 0.07 * (this.tla - DETENT_MCT) / (1 - DETENT_MCT) : this.tla * (0.93 / DETENT_MCT);
         const primary = reverse ? [(n1Cmd - o.N1pct) * 0.06, 'EPR']
           : this.n1Mode ? [(22 + (n1Rated - 22) * lever - o.N1pct) * 0.06, 'N1 mode']
@@ -332,12 +338,13 @@ export class Fadec {
     if (this.svNotClosed) ecam.push({ title: 'ENG 1 START VALVE FAULT', line: 'START VALVE NOT CLOSED · MASTER OFF · NO RESTART', level: 'caution' });
     if (this.starterFailed) ecam.push({ title: 'ENG 1 STARTER FAULT', line: this.starterFailed === 'OVERSPEED' ? 'STARTER OVERSPEED - FAILED' : 'STARTER OVERHEAT - FAILED', level: 'caution' });
     else if (this.starterLimit) ecam.push({ title: 'ENG 1 STARTER', line: 'DUTY CYCLE EXCEEDED · ALLOW 30 MIN TO COOL', level: 'caution' });
+    if (eng.fail) ecam.push(...eng.fail.ecam);
     this.ecam = ecam;
     if (ecam.length) this.msg = `${ecam[0].title} - ${ecam[0].line}`;
     this.valveOpen = this.ovr.starter != null ? this.ovr.starter : valve;
 
     // reverser: deploys only with hydraulic pressure (engine turning, N2 above about 45 %); it can always stow
-    if (this.revCmd != null) u.reverser = this.revCmd && (n2 > 45 || (o.rev || 0) > 0.01) && !this.revLockout;
+    if (this.revCmd != null) u.reverser = this.revCmd && (n2 > 45 || (o.rev || 0) > 0.01) && !this.revLockout && !fl.hydLost;
     else if (this.revLockout) u.reverser = false;
     this.revInhibit = !!this.revCmd && !u.reverser;
 
@@ -346,6 +353,7 @@ export class Fadec {
     // The master switch shuts off the FADEC's own fuel. Fuel set by hand still flows, which is what
     // makes a fully manual start possible; the UI drops manual fuel when the master is switched off.
     u.wfCmd = ov.fuel != null ? ov.fuel : this.master ? wf : 0;
+    u.lpValve = !this.firePb && (this.master || ov.fuel != null);   // LP fuel valve in the pylon
     if (ov.fuel != null) this.wf = ov.fuel; // bumpless transfer back to auto
     u.ignition = ov.ignition != null ? ov.ignition : sparkOk;
     u.starterValve = (ov.starter != null ? ov.starter : valve) && !this.starterFailed && this.apuBleed;

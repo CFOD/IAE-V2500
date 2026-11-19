@@ -30,13 +30,13 @@ function gauge(ctx, cx, cy, rad, o) {
 /** Dock readouts: four gauges and three numeric tiles. */
 export function drawEcam(cv, o, f, peaks, egtRed = 635) {
   const [ctx, w, h] = fit(cv);
-  const egt = o.egt - 273.15;
+  const egtSeen = o.egtInd ?? o.egt, egtOk = Number.isFinite(egtSeen), egt = egtOk ? egtSeen - 273.15 : 0;   // indicated EGT (XX when the signal is lost)
   const tiles = w > 900 ? 4 : w > 780 ? 3 : w > 560 ? 2 : w > 440 ? 1 : 0, tw = tiles ? 118 : 0;
   const gw = (w - tiles * tw - 18) / 4, rad = Math.max(8, Math.min(gw / 2 - 9, h / 2 - 13)), cy = h / 2 - 7;
   if (w < 120) return;
   const x = (i) => 18 + gw * (i + 0.5);
   gauge(ctx, x(0), cy, rad, { min: 1, max: 2.1, value: o.epr, bug: f.master ? f.eprCmd : null, label: 'EPR', text: o.epr.toFixed(3) });
-  gauge(ctx, x(1), cy, rad, { min: 0, max: 800, value: egt, amber: 610, red: egtRed, label: 'EGT °C', text: egt.toFixed(0) });
+  gauge(ctx, x(1), cy, rad, { min: 0, max: 800, value: egt, amber: 610, red: egtRed, label: 'EGT °C', text: egtOk ? egt.toFixed(0) : 'XX' });
   gauge(ctx, x(2), cy, rad, { min: 0, max: 110, value: o.N1pct, red: 100, label: 'N1 %', text: o.N1pct.toFixed(1) });
   gauge(ctx, x(3), cy, rad, { min: 0, max: 110, value: o.N2pct, red: 100, label: 'N2 %', text: o.N2pct.toFixed(1) });
   const data = [['Thrust', (o.thrust / 1000).toFixed(1), 'kN', `${(o.thrust / 4.4482216).toFixed(0)} lbf`], ['Fuel flow', (o.wf * 3600).toFixed(0), 'kg/h', `${o.fuelUsed.toFixed(1)} kg used`], ['Oil', (o.oilP || 0).toFixed(0), 'psi', `${(o.oilT || 0).toFixed(0)} °C · ${(o.oilQ || 0).toFixed(1)} qt`], ['TSFC', o.sfc > 0 ? o.sfc.toFixed(3) : '—', '', 'lb/lbf·h']];

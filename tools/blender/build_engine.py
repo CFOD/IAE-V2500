@@ -635,7 +635,7 @@ def build():
     # ---- routed dressing: tubes, harnesses, ducts and hoses (tools/blender/dressing.py)
     import sys; sys.path.insert(0, os.path.dirname(__file__))
     from dressing import build_dressing
-    build_dressing(P, r_at, in_cut, material, link, made, section)
+    LINE_PARTS = build_dressing(P, r_at, in_cut, material, link, made, section)
 
     for helper in (wedge, latch): bpy.data.objects.remove(helper, do_unlink=True)
     os.makedirs(OUT, exist_ok=True)
@@ -646,7 +646,7 @@ def build():
             'inlet': {'match': '^inlet_', 'drop': ['skin']}, 'lip': {'match': '^lip_', 'drop': ['skin']},
             'fancowl': {'match': '^fancowl_', 'drop': ['skin']}, 'fancase': {'match': '^fancase_', 'drop': []},
             'cna': {'match': '^cna_', 'drop': ['skin', 'liner']}, 'agb': {'match': '^agb_'}, 'eec': {'match': '^eec_'},
-            **{c: {'match': f'^{c}_'} for c, _ in accessories.UNITS}, **{c: {'match': f'^{c}_'} for c in CORE_UNITS},
+            **{c: {'match': f'^{c}_'} for c, _ in accessories.UNITS}, **{c: {'match': f'^{c}_'} for c in CORE_UNITS}, **{c: {'match': f'^{c}(B__full)?$'} for c in LINE_PARTS},
             'pylon': {'match': '^pylon_'}, 'ext': {'match': '^ext_', 'drop': ['dress']},
         },
     }

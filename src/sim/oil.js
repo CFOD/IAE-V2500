@@ -27,14 +27,16 @@ export class Oil {
 
   update(dt) {
     const e = this.eng, o = e.out, s = this.s, f = this.faults, n2 = clamp((o.N2pct || 0) / 100, 0, 1.3);
+    const fx = e.fail ? e.fail.fx : {};   // broken parts: leaks, lost coolers, a stopped gearbox (failures.js)
     const Tamb = (o.T0 || 288.15) - 273.15;
 
     // ---- quantity: normal consumption, leaks, a failed No. 4 bearing seal (oil lost into the gas path)
     let loss = 0.3 / 3600 * n2;                       // about 0.3 qt/h
-    loss += f.leak / 60;                               // external leak, qt/min
-    if (f.seal4) loss += (0.6 / 60) * clamp(n2 * 1.5, 0, 1.2);
+    loss += (f.leak + (fx.oilLeak || 0)) / 60;        // external leaks, qt/min
+    const seal = Math.max(f.seal4 ? 1 : 0, fx.oilSeal || 0);
+    if (seal) loss += (0.6 / 60) * seal * clamp(n2 * 1.5, 0, 1.2);
     s.total = Math.max(0, s.total - loss * dt);
-    s.smoke = f.seal4 && n2 > 0.2 && s.total > 0.2 ? 1 : 0;
+    s.smoke = seal && n2 > 0.2 && s.total > 0.2 ? Math.min(1, 0.4 + seal) : 0;
     // oil in circulation ("gulping"): the tank level drops as the engine runs up and recovers after shut-down
     const gulp = 4.5 * clamp(n2 / 0.6, 0, 1), inTank = Math.max(0, s.total - gulp);
 
@@ -42,16 +44,16 @@ export class Oil {
     const visc = clamp(1 + (60 - s.temp) / 90, 0.8, 2.6);
     let supply = clamp(inTank / 2.5, 0, 1);            // the pump starts to draw air below about 2.5 qt in the tank
     if (supply < 1 && supply > 0) supply *= 0.75 + 0.25 * Math.sin(e.s.t * 9) * Math.sin(e.s.t * 2.3); // cavitation: the needle flickers
-    if (f.pumpFail) supply = 0;
+    if (f.pumpFail || fx.pumpFail) supply = 0;
     const target = (60 * clamp(n2 / 0.3, 0, 1) + 230 * Math.pow(n2, 1.5)) * Math.sqrt(visc) * supply * (1 - 0.5 * s.brg);
     s.press += (Math.min(target, OIL.RELIEF_PSI) - s.press) * Math.min(1, dt / 0.6);
     s.filterDp += ((f.filterClog ? OIL.FILTER_BYPASS_PSI : 2 + 3 * s.chips) * clamp(n2 * 1.3, 0, 1) * visc - s.filterDp) * Math.min(1, dt / 2); s.filterDp = Math.min(s.filterDp, OIL.FILTER_BYPASS_PSI);
 
     // ---- temperature: heat from the bearings, gearbox and the hot core; rejected to fan air and to fuel
     const flow = 0.6 * n2 * supply;                    // kg/s of oil round the circuit
-    const heat = 4e3 * Math.min(1, n2 * 5) + 42e3 * n2 * n2 + 40 * n2 * Math.max(0, (o.T3 || 288) - 300) + 60e3 * s.brg * n2;
-    const Coil = flow * 2000, Cfuel = Math.max(0, o.wf || 0) * 2000;
-    const acocValve = f.acocStuck ? 0.02 : clamp((s.temp - 75) / 45, 0.1, 1);   // opens as the oil gets hot
+    const heat = 4e3 * Math.min(1, n2 * 5) + 42e3 * n2 * n2 + 40 * n2 * Math.max(0, (o.T3 || 288) - 300) + 60e3 * s.brg * n2 + (fx.oilHeat || 0);
+    const Coil = flow * 2000, Cfuel = fx.fcocLost ? 0 : Math.max(0, o.wf || 0) * 2000;
+    const acocValve = fx.acocLost ? 0 : f.acocStuck ? 0.02 : clamp((s.temp - 75) / 45, 0.1, 1);   // opens as the oil gets hot
     const UAair = 950 * Math.pow(clamp((o.Wbypass || 0) / 300, 0, 1.3), 0.7) * acocValve;
     const cool = Math.min(Coil, UAair) * (s.temp - Tamb) + 0.62 * Math.min(Coil, Cfuel) * (s.temp - (Tamb + 10));
     const still = 20 * (s.temp - Tamb);                // a standing engine loses heat slowly to the nacelle
