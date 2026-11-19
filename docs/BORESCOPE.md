@@ -114,16 +114,27 @@ overheated*), and how many blades you have turned.
 
 **Damage recorded:** the tab lists every record. **Look** puts the probe in the right port and turns the
 spool until that blade is in front of it. For the guide vanes, which cannot turn, it steers the tip round to
-the worst one. The aim uses the blade's own surface at the damaged span. A staggered fan blade's leading edge
-is well round from its root, so the probe aims a quarter of the chord back from the leading edge, or from
-the trailing edge when it sits behind the row.
+the worst one. The aim uses the blade's own surface at the damaged span, because a staggered blade's
+leading edge is well round from its root:
+
+- **Fan blades:** a quarter of the chord back from the leading edge.
+- **Core blades:** mid-chord. The probe sits in a gap of a few millimetres, so it looks sideways along the
+  row to see the blade from about 3 cm away.
+- **Vanes:** the edge facing the probe.
+
+Once the spool stops, the probe checks which blade is in the middle of the picture. If it is a different
+one, it turns on by the difference (twice at most).
 
 **The image:**
 
 - **Light:** the only light is the probe's. Scene lights are dimmed to 2 % and the environment to 4 %.
-- **Exposure:** like the camera in a real probe, the gain follows how far away the scene is. Five rays
-  measure the distance, and the centre one and the median set the LED brightness (centre-weighted), so a
-  blade 1 cm away is not burnt out and the far side of the fan is not lost.
+- **Exposure:** like the camera in a real probe, the gain follows the scene. Five rays measure how far
+  away it is, and the centre one and the median set the LED brightness (centre-weighted), so a blade 1 cm
+  away is not burnt out and the far side of the fan is not lost. The colour of the surface in the middle,
+  heat tint included, scales it too: oxidised turbine metal gets several times the light of bright titanium.
+- **Surfaces:** polished metal lit from the lens would show nothing but one hot spot. Real blades are matt
+  enough, with coatings, erosion and deposits, that the LEDs light their whole surface, so the model's
+  materials are made a little rougher and less metallic while you inspect.
 - **Lens:** a fisheye with a round, vignetted image, a warm LED tint and a little sensor noise. It runs on
   every quality setting, Low included, while you inspect.
 

@@ -50,6 +50,14 @@ function rowName(name) {
   if (/^fuel_injector/.test(m)) return 'Fuel injector tip';
   return null;
 }
+// how light the surface a ray hit is (its colour, times the instance's heat tint), for the gain
+const _c = new THREE.Color();
+function albedo(h) {
+  const o = h.object, m = Array.isArray(o.material) ? o.material[(h.face && h.face.materialIndex) || 0] : o.material;
+  if (!m || !m.color) return 0.5;
+  _c.copy(m.color); if (o.isInstancedMesh && o.instanceColor && h.instanceId != null) { const t = new THREE.Color(); o.getColorAt(h.instanceId, t); _c.multiply(t); }
+  return clamp(0.2126 * _c.r + 0.7152 * _c.g + 0.0722 * _c.b, 0.07, 1);
+}
 const shown = (o) => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
 // blades are numbered round the row from the first; a static ring's instances are sorted for the cutaway, so
 // its number comes from the angle
@@ -64,7 +72,7 @@ export class Borescope {
   constructor(view) {
     this.v = view; this.on = false; this.port = null;
     this.yaw = 0; this.tilt = 0; this.depth = 0.5; this.turn = 0; this.turned = 0; this.t = 0; this._rt = 0;
-    this.dist = 0.1; this.dS = 0.1; this.target = null;
+    this.dist = 0.1; this.dS = 0.1; this.albedo = this.aS = 0.5; this.target = null;
     // the LED ring round the lens: a wide spot, physical fall-off, and a little fill from the probe body
     this.light = new THREE.SpotLight(0xfff0d8, 0, 0, 1.0, 0.8, 2); view.scene.add(this.light, this.light.target);
     this.glow = new THREE.PointLight(0xffe6c8, 0, 0, 2); view.scene.add(this.glow);
@@ -140,15 +148,13 @@ export class Borescope {
     return d.multiplyScalar(Math.cos(this.tilt)).addScaledVector(F.rad, -Math.sin(this.tilt)).normalize();
   }
   /** Where a blade's surface is at radius r, in its template (angle 0): mean axial station and angle. */
-  _surf(im, r) {
-    const fan = /^ring_fan_/.test(im.name), k = fan ? 0.25 : 0.5;   // the fan from in front; a core blade at mid-chord
+  _surf(im, r, k) {
     const key = `${im.geometry.uuid}:${r.toFixed(3)}:${k}`; this._sc = this._sc || new Map();
     if (this._sc.has(key)) return this._sc.get(key);
     const p = im.geometry.attributes.position; let r0 = Infinity, r1 = 0;
     for (let i = 0; i < p.count; i++) { const q = Math.hypot(p.getY(i), p.getZ(i)); if (q < r0) r0 = q; if (q > r1) r1 = q; }
     const rr = clamp(r, r0 + 0.02 * (r1 - r0), r1 - 0.02 * (r1 - r0)), w = 0.04 * (r1 - r0);
-    // the leading and trailing edge in that band; aim a quarter of the way back from the leading edge, which is
-    // the part a probe in front of the row sees
+    // the leading and trailing edge in that band, and the point a fraction k of the way back from the leading edge
     let le = null, te = null;
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), y = p.getY(i), z = p.getZ(i); if (Math.abs(Math.hypot(y, z) - rr) > w) continue;
@@ -164,7 +170,10 @@ export class Borescope {
     const fan = /^fan_/.test(name), xm = fan ? FAN.x : meta ? meta.x : L.x;
     const ri = fan ? FAN.hub : rAt(P.coreInner, xm), ro = fan ? FAN.tip : rAt(P.coreOuter, xm);
     // the blade itself at that span: staggered and swept, its surface is well round from its root line
-    const S = this._surf(im, ri + clamp(T.span, 0.05, 0.95) * (ro - ri)), xt = S.x ?? xm, rt = S.r;
+    // the fan is seen from in front, a quarter of the chord back; a core blade at mid-chord, as the probe looks across
+    // the gap at it; a vane, which cannot be turned to face the probe, at the edge towards the probe
+    const k = fan ? 0.25 : im.userData.row ? 0.5 : L.x > xm ? 0.92 : 0.08;
+    const S = this._surf(im, ri + clamp(T.span, 0.05, 0.95) * (ro - ri), k), xt = S.x ?? xm, rt = S.r;
     const rp = this._radius(), th0 = this.port.th * DEG, F = this._frame(), dx = xt - L.x;
     if (im.userData.row && L.group) {   // a rotor: look across at it, tilt to the span, then turn the blade round
       // a core probe sits in a gap of a few millimetres, so it looks sideways along the row to see a blade from
@@ -198,8 +207,10 @@ export class Borescope {
     // automatic gain, like the camera in the probe: the LEDs are dimmed for what is close and brightened for what
     // is far, so a blade a centimetre away is not burnt out and one ten centimetres away is not lost
     this.dS += (this.dist - this.dS) * Math.min(1, dt * 5);
-    const g = Math.max(0.006, this.dS) ** 2;
-    this.light.intensity = 3.4 * g; this.glow.intensity = 0.6 * g;
+    // and for how dark the surface is: oxidised turbine metal needs several times the light of bright titanium
+    this.aS += (this.albedo - this.aS) * Math.min(1, dt * 4);
+    const g = Math.max(0.006, this.dS) ** 2 / this.aS;
+    this.light.intensity = 1.9 * g; this.glow.intensity = 0.35 * g;
     this.light.position.copy(pos).addScaledVector(d, -0.003); this.light.target.position.copy(pos).add(d); this.light.target.updateMatrixWorld();
     this.glow.position.copy(pos).addScaledVector(d, -0.006);
     if (this.v.bsPass) { this.v.bsPass.uniforms.uT.value = this.t % 100; this.v.bsPass.uniforms.uAspect.value = camera.aspect; }
@@ -216,6 +227,7 @@ export class Borescope {
       const hits = ray.intersectObjects(E, true).filter((h) => shown(h.object));
       ds.push(hits.length ? hits[0].distance : 0.8);
       if (k) continue;
+      if (hits.length) this.albedo = albedo(hits[0]);
       for (const h of hits) {
         const o = h.object, nm = rowName(o.name || '');
         if (!nm) { if (o.isMesh && !/^damaged:/.test(o.name)) break; continue; }   // something else is in the way

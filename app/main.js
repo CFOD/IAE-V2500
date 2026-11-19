@@ -244,7 +244,8 @@ function bsRefresh() {
   const look = (k, i, sp) => ` <button class="go" data-go="${k}:${i}:${sp.toFixed(2)}">Look</button>`;
   for (const [id, node, name] of [['fan', 'ring_fan_blade', 'Fan blade'], ['lpc', 'ring_lpc_r1', 'Booster stage 1 blade'], ['hpc', 'ring_hpc_r3', 'HP compressor stage 3 blade']]) {
     const n = count(node);
-    for (const r of f.dmg[id]) { const i = Math.floor(r.f * n) % n; rows.push(`${name} ${i + 1}: ${words[r.type]} (${r.sev > 0.66 ? 'severe' : r.sev > 0.33 ? 'moderate' : 'light'}), ${Math.round(r.span * 100)} % of the span${look(id, i, r.span)}`); }
+    const gone = new Set(f.missing[id].map((m) => Math.floor(m * n) % n));   // a blade that broke off is listed as missing instead
+    for (const r of f.dmg[id]) { const i = Math.floor(r.f * n) % n; if (gone.has(i)) continue; rows.push(`${name} ${i + 1}: ${words[r.type]} (${r.sev > 0.66 ? 'severe' : r.sev > 0.33 ? 'moderate' : 'light'}), ${Math.round(r.span * 100)} % of the span${look(id, i, r.span)}`); }
     for (const m of f.missing[id]) { const i = Math.floor(m * n) % n; rows.push(`<span class="bad">${name} ${i + 1}: missing</span>${look(id, i, 0.5)}`); }
   }
   if (dm.ngvBurn > 0.05) rows.push(`<span class="bad">HP turbine stage 1 guide vanes behind fuel nozzle 13: ${dm.ngvBurn > 0.6 ? 'trailing edges burnt away' : dm.ngvBurn > 0.3 ? 'coating gone, trailing edges burning' : 'coating discoloured'}</span>${look('ngv', 0, 0.5)}`);
