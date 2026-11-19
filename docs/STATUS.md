@@ -32,12 +32,14 @@ The test website at iae.cfod.co.uk deploys from this branch automatically (see d
   over a fire; flames as tongues stretched along their motion and coloured by temperature, with embers; a
   fireball on a surge; spray as streaks, real tumbling metal fragments; leaks behind closed cowls drip from
   the nacelle drains.
+- Physics re-tuned to the manual's airflow (872 lb/s for the V2533): every ICAO fuel-flow point now
+  within 1.8 % (approach was 4.8 % low); tests hold the airflow and the tighter approach match.
+- Smoke and fire meet the engine without hard edges (soft particles); an HP shaft failure no longer
+  keeps a flame alight at 8 % N2.
 - Phones: touch controls and phone layout on the website; an Android app (Capacitor) that packs the
   same page for offline use, sideloaded as a debug APK for now (docs/ANDROID.md).
 
 ## Open
-- Physics: design airflow 385 kg/s against the manual's 396 for the V2533; approach fuel flow 4.8 %
-  low. Re-tuning needs every map rescaled and all ICAO points re-matched.
 - Sound mapping was judged from spectrograms and an offline mix, not by ear: adjust layers in
   app/sounds/sounds.json (via tools/sound-packs/ftsim-a320-iae.py) if any sound wrong.
 - Google Play release: needs a developer account, an upload key, a closed test (12 testers, 14

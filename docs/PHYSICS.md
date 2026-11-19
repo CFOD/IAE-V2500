@@ -181,7 +181,7 @@ Read from the primary documents in November 2026 (`src/sim/v2500.js` tags each v
 | Starter cut-out, minimum N2 for fuel | 43 %, 16 % | O |
 | Ground idle | about N1 21.7 %, N2 60 %, EGT 400 °C, 300-378 kg/h | O |
 | Handling bleeds | three stage-7 and one stage-10 valves, open for starting | O |
-| Inlet airflow at take-off | 770-781 lb/s (V2522/24), 811 (V2527), 858-872 (V2530/33) | A. The model's design point uses 385 kg/s for the V2533 against the manual's 396 |
+| Inlet airflow at take-off | 770-781 lb/s (V2522/24), 811 (V2527), 858-872 (V2530/33) | A. The model is sized to 872 lb/s (395.5 kg/s) for the V2533 |
 | Bypass ratio / climb pressure ratio / cruise sfc | 4.9, 4.8, 4.6-4.5 / 32.8 (35.2 for the A321 ratings) / 0.543 lb/lbf/h | A |
 | Thrust lever | 0-45 deg forward: climb detent 25, FLX/MCT 35, TOGA 45; reverse idle -6, maximum reverse -20 | A |
 | Automatic start | start valve opens with the master switch; fuel and ignition after 30 s of motoring; abort possible up to 50 % N2; starter cut-out 43 % N2 | A |
@@ -212,23 +212,33 @@ mixing-plane Mach number, spool inertias, volumes, all schedule break-points.
 
 | Quantity | Model | Published |
 |---|---|---|
-| V2527-A5 take-off fuel flow at 111.2 kN | 1.063 kg/s | 1.053 |
-| V2527-A5 climb-out (85 %) fuel flow | 0.883 kg/s | 0.880 |
-| V2527-A5 approach (30 %) fuel flow | 0.304 kg/s | 0.319 |
-| V2527-A5 idle (7 %) fuel flow | 0.128 kg/s | 0.128 |
-| V2527-A5 overall pressure ratio | 27.3 | 27.2 |
-| V2527-A5 bypass ratio | 4.79 | 4.82 |
-| All five ratings at take-off: fuel flow / pressure ratio / bypass ratio | within 1.3 % / 1.0 % / 0.8 % | ICAO databank |
-| V2527-A5 take-off EPR | 1.63 | about 1.6 (crew report) |
-| Ground idle | N1 20.9 %, N2 58.5 %, 387 kg/h, EGT 423 °C | N1 21.7 (+3.8/-2), N2 60 (±2), 300-378 kg/h, EGT 400 (+90/-25) |
-| V2527-A5 take-off EGT, ISA / ISA+30 | 515 / 591 °C | limit 635 °C |
+| V2527-A5 take-off fuel flow at 111.2 kN | 1.068 kg/s | 1.053 |
+| V2527-A5 climb-out (85 %) fuel flow | 0.891 kg/s | 0.880 |
+| V2527-A5 approach (30 %) fuel flow | 0.313 kg/s | 0.319 |
+| V2527-A5 idle (7 %) fuel flow | 0.130 kg/s | 0.128 |
+| V2527-A5 overall pressure ratio | 27.4 | 27.2 |
+| V2527-A5 bypass ratio | 4.78 | 4.82 |
+| All five ratings at take-off: fuel flow / pressure ratio / bypass ratio | within 1.4 % / 1.0 % / 1.1 % | ICAO databank |
+| Take-off airflow V2533 / V2527 | 872 / 783 lb/s | 872 / 811 (Airbus training manual) |
+| V2527-A5 take-off EPR | 1.54 | about 1.6 (crew report) |
+| Ground idle | N1 21.1 %, N2 58.5 %, 400 kg/h, EGT 422 °C | N1 21.7 (+3.8/-2), N2 60 (±2), 300-378 kg/h, EGT 400 (+90/-25) |
+| V2527-A5 take-off EGT, ISA / ISA+30 | 507 / 582 °C | limit 635 °C |
 | Cruise TSFC, FL350 M0.78 | 0.572 lb/lbf/h | about 0.54-0.58 (unverified) |
 | Idle to 95 % take-off thrust | about 6.4 s | certification requires <= 5 s from flight idle |
-| Start to idle / peak start EGT | 43 s / 515 °C | limit 635 °C; time not checked against a published figure |
+| Start to idle / peak start EGT | 42 s / 520 °C | limit 635 °C; time not checked against a published figure |
 
-The approach point is the weakest (4.8 % low). Ground-idle fuel flow is slightly above the quoted
-range. Fan speed at 1.05 EPR is about 36 %; crews stabilise at 1.05 EPR where CFM crews use 50 % N1,
-which suggests the real figure may be somewhat higher.
+Every ICAO point is now within 1.8 %; approach is still the lowest (1.8 % low). The airflow is the
+manual's for the V2533; the V2527, being the same hardware throttled back, passes about 3 % less than the
+manual's figure. Ground-idle fuel flow is above the quoted range but inside its tolerance. Fan speed at
+1.05 EPR is about 38 %; crews stabilise at 1.05 EPR where CFM crews use 50 % N1, which suggests the real
+figure may be somewhat higher.
+
+How the match was made (November 2026): the airflow was raised from 385 to 395.5 kg/s (the manual's
+872 lb/s). With the same thrust that alone lowered every fuel flow by 2-5 %, so three assumed values
+were moved to bring them back, chosen from a sensitivity sweep of all of them against every ICAO point:
+HP turbine design efficiency 0.905 to 0.885, LP turbine 0.925 to 0.915, fan pressure ratio 1.78 to 1.75,
+and the LP turbine's extra part-load loss removed (it raised idle fuel flow without helping approach).
+The FADEC's thrust-to-EPR and fuel-schedule tables were then regenerated (`tools/retune.py`).
 
 ## Remaining limitations
 

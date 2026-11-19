@@ -57,7 +57,7 @@ test('V2527-A5 matches the ICAO databank fuel flows and cycle', () => {
     return e.out;
   };
   const within = (name, got, ref, tol) => assert.ok(Math.abs(got - ref) / ref < tol, `${name}: model ${got.toFixed(3)} vs published ${ref}`);
-  within('approach fuel flow', at(0.30).wf, ICAO_V2527.approach, 0.06);
+  within('approach fuel flow', at(0.30).wf, ICAO_V2527.approach, 0.03);
   within('climb-out fuel flow', at(0.85).wf, ICAO_V2527.climb, 0.05);
   const to = at(1.0);
   within('take-off fuel flow', to.wf, ICAO_V2527.takeoff, 0.04);
@@ -98,6 +98,13 @@ test('V2527-A5 take-off: certified thrust, EPR, acceleration', () => {
   assert.ok(Math.abs(e.out.epr - 1.05) < 0.003 && e.out.N1pct > 33 && e.out.N1pct < 55, `N1 at 1.05 EPR: ${e.out.N1pct}`);
   f.ovr.fuel = null; f.tla = 0; run(e, f, 30);
   assert.ok(e.out.lit && surges(e) === 0 && e.out.N2pct < 62);
+});
+
+test('take-off airflow matches the Airbus training manual: 872 lb/s (V2533), 811 lb/s (V2527)', () => {
+  const lbs = (r) => { const { e, f } = idling(); f.rating = r; f.tla = 1; run(e, f, 40); return e.out.W2 / 0.45359237; };
+  const a = lbs('V2533-A5'), b = lbs('V2527-A5');
+  assert.ok(Math.abs(a - 872) / 872 < 0.01, `V2533 airflow ${a.toFixed(0)} lb/s`);
+  assert.ok(Math.abs(b - 811) / 811 < 0.04, `V2527 airflow ${b.toFixed(0)} lb/s`);
 });
 
 test('every rating delivers its rated thrust at sea level static', () => {

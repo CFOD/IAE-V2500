@@ -66,23 +66,24 @@ export const ARCH = {
 };
 
 // Design point used to size the model: V2533-A5 take-off, sea-level static ISA:
-// 14,056 daN [T], pressure ratio 33.44 and bypass ratio 4.46 [I]. Airflow 848 lb/s is the
-// commonly quoted figure and was not found in a primary source.
-// Lower ratings are the same hardware throttled back.
+// 14,056 daN [T], pressure ratio 33.44 and bypass ratio 4.46 [I], inlet airflow 872 lb/s [A]
+// (Airbus training manual: 858-872 lb/s for the V2530/33).
+// Lower ratings are the same hardware throttled back. Component efficiencies and the fan pressure
+// ratio are assumed, chosen with the airflow so the ICAO fuel flows are matched (docs/PHYSICS.md).
 export const DESIGN = {
-  W2: 385, // kg/s total inlet air flow (848 lb/s)
+  W2: 395.5, // kg/s total inlet air flow (872 lb/s)
   BPR: 4.46,
   OPR: 33.44,
   thrustN: 140560,
-  FPR: 1.78, // fan outer pressure ratio (assumed)
+  FPR: 1.75, // fan outer pressure ratio (assumed)
   LPCPR: 2.45, // fan root + 4 booster stages (assumed)
   N1d: 0.95 * 5650,
   N2d: 0.97 * 14950,
   effFan: 0.91,
   effLpc: 0.89,
   effHpc: 0.87,
-  effHpt: 0.905,
-  effLpt: 0.925,
+  effHpt: 0.885,
+  effLpt: 0.915,
   effBurner: 0.9995,
   dpBurner: 0.05,
   dpBypass: 0.015,

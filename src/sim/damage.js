@@ -38,7 +38,7 @@ export class Damage {
     if (this._ev > e.events.length) this._ev = 0;
     const n1 = o.N1pct / 100, n2 = o.N2pct / 100, fl = e.fail;
     // a streaking fuel nozzle (failures.js) puts a hot streak on part of the HP turbine
-    const streak = fl && fl.on.nozzleStreak ? 330 * clamp((o.wf || 0) / 1.05, 0, 1.3) : fl && fl.on.fdvHalf ? 150 * clamp((o.wf || 0) / 0.55, 0, 1) : 0;
+    const streak = fl && fl.on.nozzleStreak ? 340 * clamp((o.wf || 0) / 1.05, 0, 1.3) : fl && fl.on.fdvHalf ? 150 * clamp((o.wf || 0) / 0.55, 0, 1) : 0;
 
     // ---- blade metal temperatures
     // HP turbine blades are film cooled with compressor delivery air; LP turbine blades are not cooled.

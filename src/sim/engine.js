@@ -120,7 +120,7 @@ export function sizeEngine(d = DESIGN) {
     xs: (n) => 1.24 - 0.12 * Math.exp(-(((n - 0.74) / 0.12) ** 2)), U2d: 1.8e5, Awm: 0.05, kEff: 1.3, effFloor: 0.78,
   }, MAPS.HPC);
   cfg.hpt = { Nd: d.N2d, Td: dp.T41, dhsD: dp.dhsHpt, effD: d.effHpt, K: dp.Khpt, PRd: dp.PRhpt, kPR: 0.04, kClr: 0.15, table: makeTurbineTable(MAPS.HPT, 100, 4.5) };
-  cfg.lpt = { Nd: d.N1d, Td: dp.T45, dhsD: dp.dhsLpt, effD: d.effLpt, K: dp.Klpt, PRd: dp.PRlpt, kPR: 0.15, kClr: 0.08, table: makeTurbineTable(MAPS.LPT, 100, 5.9) };
+  cfg.lpt = { Nd: d.N1d, Td: dp.T45, dhsD: dp.dhsLpt, effD: d.effLpt, K: dp.Klpt, PRd: dp.PRlpt, kPR: 0, kClr: 0.08, table: makeTurbineTable(MAPS.LPT, 100, 5.9) };
   // Adaptation of the scaled reference maps to this engine (see docs/PHYSICS.md, "Map adaptation").
   // The JT9D tables peak well above their design-line efficiency; scaled as they are that would give
   // a fan better than any built. The peaks are held to values typical of this generation.
