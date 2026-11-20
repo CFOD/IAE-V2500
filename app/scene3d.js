@@ -958,7 +958,7 @@ export class Scene3D {
     this.plumeMid = cone(0.5, 0.68, [0.85, 0.75, 0.7], 3.4 + dX);
     this.plumeCore = cone(0.4, 0.5, [1.0, 0.55, 0.2], 3.2 + dX);
     this.plumeHot = cone(0.26, 0.2, [1.0, 0.85, 0.6], 3.15 + dX);
-    const blur = new THREE.Mesh(new THREE.RingGeometry(0.25, 0.8, 64), new THREE.MeshBasicMaterial({ color: 0xb8c0c8, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+    const blur = new THREE.Mesh(new THREE.RingGeometry(0.25, 0.8, 64), new THREE.MeshBasicMaterial({ color: 0x3c4146, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));   // the haze of a spinning fan: dark, with the blurred blades over it
     blur.rotation.y = Math.PI / 2; blur.position.x = 0.16; this.fanBlur = blur; this.scene.add(blur);
   }
 
@@ -1491,6 +1491,51 @@ export class Scene3D {
     for (const n of empty) n.parent.remove(n);
   }
   /** Detail for the quality setting: the full templates (cooling holes, squealer tips, dense airfoils) on high and ultra, a lighter set on medium, simple airfoils on low. */
+  /**
+   * Rotor motion blur. A row turning w rad/s sweeps w * shutter in one exposure (1/90 s). Below about a sixth of a blade
+   * pitch the row is drawn sharp; above, faded copies spread over the swept arc (at most one pitch, as the pattern repeats
+   * every pitch) are added, and once it sweeps a whole pitch the sharp row is dropped: the blades merge into the
+   * translucent disc a real fan becomes, rather than strobing. Copies follow the cutaway and released blades.
+   */
+  _rotorBlur(w1, w2, miss) {
+    this._spiralBlur(w1);
+    if (!this._blurRows) return;
+    const SH = 1 / 90, m = this._bm || (this._bm = new THREE.Matrix4()), zero = this._bz || (this._bz = new THREE.Matrix4().makeScale(0, 0, 0));
+    for (const b of this._blurRows) {
+      const w = b.spool === 1 ? w1 : w2, arc = Math.abs(w) * SH, f = clamp((arc - 0.15 * b.pitch) / (0.85 * b.pitch), 0, 1), im = b.im, g = b.ghost;
+      g.position.copy(im.position);
+      if (f < 0.02) { g.count = 0; if (im.count !== b.ths.length) im.count = b.ths.length; continue; }
+      im.count = f > 0.97 ? 0 : b.ths.length;
+      const spread = Math.min(arc, b.pitch) * Math.sign(w || 1), a = b.group.rotation.x, gone = miss ? miss.get(im) : null;
+      let n = 0;
+      for (let i = 0; i < b.ths.length; i++) {
+        const hide = (!b.whole && this.cutaway && inDeep(b.ths[i] + a)) || (gone && gone.has(i));
+        for (let k = 0; k < b.K; k++) { if (hide) g.setMatrixAt(n++, zero); else { m.makeRotationX(b.ths[i] - ((k + 0.5) / b.K) * spread); g.setMatrixAt(n++, m); } }
+      }
+      g.count = n; g.instanceMatrix.needsUpdate = true;
+      g.material.opacity = clamp(2.6 / b.K, 0, 1) * (0.35 + 0.65 * f);
+    }
+  }
+  /** The spinner's white spiral, smeared the same way: faded copies over the turn it sweeps in one exposure. */
+  _spiralBlur(w1) {
+    if (this._spiral === undefined) {
+      this._spiral = null; let src = null;
+      this.engine.traverse((n) => { if (!src && n.isMesh && /^spinner_spiral/.test(n.name)) src = n; });
+      if (src) {
+        const K = 16, mat = (Array.isArray(src.material) ? src.material[0] : src.material).clone(); mat.transparent = true; mat.depthWrite = false;
+        const copies = Array.from({ length: K }, () => { const c = new THREE.Mesh(src.geometry, mat); c.renderOrder = 2; c.visible = false; src.parent.add(c); return c; });
+        this._spiral = { src, copies, mat, K, q0: src.quaternion.clone() };
+      }
+    }
+    const S = this._spiral; if (!S) return;
+    const arc = Math.abs(w1) / 90, f = clamp((arc - 0.2) / 2.5, 0, 1), spread = Math.min(arc, TAU) * Math.sign(w1 || 1);
+    S.src.visible = f < 0.95 && !this.byId.spinner.removed;
+    S.mat.opacity = (2.2 / S.K) * (0.4 + 0.6 * f);
+    S.copies.forEach((c, k) => {
+      c.visible = f > 0.02 && !this.byId.spinner.removed;
+      if (c.visible) { c.position.copy(S.src.position); c.scale.copy(S.src.scale); c.quaternion.copy(S.q0).premultiply(_spinQ.setFromAxisAngle(_X, -((k + 0.5) / S.K) * spread)); }
+    });
+  }
   _lodGeo(lod) { const q = this.quality; return q === 'low' ? lod.lo : q === 'medium' ? lod.mid : lod.hi; }
   _applyLod(r) {
     r.im.geometry = this._lodGeo(r.lod);
@@ -1594,6 +1639,16 @@ export class Scene3D {
       this._reg(part, im, parent);
       im.userData.home = 0; im.position.x = part.ex * this.explode * 1.5;
       const lr = { im, lod, inner: !!e.blade && lvl === 'inner' }; this._lodRings.push(lr); this._applyLod(lr);
+      if (spool && e.blade) {   // motion blur: faded copies of the row, spread over the arc it sweeps while the 'shutter' is open
+        const fan = base === 'fan_blade', K = fan ? 12 : 6, src = fan ? (lod.mid || lod.hi) : lod.lo;
+        const gg = src.clone(); gg.clearGroups(); gg.addGroup(0, gg.index ? gg.index.count : gg.attributes.position.count, 0);
+        const m0 = Array.isArray(im.material) ? im.material[0] : im.material, gm = m0.clone();
+        gm.onBeforeCompile = m0.onBeforeCompile; gm.customProgramCacheKey = m0.customProgramCacheKey; gm.transparent = true; gm.depthWrite = false; gm.opacity = 0;
+        if (gm.color) gm.color.multiplyScalar(0.62);   // a blurred row averages blade and gap: darker than the blades themselves
+        const ghost = new THREE.InstancedMesh(gg, gm, e.count * K); ghost.count = 0; ghost.frustumCulled = false; ghost.name = e.node + '_blur';
+        this._reg(part, ghost, parent); ghost.userData.home = 0; ghost.renderOrder = 2;
+        (this._blurRows ||= []).push({ im, ghost, K, ths, spool, group: groups[spool], pitch: TAU / e.count, whole });
+      }
     }
     this._vsv = null;   // re-place the variable vanes on the next frame
   }
@@ -1626,10 +1681,11 @@ export class Scene3D {
     this.camera.lookAt(ob.target); this.camera.updateMatrixWorld();
     if (this.borescope.on) this.borescope.apply(this.camera, dt);
 
-    // spools: display speed is compressed so blades stay readable; the blur disc sells the rest
+    // spools at their true speeds (N1 100 % = 5650 rpm, N2 100 % = 14950 rpm), so the picture matches the gauges and the
+    // sound; at speed the blade rows are drawn motion-blurred (_rotorBlur) instead of strobing
     const p1 = Math.abs(o.N1pct) / 100, p2 = o.N2pct / 100;
-    this.g1.rotation.x += Math.sign(o.N1) * Math.pow(p1, 0.55) * 16 * dt;
-    this.g2.rotation.x += Math.pow(p2, 0.55) * 26 * dt;
+    const w1 = Math.sign(o.N1 || 1) * p1 * 5650 * Math.PI / 30, w2 = p2 * 14950 * Math.PI / 30;
+    this.g1.rotation.x += w1 * dt; this.g2.rotation.x += w2 * dt;   // (not wrapped: the drive train follows the HP angle's change)
     if (this.spinNodes && this.spinNodes.length) {   // the drive train follows the HP spool's angle
       const a = this.g2.rotation.x, d = this._spinA == null ? 0 : a - this._spinA; this._spinA = a;
       if (d) for (const s of this.spinNodes) { s.ang = (s.ang + s.ratio * d) % TAU; s.node.quaternion.copy(s.q0).multiply(_spinQ.setFromAxisAngle(_X, s.ang)); }
@@ -1645,11 +1701,12 @@ export class Scene3D {
       }
       this._deepShown = this.cutaway; this._missShown = anyMiss;
     }
-    for (const d of this._dmgMeshes || []) {   // damaged copies follow the cutaway like the rows they belong to
+    this._rotorBlur(w1, w2, anyMiss ? miss : null);
+    for (const d of this._dmgMeshes || []) {   // damaged copies follow the cutaway like the rows they belong to, and blur away with them
       const th = d.im.userData.ths[d.i] + (d.group ? d.group.rotation.x : 0);
-      d.mesh.visible = d.im.visible && !(this.cutaway && (d.rotor ? inDeep(th) : inCut(th)));
+      d.mesh.visible = d.im.visible && d.im.count > 0 && !(this.cutaway && (d.rotor ? inDeep(th) : inCut(th)));
     }
-    this.fanBlur.material.opacity = this.byId.fan.removed ? 0 : clamp(p1 * 0.2, 0, 0.16);
+    this.fanBlur.material.opacity = this.byId.fan.removed ? 0 : clamp(p1 * 1.2, 0, 0.3);
     this.fanBlur.position.x = 0.16 + this.byId.fan.ex * this.explode * 1.5;
     this._reverser(o.rev || 0);
     this._cowls(o, dt);

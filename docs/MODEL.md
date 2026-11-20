@@ -570,6 +570,21 @@ Conventions the loader understands:
 
 ## Smoke, fire and other effects
 
+**Spool speeds and motion blur.** Both spools turn at their true speeds, the same numbers the gauges and the sound
+use: N1 100 % is 5,650 rpm, N2 100 % is 14,950 rpm. Before, the display speed was compressed (about 16 and 26
+rad/s at full power), so a fan at take-off looked like tens of rpm.
+
+At real speed a blade row would strobe on screen, so rows are motion-blurred against a nominal 1/90 s exposure:
+- **Slow (starting, windmilling):** while a row sweeps less than about a sixth of a blade pitch per exposure, it
+  is drawn sharp.
+- **Faster:** faded copies of the row are spread over the arc it sweeps (12 copies for the fan, 6 for the
+  booster, compressor and turbine rows), and the sharp row fades.
+- **Full blur:** once a row sweeps a whole pitch the sharp row is dropped. The blades merge into the hazy,
+  darker disc a running fan becomes.
+
+The spinner's white spiral is smeared the same way, and damaged-blade copies hide with the sharp row. The copies
+follow the cutaway and released blades.
+
 **Reverse thrust.** With the reverser deployed, fan air leaves through the cascades, forward and outward at
 about 45°. In flow mode, the share of the bypass streamlines that the blocker doors turn out (in proportion
 to the door angle) rises through the cascade band and streams forward over the fan cowl, slowing and fading.
