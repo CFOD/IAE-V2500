@@ -412,6 +412,46 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     # zigzags round the core: removed. The core carries its named services - fuel, oil, harnesses A and B, ignition
     # leads, EGT harness, bleed and cooling ducts - from the routes above.)
 
+
+    # ================================================================== more real fan case and gearbox lines (hand-routed from the references)
+    # Oil scavenge return (Airbus TTM oil system): scavenge filter -> FCOC oil inlet; FCOC oil outlet -> tank return
+    T(L('fcoc'), fan, [(0.8, 149.5, 0.05), (0.84, 147.5, 0.065), (0.97, 141.0, 0.065), (1.02, 136.0, 0.062), (1.02, 133.5, 0.06)], n=1, radius=0.011, mat='ss', rb=0.05, every=0.16)
+    T(L('fcoc'), fan, [(1.02, 113.0, 0.06), (0.9, 111.5, 0.055), (0.72, 112.5, 0.055), (0.62, 116.0, 0.06), (0.58, 118.5, 0.07)], n=1, radius=0.011, mat='ss', rb=0.05, every=0.16)
+    T(L('fcoc'), fan, [(0.8, 152.0, 0.05), (0.86, 150.0, 0.03), (0.86, 146.0, 0.03)], n=1, radius=0.005, mat='cad', rb=0.03)                               # scavenge oil pressure port line (booklet p. 45)
+    # EEC pressure sense lines (booklet p. 23: Pb (P3), P2.5, P4.9) up from the bulkhead panel to the EEC's lower face, aft of the solenoids
+    for k in range(3):
+        o = 0.012 * k
+        T(D, fan, [(1.19, 178.5 + k, panel_h(1.19)), (1.17, 190 + 2 * k, 0.03 + o / 2), (1.02, 206, 0.028 + o / 2), (0.93, 232, 0.03 + o / 2), (0.93 - o, 262, 0.03), (0.93 - o, 284, 0.03),
+                   (0.76 - o, 293 + k, 0.034), (0.68, 296.5 + 1.2 * k, 0.03)], n=1, radius=0.0025, mat='cad', rb=0.04, every=0.17)
+    # EEC cooling air (booklet p. 23: EEC cooling inlet/outlet): fan air from a port on the case into the EEC's forward end
+    L('antiice').duct(fan_base, [(0.19, 318, 0.0), (0.19, 318, 0.055), (0.25, 312, 0.065), (0.29, 309, 0.065)], 0.014, M['duct'], M['flange'], rb=0.03, ports=(True, False), port_mat=M['boss'])
+    # P12.5 cooling air to the engine dedicated alternator (booklet p. 29) on the gearbox front face
+    L('antiice').duct(fan, [(0.27, 191, 0.0), (0.27, 191, 0.05), (0.31, 186.5, 0.11), (0.335, 184.0, 0.13)], 0.011, M['duct'], M['flange'], rb=0.03, ports=(True, False), port_mat=M['boss'])
+    # alternator (EDA) power harnesses to the EEC (channels A and B, booklet p. 29) and the FMU / fuel flow meter harness
+    # legs (booklet p. 57: PRSOV connector, EEC channel A and B connectors, fuel flow meter), off the left trunk
+    for k in range(2):
+        H(D, fan, [(0.33, 185.5 + 2 * k, 0.12), (0.28, 214 + 2 * k, 0.05), (0.28, 246, 0.05), (0.27, 280 + 3 * k, 0.05), (0.29, 296 + 3 * k, 0.04)], radius=0.008, conn=(True, True), rb=0.05)
+    for k, (xe, te) in enumerate(((1.06, 158.0), (1.1, 160.0), (1.14, 162.0), (1.0, 154.0))):
+        H(D, fan, [(0.95, 102 + 2 * k, 0.07), (1.0, 112 + 2 * k, 0.075), (1.07, 140, 0.075), (xe, te - 2, 0.07), (xe, te, 0.075)], radius=0.006, conn=(False, True), rb=0.04)
+    # chip detectors and oil temperature sensor at the gearbox (booklet pp. 53-55) off the left trunk
+    for k, (xe, te) in enumerate(((0.62, 150.0), (0.7, 151.0))):
+        H(D, fan, [(0.86, 100 + 3 * k, 0.03), (0.86, 128 + 3 * k, 0.03), (0.8, 142 + 2 * k, 0.04), (xe, te - 1, 0.05), (xe, te, 0.06)], radius=0.005, conn=(False, True), rb=0.04)
+    # N1 speed sensors (booklet p. 25) at the front of the fan case, harness from the EEC's J9 forward
+    for k, th in enumerate((262.0, 268.0)):
+        T(D, fan, [(0.05, th, 0.0), (0.05, th, 0.02)], n=1, radius=0.014, mat='ss', rb=0.01, boss=(True, False), nuts=False, clamp=False)   # sensor boss
+        H(D, fan, [(0.05, th, 0.035), (0.15, th + 2, 0.03), (0.15, 284 + 3 * k, 0.03), (0.26, 292 + 2 * k, 0.04)], radius=0.006, conn=(True, False), rb=0.04)
+    # accessory seal drains to the drain mast (MTU familiarization, combined drains): starter, IDG, hydraulic pump, fuel
+    # pump and alternator pad drains, run along the gearbox's sides to a collector behind it
+    drain_c = (0.86, 180.0, 1.03 - fan(0.86))
+    for A_, side in (((0.37, 199.5, 0.976 - fan(0.37) + 0.06), 1), ((0.77, 199.5, 0.976 - fan(0.77) + 0.07), 1), ((0.37, 169.5, 0.975 - fan(0.37) + 0.06), -1),
+                     ((0.77, 163.5, 0.97 - fan(0.77) + 0.07), -1), ((0.37, 185.5, 0.99 - fan(0.37) + 0.08), 1)):
+        tside = 214.5 if side > 0 else 145.5
+        T(D, fan, [A_, (A_[0] + 0.01, tside, 0.07), (0.82, tside, 0.07), (0.86, 180 + side * 6, drain_c[2]), (0.86, 180 + side * 1.2, drain_c[2])], n=1, radius=0.003, mat='ss', rb=0.03, every=0.15)
+    D._put(180.0, lambda a: a.box(cyl_to_blender(*drain_c[:2], fan(0.86) + drain_c[2]), Vector((1, 0, 0)), Vector((0, 0, 1)), Vector((0, 1, 0)), 0.05, 0.05, 0.03, M['act']))
+    # ignition exciter cooling duct (booklet p. 25: corrugated cooling duct) from the fan frame to the exciters
+    for th in (226.0, 244.0):
+        C.hose([(1.27, th - 6, 0.5), (1.36, th - 3, 0.47), (1.44, th, core(1.44) + 0.07)], 0.011, M['fire'], M['nut'])
+
     # ================================================================== flexible hoses
     D.hose([(1.0, 3.5, 0.945), (1.09, 4.5, 0.97), (1.14, 5.0, 1.03)], 0.011, M['fire'], M['nut'])   # HCU pressure hose, up into the pylon between the hinge lines
     D.hose([(1.13, 356, 0.92), (1.12, 2, 0.98), (1.15, 8, 1.0)], 0.009, M['fire'], M['nut'])

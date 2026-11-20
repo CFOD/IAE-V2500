@@ -357,6 +357,22 @@ Real core lines were then added one by one, each routed by hand from a reference
   clearance-control actuator and fuel manifold, to a drain collector at the lower bifurcation.
 - **P4.9 (EPR) rake sense lines:** from the exhaust case struts forward to the bifurcation.
 
+On the fan case and gearbox, also hand-routed:
+- **Oil scavenge return** (Airbus oil system): scavenge filter to the FCOC, FCOC to the tank, and the
+  scavenge oil pressure port line.
+- **EEC pressure sense lines** (Pb, P2.5, P4.9; booklet p. 23): up from the bulkhead panel, aft of the
+  solenoids, to the EEC's lower face.
+- **EEC cooling air:** a fan-air duct into the EEC's forward end.
+- **P12.5 cooling air** (booklet p. 29) to the dedicated alternator on the gearbox front face.
+- **Harnesses:**
+  - the alternator's two power harnesses to the EEC;
+  - legs off the left trunk to the FMU (PRSOV connector, EEC channel A and B connectors) and the fuel flow
+    meter (booklet p. 57), and to the chip detectors and oil temperature sensor at the gearbox (pp. 53-55);
+  - N1 speed sensors on bosses at the front of the fan case, harnessed to the EEC (p. 25).
+- **Accessory seal drains** (MTU combined drains): from the starter, IDG, hydraulic pump, fuel pump and
+  alternator pads, along the gearbox's sides to a drain collector behind it.
+- **Ignition exciter cooling ducts** (booklet p. 25): corrugated hoses from the fan frame to the exciters.
+
 The fan case wiring and tubing is the original packed layout: harness and tube runs between the units'
 ports, laid in the bays between the stiffening ribs. Two attempts to rebuild it were reverted:
 - a reference-based layout of harness trunks and breakout legs, which came out sparse;
