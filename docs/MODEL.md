@@ -344,6 +344,19 @@ On the core, the 34 packed filler runs from the original build were removed. The
 circumferential-then-axial steps, which read as zigzags round the back of the engine. The core keeps its named
 services: fuel, oil, harnesses A and B, ignition leads, the EGT harness, and the bleed and cooling ducts.
 
+Real core lines were then added one by one, each routed by hand from a reference:
+- **Stage 2.5 booster bleed actuators** (NTSB ENG14IA028 photos; Airbus *compressor airflow control*): a
+  master on the left above the VSV actuator and a slave on the right, on the intermediate case. Each has
+  servo-fuel extend and retract lines from the bifurcation.
+- **No. 5 bearing oil pressure and scavenge tubes** (IAE service bulletin V2500-ENG-72-0660; NTSB
+  ENG14IA001): aft along the bottom of the turbine cases, outside the clearance-control rings, into the
+  exhaust case struts at 166° and 194°.
+- **HP valve and pressure regulating valve sense lines:** up beside the bleed ducts to the pylon.
+- **No. 4 bearing compartment air-oil spill line:** down to the bifurcation.
+- **Core accessory drains** (MTU *combined drains*): from the fuel distribution valve, VSV actuator,
+  clearance-control actuator and fuel manifold, to a drain collector at the lower bifurcation.
+- **P4.9 (EPR) rake sense lines:** from the exhaust case struts forward to the bifurcation.
+
 The fan case wiring and tubing is the original packed layout: harness and tube runs between the units'
 ports, laid in the bays between the stiffening ribs. Two attempts to rebuild it were reverted:
 - a reference-based layout of harness trunks and breakout legs, which came out sparse;

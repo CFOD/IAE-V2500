@@ -10,6 +10,7 @@ between the right end points.
 """
 import math
 from pipes import Dresser, cyl_to_blender
+from mathutils import Vector
 import accessories as AC
 
 
@@ -276,6 +277,51 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     L('bufferair').duct(core, [(1.84, 158, 0.04), (2.0, 158, 0.06), (2.15, 152, 0.13), (2.215, 152, 0.135)], 0.018, M['duct'], M['flange'], rb=0.06, joints=(0.5,))   # into the buffer air cooler
     # sense lines along the HPC (P3 to the EEC via the bifurcation, No. 4 bearing pressure)
     T(C, core, [(1.42, 179, hc + 0.06), (1.9, 186, hc + 0.06), (1.9, 230, hc + 0.06), (2.0, 232, 0.05)], n=3, d=0.01, radius=0.0025, mat='cad', rb=0.03)
+
+    # ================================================================== more real core lines (hand-routed from the references)
+    # Stage 2.5 booster bleed valve actuators (NTSB ENG14IA028 photos 3-5 and 18-19; Airbus TTM 'compressor airflow
+    # control'): a master on the left above the VSV actuator and a slave on the right, on the intermediate case, each
+    # worked by servo fuel through an extend and a retract line from the FMU group at the bifurcation.
+    for th, tag in ((128, 'master'), (232, 'slave')):
+        xa, ha = 1.02, 0.03
+        p0 = cyl_to_blender(xa - 0.07, th, core(xa) + ha); p1 = cyl_to_blender(xa + 0.07, th, core(xa) + ha)
+        rod = cyl_to_blender(xa + 0.13, th, core(xa) + ha)
+        def act(a, p0=p0, p1=p1, rod=rod, th=th, xa=xa, ha=ha):
+            a.cyl(p0, p1, 0.024, M['act'], 18); a.cyl(p1, rod, 0.008, M['fitting'] if 'fitting' in M else M['nut'], 10)
+            for q in (p0, rod): a.cyl(q - (p1 - p0).normalized() * 0.008, q + (p1 - p0).normalized() * 0.008, 0.012, M['brk'], 12)   # rod-end and mount lugs
+            for k in (0.25, 0.75):   # extend / retract ports
+                b = p0.lerp(p1, k); c = cyl_to_blender(xa - 0.07 + 0.14 * k, th, core(xa) + ha + 0.034)
+                a.cyl(b, c, 0.0045, M['nut'], 6)
+        C._put(th, act)
+        sgn = -1 if th < 180 else 1
+        for k, dth in enumerate((-1.5, 1.5)):
+            xk = xa - 0.035 + 0.07 * k
+            T(L('servofuel'), core, [(xk, th + dth * 0.3, ha + 0.034), (xk, th + dth, 0.075), (1.2, th + sgn * 8 + dth, 0.075), (1.32, 180 + sgn * (6 + 2 * k), 0.03), (1.36, 180 + sgn * (3 + k), 0.022)],
+              n=1, radius=0.003, mat='cad', rb=0.04, every=0.16)
+    # No. 5 bearing oil pressure and scavenge tubes (IAE SB V2500-ENG-72-0660; NTSB ENG14IA001 photo 9): from the
+    # bifurcation aft along the bottom of the turbine cases, outside the clearance-control rings, into the exhaust case
+    # struts at 166 and 194 deg
+    for th_end, r, th_lane in ((166.15, 0.0065, 176.0), (193.85, 0.0095, 184.0)):
+        T(C, core, [(2.0, th_lane, 0.03), (2.2, th_lane, 0.085), (2.98, th_lane, 0.085), (3.03, th_end, 0.06), (3.06, th_end, 0.0)],
+          n=1, radius=r, mat='ss', rb=0.06, every=0.18, boss=(False, True))
+    # HP valve and pressure regulating valve sense lines, up beside the bleed ducts to the pylon (NTSB photos 15-16, 47-49)
+    for x0, th0, dth in ((1.58, 36.0, 4.0), (1.8, 326.0, -4.0), (1.66, 18.0, 3.0)):
+        T(C, core, [(x0, th0, 0.0), (x0, th0, 0.05), (x0 - 0.04, th0 - dth * 3, 0.1), (1.54, 6.0 + dth, 0.22), (1.54, 6.0 + dth, 0.52)],
+          n=1, radius=0.003, mat='ss', rb=0.04, every=0.15, boss=(True, False))
+    # No. 4 bearing compartment air-oil spill line (NTSB photo 10): down to the bifurcation beside the oil feed
+    T(C, core, [(1.94, 168.0, 0.0), (1.9, 170.0, 0.04), (1.62, 176.0, 0.035), (1.5, 179.0, 0.022)], n=1, radius=0.006, mat='ss', rb=0.05, boss=(True, False))
+    # core accessory drains (MTU familiarization, combined drains): FDV, VSV actuator, ACC actuator and fuel manifold drains
+    # down to a drain collector at the lower bifurcation, from which the combined drain runs forward to the drain mast
+    coll = (1.42, 180.0)
+    for A in ((1.775, 312.0, 0.07), (1.2, 146.0, 0.06), (2.06, 280.0, 0.09), (1.98, 196.0, 0.03), (2.02, 164.0, 0.03)):
+        sgn = 1 if A[1] > 180 else -1
+        T(C, core, [A, (A[0], A[1], 0.03), (min(A[0], 1.9), 180 + sgn * 9, 0.028), (coll[0] + 0.03, coll[1] + sgn * 2.5, 0.022)], n=1, radius=0.0028, mat='ss', rb=0.03, every=0.14)
+    C._put(180.0, lambda a: a.box(cyl_to_blender(coll[0], coll[1], core(coll[0]) + 0.02), Vector((1, 0, 0)), Vector((0, 0, 1)), Vector((0, 1, 0)), 0.05, 0.04, 0.025, M['act']))
+    # P4.9 (EPR) rake sense lines from the exhaust case struts forward to the bifurcation (Airbus TTM EPR indicating)
+    for k, th0 in enumerate((166.0, 249.0, 83.0)):
+        lane = 172.0 + 1.6 * k if th0 < 180 else 188.0 - 1.6 * k
+        T(C, core, [(3.03, th0, 0.0), (3.0, th0, 0.1), (2.96, lane, 0.1), (2.2, lane, 0.1), (2.0, lane, 0.06), (1.9, 180 + (lane - 180) * 0.5, hc + 0.06)],
+          n=1, radius=0.0025, mat='cad', rb=0.05, every=0.2, boss=(True, False))
 
     # ================================================================== dense service lines
     # Many small-bore lines (sense, drain, servo, oil and fuel feeds) run between the components. Each
