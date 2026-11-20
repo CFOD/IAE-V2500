@@ -340,6 +340,10 @@ until they turn up into it.
 
 ### Fan case dressing
 
+On the core, the 34 packed filler runs from the original build were removed. The packer routed every tube as
+circumferential-then-axial steps, which read as zigzags round the back of the engine. The core keeps its named
+services: fuel, oil, harnesses A and B, ignition leads, the EGT harness, and the bleed and cooling ducts.
+
 The fan case wiring and tubing is the original packed layout: harness and tube runs between the units'
 ports, laid in the bays between the stiffening ribs. Two attempts to rebuild it were reverted:
 - a reference-based layout of harness trunks and breakout legs, which came out sparse;

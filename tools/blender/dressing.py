@@ -362,23 +362,9 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
           (2.2, 236, 0.07), (2.2, 250, 0.07), (2.3, 152, 0.06), (2.6, 190, 0.02), (1.45, 222, 0.04), (1.45, 240, 0.04), (2.0, 232, 0.05), (2.0, 166, 0.03),
           (1.45, 180, 0.03), (1.6, 180, 0.03), (1.75, 180, 0.03), (1.9, 182, 0.04), (2.02, 200, 0.04), (2.02, 140, 0.04), (2.25, 210, 0.05), (2.25, 120, 0.05),
           (2.5, 220, 0.03), (2.5, 140, 0.03), (1.6, 220, 0.04), (1.6, 300, 0.04), (1.95, 260, 0.05), (1.95, 300, 0.05)]
-    made_n = 0; tries = 0
-    while made_n < 34 and tries < 500:
-        tries += 1
-        A, B = rng.sample(CA, 2)
-        if abs(A[0] - B[0]) < 0.06 and abs(A[1] - B[1]) < 6: continue
-        n = rng.choice([1, 1, 2, 2, 3]); r = rng.choice([0.0025, 0.003, 0.004, 0.005]); d = 2.2 * r + 0.006
-        into_case = rng.random() < 0.4 and B[0] > 1.4   # a share of the lines end at a port in the casing
-        hb = 0.0 if into_case else B[2]
-        way = route_core((A[0], A[1] + rng.uniform(-2, 2), A[2]), (B[0], B[1] + rng.uniform(-2, 2), hb), (n - 1) * d + 2 * r)
-        if way is None: continue
-        T(C, core, way, n=n, d=d, radius=r, mat=rng.choice(['ss', 'ti', 'ti', 'cad']), rb=0.025 + 0.004 * n, every=0.18, boss=(False, into_case))
-        made_n += 1
-    for A, B, r in (((2.1, 220, 0.05), (1.6, 300, 0.04), 0.007), ((2.1, 160, 0.05), (1.36, 140, 0.07), 0.006), ((2.1, 280, 0.05), (2.08, 284, 0.06), 0.005),
-                    ((2.1, 200, 0.05), (2.5, 220, 0.03), 0.006)):
-        way = route_core(A, B, 2 * r)
-        if way: H(C, core, way, radius=r, conn=(False, True))
-
+    # (the 34 packed filler runs that were here routed every tube as circumferential-then-axial steps, which read as
+    # zigzags round the core: removed. The core carries its named services - fuel, oil, harnesses A and B, ignition
+    # leads, EGT harness, bleed and cooling ducts - from the routes above.)
 
     # ================================================================== flexible hoses
     D.hose([(1.0, 3.5, 0.945), (1.09, 4.5, 0.97), (1.14, 5.0, 1.03)], 0.011, M['fire'], M['nut'])   # HCU pressure hose, up into the pylon between the hinge lines
