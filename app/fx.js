@@ -222,6 +222,8 @@ export class Billows {
     const blending = this.mode === 'smoke' ? THREE.NormalBlending : this.mode === 'glow' ? THREE.AdditiveBlending : THREE.CustomBlending;
     const mat = new THREE.ShaderMaterial({ uniforms: this.u, vertexShader: VERT, fragmentShader: frag, transparent: true, depthWrite: false, blending, side: THREE.DoubleSide });
     if (this.mode === 'fire') { mat.blendSrc = THREE.OneFactor; mat.blendDst = THREE.OneMinusSrcAlphaFactor; mat.blendEquation = THREE.AddEquation; }
+    // glow writes light already scaled by its own alpha (alpha 0): add it as is. (THREE.AdditiveBlending multiplies by the source alpha, so it added nothing.)
+    if (this.mode === 'glow') { mat.blending = THREE.CustomBlending; mat.blendSrc = THREE.OneFactor; mat.blendDst = THREE.OneFactor; mat.blendEquation = THREE.AddEquation; }
     this.mesh = new THREE.Mesh(g, mat); this.mesh.frustumCulled = false; this.mesh.visible = false; this.mesh.userData.softFx = true; this.mesh.renderOrder = o.order ?? (this.mode === 'smoke' ? 5 : 6);
     this.order = new Uint16Array(n); this.depth = new Float32Array(n);
     scene.add(this.mesh);

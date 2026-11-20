@@ -497,6 +497,20 @@ Conventions the loader understands:
 
 ## Smoke, fire and other effects
 
+**Reverse thrust.** With the reverser deployed, fan air leaves through the cascades, forward and outward at
+about 45°. In flow mode, the share of the bypass streamlines that the blocker doors turn out (in proportion
+to the door angle) rises through the cascade band and streams forward over the fan cowl, slowing and fading.
+The rest still exits the nozzle. There are no cascades over the pylon or the lower bifurcation, so none come
+out there.
+
+The efflux itself is air, visible only with moisture in it. It is drawn as a faint additive vapour sheet,
+scaled by bypass flow and much stronger in humid air: from about 5 % brightness when dry to about 35 % at
+100 % relative humidity. The weather's humidity reaches the scene with the inlet-condensation model.
+
+The `glow` blend mode (light-only puffs, such as the faint exhaust glow) now adds its light one-to-one. It
+used three.js additive blending, which multiplies by the source alpha. Glow writes alpha 0, so it had been
+adding nothing.
+
 `app/fx.js` draws them; `scene3d.js` places them. A 256 x 256 tileable noise texture is baked at start-up
 (smooth fbm, fine fbm, cauliflower "billow" noise, ridged turbulence) and every effect samples it.
 

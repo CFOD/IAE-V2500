@@ -896,6 +896,10 @@ export class Scene3D {
     this.burstSmoke = new Billows(S, 180, { life: 2.6, size0: 0.25, size1: 1.6, turb: 0.25, drag: 1.4, buoy: [0, 0.5, 0], colA: [0.09, 0.085, 0.08], colB: [0.12, 0.12, 0.12], colC: [0.22, 0.22, 0.23], alpha: 0.55, lit: 0.6, detail: 0.35, seed: 37 });
     // leaks: fuel vapour and escaping air as faint wisps
     this.mist = new Billows(S, 360, { life: 0.7, size0: 0.05, size1: 0.35, turb: 0.2, drag: 2.5, buoy: [0, 0.2, 0], colA: [0.95, 0.94, 0.88], colB: [0.96, 0.96, 0.95], colC: [1, 1, 1], alpha: 0.16, lit: 0.25, soft: 1.1, detail: 0.8, seed: 43 });
+    // reverse thrust: fan air turned out and forward by the cascades. Air is invisible; with moisture in it the
+    // turning and the pressure drop make a faint vapour sheet, so this is drawn faint, stronger in humid air.
+    this.revMist = new Billows(S, 600, { additive: true, life: 0.55, size0: 0.08, size1: 0.6, turb: 0.25, drag: 3.6, buoy: [0, 0.05, 0], colA: [0.55, 0.57, 0.6], colB: [0.42, 0.43, 0.46], colC: [0.2, 0.21, 0.22],
+      alpha: 0.5, soft: 1.0, seed: 53 });   // light scattered by the vapour: it can only add light (normal blending left grey stains on the white cowl)
     this.fail = { sparks: 0, smoke: 0, fire: 0 };
     // part failures (failures.js): bursts of debris, leaking fluids and air, parts torn off
     this.debris = new Shards(this.scene, 220);
@@ -1691,6 +1695,13 @@ export class Scene3D {
         else if (x < 0.4) { lo = rAt(P.spinner, x); hi = 0.8; c = c2; const m = lerp(lo, hi, 0.36); if (p.core) hi = m; else lo = m; }
         else if (p.core) { lo = rAt(P.coreInner, Math.min(x, 3.95)); hi = x > 3.12 ? lerp(0.44, 0.3, clamp((x - 3.12) / 2.0, 0, 1)) : rAt(P.coreOuter, x); c = x < 1.0 ? c25 : x < 1.9 ? c3 : x < 2.3 ? c4 : c5; a = x > P.X_EXIT - 0.2 ? clamp(1 - (x - P.X_EXIT + 0.2) / 1.1, 0, 1) : 1; }
         else { lo = x > 3.12 ? lerp(0.46, 0.3, clamp((x - 3.12) / 2.0, 0, 1)) : rAt(P.bypInner, x); hi = rAt(P.bypOuter, Math.min(x, P.X_EXIT)); c = cB; a = x > P.X_EXIT ? clamp(1 - (x - P.X_EXIT) / 0.9, 0, 1) : 1; }
+        if (!p.core && p.rev && x > p.xs) {   // reversed: up through the cascade at p.xs, then out and forward at about 45 deg, slowing and spreading
+          const d = x - p.xs, r0 = lerp(lo, hi, 0.06 + 0.88 * p.v), rc = rAt(P.bypOuter, p.xs), ro = rAt(P.nacelle, p.xs) + 0.03;
+          const up = Math.min(d, 0.25) / 0.25, s = Math.max(0, d - 0.25), ang = 0.72 + 0.25 * p.k - 0.18 * Math.min(1, s / 1.4);   // the jet bends a little back towards the axis as it slows
+          const rr2 = up < 1 ? lerp(r0, ro, up * up * (3 - 2 * up)) : ro + s * Math.sin(ang), xx = up < 1 ? p.xs - 0.04 * up : p.xs - 0.04 - s * Math.cos(ang);
+          const th2 = p.th, yy2 = rr2 * Math.cos(th2);
+          out[0] = xx + ex * 0.2 * (xx - 1.5); out[1] = yy2; out[2] = rr2 * Math.sin(th2); out[3] = cB; out[4] = up < 1 ? 1 : clamp(1 - s / 1.6, 0, 1); return;
+        }
         const rr = lerp(lo, hi, 0.06 + 0.88 * p.v);
         // swirl picked up from the rotating blade rows, taken out again by the stators behind them
         const sw = p.core ? swirl2 * (bell(x, 1.5, 0.35) + bell(x, 2.32, 0.1)) + swirl1 * (bell(x, 0.65, 0.2) + bell(x, 2.72, 0.25)) : swirl1 * bell(x, 0.35, 0.3);
@@ -1699,10 +1710,17 @@ export class Scene3D {
         out[0] = scarfX(x, yy) + ex * 0.2 * (x - 1.5); out[1] = yy - scarfDroop(x); out[2] = rr * Math.sin(th); out[3] = c; out[4] = a;
       };
       const h = [0, 0, 0, null, 0], tl = [0, 0, 0, null, 0];
+      this._revFrac = this.revKin ? clamp((this._revA || 0) / 1.45, 0, 1) : clamp(o.rev || 0, 0, 1);
+      if (this._revFrac < 0.02) for (const p of this.airP) p.rev = false;
       for (let i = 0; i < this.nAir; i++) {
         const p = this.airP[i], v = (p.core ? vC : vB) * p.k;
         p.u += (v * dt) / span;
-        if (p.u > 1 || p.u < 0) { p.u -= Math.floor(p.u); p.v = Math.random(); p.th = Math.random() * TAU; }
+        if (p.u > 1 || p.u < 0) {
+          p.u -= Math.floor(p.u); p.v = Math.random(); p.th = Math.random() * TAU;
+          // reverse thrust: the share of the bypass air the blocker doors turn out (none over the pylon and the lower bifurcation, where there are no cascades)
+          const thw = ((p.th % TAU) + TAU) % TAU, noCas = thw < 0.14 || thw > TAU - 0.14 || Math.abs(thw - Math.PI) < 0.05;
+          p.rev = !p.core && !noCas && Math.random() < this._revFrac; p.xs = 1.78 + 0.44 * Math.random();
+        }
         const len = clamp(Math.abs(v) * 0.045, 0.012, 0.16) / span * Math.sign(v || 1);
         at(p, p.u, h); at(p, clamp(p.u - len, 0, 1), tl);
         const j = i * 6, k = v === 0 ? 0 : h[4] * 0.85, c = h[3];
@@ -1734,6 +1752,21 @@ export class Scene3D {
     this.fireLight.intensity = F.fire * (5 + 2 * Math.sin(t * 23) + 1.5 * Math.sin(t * 37));
     const torchK = clamp(Math.max(o.wfUnburnt, o.torch || 0) / 0.05, 0, 1) + (o.lit && o.pool > 0.02 ? 0.6 : 0);
     this.torch.u.uSpeed.value = 3 + 14 * jet; this.torch.set(t, clamp(torchK, 0, 1));
+    // ---- reverse thrust efflux: puffs from the cascade band, out and forward, from all round but the pylon and the bifurcation
+    {
+      const fr = this.revKin ? clamp((this._revA || 0) / 1.45, 0, 1) : clamp(o.rev || 0, 0, 1), flow = clamp(Math.abs(o.Wbypass || 0) / 260, 0, 1.2);
+      const hum = env && env.rh != null ? clamp(env.rh / 100, 0, 1) : 0.5, rate = fr * flow * (0.25 + 0.75 * hum * hum) * (this.cowl.cd > 0.02 ? 0 : 1);
+      if (rate > 0.01 && dt > 0) {
+        const n = Math.min(40, Math.floor(rate * 800 * dt + Math.random())), sp = 4 + 8 * Math.sqrt(flow), ex2 = this.byId.cna ? this.byId.cna.ex * this.explode * 1.5 : 0;
+        for (let i = 0; i < n; i++) {
+          let th = Math.random() * TAU; if (th < 0.16 || th > TAU - 0.16 || Math.abs(th - Math.PI) < 0.06) continue;
+          const x = 1.78 + 0.42 * Math.random() + ex2, r = rAt(P.nacelle, x - ex2) + 0.01, ang = 0.7 + 0.25 * Math.random(), c = Math.cos(th), s = Math.sin(th), j = () => (Math.random() - 0.5) * 0.6;
+          this.revMist.emit(x, r * c, r * s, -Math.cos(ang) * sp + j(), Math.sin(ang) * sp * c + j(), Math.sin(ang) * sp * s + j());
+        }
+      }
+      this.revMist.u.uAlpha.value = 0.05 + 0.3 * hum * hum;   // a faint sheet in dry air, a clear one in humid air
+      this.revMist.set(t, 0);
+    }
 
     // ---- exhaust plume and heat haze
     const thr = clamp(o.Fg / 140e3, 0, 1), hotK = clamp((o.T5 - 400) / 500, 0, 1);

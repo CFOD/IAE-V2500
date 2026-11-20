@@ -51,7 +51,7 @@ function inletWeather(o) {
   const fog = Math.min(1, Math.max(0, (Td - Ts - 4) / 5));
   // a ground vortex needs a stationary engine close to the ground and a strong sink
   const vortex = eng.u.mach < 0.06 ? Math.min(1, Math.max(0, (V - 70) / 80)) : 0;
-  return { M, Ts, V, Td, fog, vortex };
+  return { M, Ts, V, Td, fog, vortex, rh: eng.u.rh };   // (rh: how visible the reverser's efflux is)
 }
 
 // ------------------------------------------------------------ control rows
