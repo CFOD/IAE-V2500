@@ -414,22 +414,31 @@ def oiltank(H, M):
     lower end, remote pressure-fill and overflow connections."""
     K, th, r = unit(H, 'oiltank')
     Ls, D, Rt = 0.12, 0.045, 0.074
-    prof = [(-(Ls + D * math.cos(t)), Rt * math.sin(t)) for t in [0.18 + (math.pi / 2 - 0.18) * i / 7 for i in range(8)]]
-    prof += [(Ls + D * math.cos(t), Rt * math.sin(t)) for t in [math.pi / 2 - (math.pi / 2 - 0.18) * i / 7 for i in range(8)]]
-    K.rev('ot', prof, M['cast'], axis=(0, 1, 0), seg=44)
-    for a in (-Ls, Ls): K.ring('ot', a - 0.003, a + 0.003, Rt, Rt + 0.0025, M['cast'], axis=(0, 1, 0))   # weld beads
-    for a in (-0.07, 0.07):                                                                       # saddles and straps
-        K.ring('ot', a - 0.01, a + 0.01, Rt + 0.0005, Rt + 0.004, M['steel'], axis=(0, 1, 0))
-        K.box('ot', (0.0, a, -0.0715), (0.09, 0.03, 0.005), M['cast'])                         # flat pads: the tank sits close on the case
-        K.hexa('ot', (0.0, a, Rt + 0.004), (0.0, a, Rt + 0.011), 0.005, M['nut'])               # strap tensioner
+    # (Airbus TTM oil system photo and booklet p. 49: a cast, box-shaped tank with rounded edges, not a cylinder)
+    HY, HZ = Ls + D - 0.002, Rt
+    st = []
+    for k in range(13):                                                            # rounded at both axial ends
+        u = -1 + 2 * k / 12; e = 1 - (abs(u) ** 6) * 0.28
+        st.append((u * Rt, 0.0, 0.0, HY * (0.93 + 0.07 * e), HZ * e))
+    K.loft('ot', st, M['cast'], n=48, e=0.32)
+    for yy in (-0.08, 0.0, 0.08):                                                  # cast stiffening ribs across the outer face
+        K.box('ot', (0.0, yy, HZ - 0.004), (2 * Rt - 0.02, 0.008, 0.012), M['cast'])
+    for a in (-0.07, 0.07):                                                        # mounting lugs and their bolts to the fan case
+        for sg in (-1, 1):
+            K.box('ot', (sg * (Rt + 0.006), a, -HZ + 0.012), (0.014, 0.028, 0.024), M['cast'])
+            K.hexa('ot', (sg * (Rt + 0.006), a, -HZ + 0.026), (sg * (Rt + 0.006), a, -HZ + 0.033), 0.006, M['nut'])
     d = Vector((0, 0.96, 0.28)).normalized(); b = Vector((0, 0.146, 0.018))                      # gravity filler, laid along the side under the cowl
     K.cyl('ot', b, b + d * 0.03, 0.019, 0.019, M['cast'], seg=24)
     K.ring('ot', 0.012, 0.02, 0.019, 0.03, M['steel'], origin=b, axis=d, seg=28)                # scupper
     K.cyl('ot', b + d * 0.03, b + d * 0.042, 0.025, 0.022, M['gold'], seg=24)                   # cap
     K.box('ot', b + d * 0.046, (0.04, 0.01, 0.008), M['gold'], Matrix.Rotation(math.atan2(d.z, d.y) - math.pi / 2, 4, 'X'))  # cap handle
-    K.box('ot', (Rt - 0.002, 0.02, 0.0), (0.006, 0.064, 0.03), M['steel'])                      # sight glass bezel
-    K.box('ot', (Rt + 0.0015, 0.02, 0.0), (0.003, 0.052, 0.02), M['glass'])
-    for y, w in ((0.042, 0.012), (-0.002, 0.012)): K.box('ot', (Rt + 0.004, y, 0.0), (0.002, w, 0.024), M['red'] if y < 0 else M['dark'])  # ADD / FULL marks
+    # sight glass: a long graduated plate, one grid per quart, screwed to the face (booklet p. 49)
+    K.box('ot', (Rt + 0.001, 0.02, 0.0), (0.006, 0.13, 0.036), M['steel'])
+    K.box('ot', (Rt + 0.0045, 0.02, 0.0), (0.002, 0.11, 0.009), M['glass'])
+    for k in range(9): K.box('ot', (Rt + 0.0045, -0.03 + 0.0125 * k, 0.0085), (0.0015, 0.0016, 0.006), M['dark'])
+    for yy in (-0.04, 0.08):
+        for zz in (-0.012, 0.012): K.hexa('ot', (Rt + 0.004, yy, zz), (Rt + 0.007, yy, zz), 0.0028, M['nut'])
+    K.box('ot', (Rt + 0.006, 0.069, 0.0), (0.002, 0.012, 0.022), M['dark']); K.box('ot', (Rt + 0.006, -0.03, 0.0), (0.002, 0.012, 0.022), M['red'])   # FULL / ADD
     K.cyl('ot', (Rt - 0.004, -0.06, 0.03), (Rt + 0.016, -0.06, 0.03), 0.015, 0.015, M['gold'], seg=24)   # quantity transmitter
     K.connector('ot', (Rt + 0.016, -0.06, 0.03), (1, 0, 0), M, size=0.8)
     for x, y, z in TANK_PORTS: K.fitting('ot', (x, -0.157, z), (0, -1, 0), 0.008, M)          # supply and return (gearbox lines)

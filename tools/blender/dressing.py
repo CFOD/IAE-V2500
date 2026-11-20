@@ -330,25 +330,53 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
           (1.08, 100, 0.06), (0.6, 48, 0.05), (0.66, 54, 0.05), (0.3, 6, 0.04), (0.4, 34, 0.06), (0.4, 46, 0.06), (0.3, 70, 0.07), (0.8, 60, 0.05), (1.13, 10, 0.14),
           (1.13, 18, 0.14), (1.17, 30, 0.02), (1.17, 60, 0.02), (1.17, 90, 0.02), (1.17, 120, 0.02), (1.17, 150, 0.02), (1.17, 170, 0.02), (1.17, 160, 0.02),
           (0.05, 20, 0.03), (0.05, 90, 0.03), (0.05, 150, 0.03), (0.36, 150, 0.1), (0.785, 159.5, 0.05)]
-    mats = ['ss', 'ss', 'ss', 'ti', 'cad', 'ss', 'ti']
-    for side, anchors, nrun in (('R', RH, 46), ('L', LH, 46)):
-        made_n = 0; tries = 0
-        while made_n < nrun and tries < 600:
-            tries += 1
-            A, B = rng.sample(anchors, 2)
-            if abs(A[0] - B[0]) < 0.08 and abs(A[1] - B[1]) < 6: continue
-            n = rng.choice([1, 1, 1, 2, 2, 3, 4]); r = rng.choice([0.0025, 0.003, 0.0035, 0.004, 0.005, 0.0065]); d = 2.2 * r + 0.006
-            jitter = lambda P: (P[0] + rng.uniform(-0.012, 0.012), P[1] + rng.uniform(-2.5, 2.5), P[2])
-            way = route_fan(jitter(A), jitter(B), (n - 1) * d + 2 * r)
-            if way is None: continue
-            T(D, fan, way, n=n, d=d, radius=r, mat=rng.choice(mats), rb=0.025 + 0.004 * n, every=0.2 + rng.uniform(0, 0.06),
-              boss=(A[2] <= 0.031, B[2] <= 0.031))   # low anchors are ports on the fan case itself
-            made_n += 1
-    # a few more harness branches on each side
-    for A, B, r in (((0.765, 302, 0.045), (1.17, 250, 0.02), 0.008), ((0.765, 306, 0.045), sav_plug, 0.006), ((0.27, 304, 0.05), (0.05, 330, 0.03), 0.006),
-                    ((0.88, 100, 0.06), (1.17, 80, 0.02), 0.007), ((0.6, 48, 0.05), (1.17, 40, 0.02), 0.006), ((0.36, 150, 0.1), (0.145, 120, 0.03), 0.006)):
+    # ---- fan case harnesses, laid out from the SR Technics component location booklet and the Airbus training
+    # manual photos: no filler. Thick white braided bundles from the EEC's connectors (J5, J7, J8, J9, J10, DEP) run
+    # in two channel trunks round the case, ridden on stand-off P-clamps between the stiffening ribs; a breakout leg
+    # runs from a trunk to every sensor and unit the booklet shows, each with its connector. Channel A rides the
+    # forward bay, channel B the aft one, so a single failure cannot cut both.
+    def bundle(way, radii, gap=0.004, conn=(True, True), rb=0.06):
+        """Two to four harness bundles laid side by side along one route (a flat group, as on the engine)."""
+        tot = sum(2 * r for r in radii) + gap * (len(radii) - 1); off = -tot / 2
+        for r in radii:
+            off += r
+            H(D, fan, [(x + off, th, h) for x, th, h in way], radius=r, conn=conn, rb=rb)
+            off += r + gap
+    def leg(A, B, r=0.006, conn=(False, True)):
         way = route_fan(A, B, 2 * r)
-        if way: H(D, fan, way, radius=r, conn=(True, True))
+        if way: H(D, fan, way, radius=r, conn=conn, rb=0.035)
+        else: print('fan case harness: no room for the leg', A, '->', B)
+        return way
+    # channel trunks: from the right side low, up over the top beside the pylon, down the left side to the oil tank
+    for xb, radii, th0, th1 in ((0.255, (0.012, 0.009, 0.007), 214, 506), (0.9, (0.013, 0.01), 206, 514)):
+        way = [(xb, th0, 0.02)] + [(xb, th0 + 3 + (th1 - th0 - 6) * k / 14, 0.034) for k in range(15)] + [(xb, th1, 0.02)]
+        bundle(way, radii, conn=(False, False))
+    # EEC connectors to the trunks: J5, J7, J8, J10 forward to channel A, J9 (N1 speed) and the DEP aft to channel B
+    for k, a in enumerate((298.0, 301.4, 304.8, 308.2)):
+        leg((0.765, a, 0.045), (0.255, 300 + 4 * k, 0.034), r=0.008 + 0.002 * (k % 2), conn=(True, False))
+    leg((0.765, 311.6, 0.045), (0.9, 316, 0.034), r=0.009, conn=(True, False))
+    # breakout legs from the trunks to the units and sensors (booklet pages 17-59)
+    for A, B, r in (
+            ((0.255, 252, 0.034), (0.26, 250, 0.01), 0.005),            # fan case P0 ambient pressure sensor plate
+            ((0.255, 318, 0.034), (0.29, 332, 0.06), 0.006),            # anti-ice valve position switch
+            ((0.255, 344, 0.034), (0.05, 340, 0.03), 0.007),            # P2/T2 probe and its heater, forward to the inlet flange
+            ((0.255, 360, 0.034), (0.3, 362, 0.045), 0.005),            # vibration pick-up at the top of the fan case
+            ((0.9, 238, 0.034), (0.9, 241, 0.09), 0.006),               # ACOC oil temperature thermocouple
+            ((0.9, 226, 0.034), (0.62, 224, 0.07), 0.006),              # starter valve position switch
+            ((0.9, 410, 0.034), (0.6, 408, 0.05), 0.006),               # oil pressure transmitter
+            ((0.9, 414, 0.034), (0.66, 414, 0.05), 0.005),              # low oil pressure switch
+            ((0.9, 460, 0.034), (0.98, 460, 0.06), 0.005),              # IDG oil temperature thermocouple
+            ((0.9, 480, 0.034), (1.02, 482, 0.07), 0.005),              # fuel temperature thermocouple on the FCOC
+            ((0.9, 494, 0.034), (0.95, 496, 0.08), 0.005),              # fuel filter differential pressure switch
+            ((0.9, 506, 0.034), (0.8, 509.5, 0.05), 0.005),             # scavenge filter differential pressure switch
+            ((0.255, 488, 0.034), (0.45, 492, 0.1), 0.006),             # oil quantity transmitter on the tank
+            ((0.255, 500, 0.034), (0.36, 506, 0.1), 0.006)):            # chip detector and oil temperature at the gearbox
+        leg(A, B, r)
+    # pressure sense lines into the EEC's lower face (booklet p. 23: P0, Pb (P3), P2, P2.5, P4.9 rake, P12.5 fan rake):
+    # small stainless tubes, the core ones up from the bulkhead panel
+    for k, (A, r) in enumerate((((0.255, 296, 0.02), 0.0028), ((1.17, 214, 0.02), 0.0032), ((1.17, 236, 0.02), 0.003), ((1.17, 268, 0.02), 0.003), ((0.9, 290, 0.02), 0.0028))):
+        way = route_fan(A, (0.69, 297 + 3.2 * k, 0.03), 2 * r + 0.004)
+        if way: T(D, fan, way, n=1, radius=r, mat='ss', rb=0.03, every=0.16, boss=(A[2] <= 0.02, False))
 
     # core: same treatment between the core components, below the core cowl
     CORE_BAYS = [1.43, 1.7, 2.1, 2.32]

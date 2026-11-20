@@ -323,6 +323,36 @@ Services only rise above the cowl inside the pylon, between the hinge lines. The
 reverser's hydraulic unit, the starter duct and the hydraulic, fuel and harness runs stay under the cowl skin
 until they turn up into it.
 
+### Fan case dressing
+
+The fan case dressing is laid out from the SR Technics *V2500 Component Location Manual* (right-hand and
+left-hand fan case pages) and the photos in the Airbus training manual (component location: FADEC, fuel and
+oil). It has no random filler. The 92 random tube runs the earlier build packed between the units were taken
+out: real fan cases carry far fewer rigid tubes and are dominated by braided harness.
+
+- **Harness trunks:** two trunks run round the case from the right side low, over the top beside the pylon,
+  and down the left side to the oil tank. Channel A (three bundles) rides the forward bay between the
+  stiffening ribs; channel B (two bundles) rides the aft one. They sit on stand-off cushion P-clamps, with
+  printed ID sleeves.
+- **EEC connectors:** J5, J7, J8 and J10 feed channel A; J9 (N1 speed) feeds channel B. Each connector is a
+  receptacle shell with a knurled coupling ring and a backshell.
+- **Breakout legs** run from a trunk to each unit and sensor the booklet shows:
+  - fan case P0 sensor, anti-ice valve switch, P2/T2 probe and heater, vibration pick-up;
+  - ACOC oil temperature thermocouple, starter valve switch;
+  - oil pressure transmitter, low oil pressure switch, IDG oil temperature thermocouple;
+  - FCOC fuel temperature thermocouple, fuel filter and scavenge filter ΔP switches;
+  - oil quantity transmitter, chip detector and oil temperature at the gearbox.
+- **Pressure sense lines** (P0, Pb, P2.5, P4.9 rake, P12.5) are small stainless tubes into the EEC's lower
+  face, the core ones up from the bulkhead panel.
+- **Relay box** (booklet p. 19): a black cover with staggered cooling slots. Channel A and B connectors come
+  out of the ends; IGN A, IGN B and P2/T2 heating connectors come out along the bottom edge.
+- **Bleed solenoid valves** (booklet p. 31): 7A, 7B, 7C and 10 in a row, with the make-up air valves below.
+  Each is an upright brass body on a mounting pad, with a round connector on top and servo-air tubes looping
+  from its fittings.
+- **Oil tank** (Airbus oil system photo, booklet p. 49): a cast, box-shaped tank with rounded edges,
+  stiffening ribs, bolted mounting lugs and a long graduated sight-glass plate (one grid per quart). It
+  replaces the earlier welded cylinder in the same space.
+
 ### Inside the fan cowl doors
 
 With the cowls open, each door shows its inner structure on the primer-green skin:

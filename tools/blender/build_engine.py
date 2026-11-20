@@ -11,6 +11,7 @@ and the others when it is off. Material names (paint, bare, section, ...) are sw
 simulator's own materials on load.
 """
 import bpy, bmesh, math, os, json
+from mathutils import Vector as _Vec
 
 OUT = os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'models')
 CUT_A, CUT_B = math.radians(-8), math.radians(112)  # must match scene3d.js
@@ -429,7 +430,11 @@ def build():
     eec = [box('eec', th_pos(0.5, 305, 0.895), (0.42, 0.3, 0.05), 305, gold), box('eeccover', th_pos(0.5, 305, 0.93), (0.4, 0.28, 0.025), 305, dark)]
     eec += [box('fin', th_pos(0.31 + 0.038 * k, 305, 0.947), (0.012, 0.28, 0.012), 305, dark) for k in range(11)]
     eec += [box('foot', th_pos(x, 305 + dth, 0.87), (0.05, 0.04, 0.03), 305 + dth, steel) for x in (0.33, 0.67) for dth in (-7.5, 7.5)]
-    eec += [cylinder('conn', th_pos(0.72, 298 + 3.4 * k, 0.905), th_pos(0.76, 298 + 3.4 * k, 0.905), 0.016, 0.016, steel, seg=12) for k in range(5)]
+    for k in range(5):   # J5, J7, J8, J10 and J9 (booklet p. 23): receptacle shell, knurled coupling ring, backshell
+        a_ = 298 + 3.4 * k
+        eec += [cylinder('conn', th_pos(0.712, a_, 0.905), th_pos(0.732, a_, 0.905), 0.0165, 0.0165, gold, seg=16),
+                cylinder('connk', th_pos(0.732, a_, 0.905), th_pos(0.745, a_, 0.905), 0.0195, 0.0195, steel, seg=20),
+                cylinder('connb', th_pos(0.745, a_, 0.905), th_pos(0.765, a_, 0.905), 0.014, 0.0105, gold, seg=14)]
     made.append(finish(join('eec_box', eec), 0.003))
 
     # ---- fan case dressing all the way round. Items inside the cutaway sector are only shown with the cutaway closed.
@@ -447,8 +452,21 @@ def build():
     put(328, box('aiact', th_pos(0.665, 327.6, 0.932), (0.07, 0.06, 0.05), 327.6, dark))   # its actuator beside it, under the cowl skin
     # ignition exciters, relay box, air-cooled oil cooler and the engine data plate
     # right side, below the EEC: relay box, then the bank of bleed-valve solenoids (four in a row and two below)
-    for k in range(4): put(268, stack('sol', 0.55 + 0.085 * k, 270, 0.9, [(0.02, 0.022, 0.022), (0.035, 0.03, 0.03), (0.012, 0.018, 0.018)], gold))
-    for k in range(2): put(258, stack('sol', 0.7 + 0.085 * k, 259, 0.9, [(0.02, 0.022, 0.022), (0.035, 0.03, 0.03), (0.012, 0.018, 0.018)], gold))
+    # (booklet p. 31: handling bleed solenoid valves 7A, 7B, 7C and 10 in a row, make-up air valves below: upright brass
+    # bodies on a common mounting plate, a round electrical connector on top, servo-air tubes looping from the top
+    # fittings down past the plate to the bleed valves on the core)
+    def solenoid(x, th):
+        r0 = 0.872
+        put(th, box('solp', th_pos(x, th, r0 + 0.003), (0.05, 0.05, 0.006), th, cast))              # mounting pad
+        put(th, box('solb', th_pos(x, th, r0 + 0.03), (0.034, 0.04, 0.05), th, gold))                # valve body
+        put(th, box('solh', th_pos(x, th, r0 + 0.058), (0.03, 0.034, 0.008), th, gold))              # solenoid cap
+        put(th, cylinder('solc', th_pos(x, th, r0 + 0.062), th_pos(x, th, r0 + 0.084), 0.0105, 0.0105, steel, seg=14))   # connector
+        put(th, cylinder('solk', th_pos(x, th, r0 + 0.07), th_pos(x, th, r0 + 0.078), 0.0125, 0.0125, gold, seg=14))     # knurled coupling
+        for side in (-1, 1):                                                                           # air fittings, in and out
+            put(th, cylinder('solf', th_pos(x - 0.017, th + side * 1.05, r0 + 0.046), th_pos(x - 0.03, th + side * 1.05, r0 + 0.046), 0.0055, 0.0055, steel, seg=6))
+        put(th, tube('solt', [(x - 0.03, th + 1.05, r0 + 0.046), (x - 0.05, th + 1.4, r0 + 0.07), (x - 0.03, th + 2.6, r0 + 0.075), (x + 0.03, th + 3.4, r0 + 0.04), (x + 0.03, th + 5.5, r0 + 0.02)], 0.0028, steel))
+    for k in range(4): solenoid(0.56 + 0.075 * k, 270)
+    for k in range(2): solenoid(0.71 + 0.075 * k, 259.5)
     # left side: fuel-cooled oil cooler (tall gold cylinder) with the low-pressure fuel filter at its foot and the diverter valve on its flank; IDG oil cooler beside it
     put(122, cylinder('fcoc', th_pos(1.02, 114, 0.965), th_pos(1.02, 132, 0.965), 0.06, 0.06, gold, seg=24, dome=0.03))
     put(135, cylinder('lpfilter', th_pos(0.95, 136, 0.97), th_pos(1.09, 136, 0.97), 0.07, 0.07, gold, seg=24))
@@ -459,8 +477,22 @@ def build():
     put(2, cylinder('vib', th_pos(0.3, 2, 0.89), th_pos(0.3, 2, 0.92), 0.025, 0.02, steel, seg=12))
     put(238, box('acoc', th_pos(0.9, 238, 0.93), (0.3, 0.24, 0.09), 238, cast)); put(238, box('acocmesh', th_pos(0.9, 238, 0.977), (0.2, 0.16, 0.004), 238, dark))
     for k in range(9): put(238, box('acocfin', th_pos(0.815 + 0.021 * k, 238, 0.982), (0.004, 0.15, 0.008), 238, gold))
-    put(287, box('relay', th_pos(0.62, 287, 0.905), (0.18, 0.12, 0.05), 287, dark))
-    for k in range(3): put(287, cylinder('rc', th_pos(0.56 + 0.06 * k, 283.5, 0.905), th_pos(0.56 + 0.06 * k, 281, 0.905), 0.014, 0.014, steel, seg=10))
+    # relay box (booklet p. 19: ignition and P2/T2 heater relays): a black cover with rows of staggered cooling slots,
+    # channel A and B connectors either side, IGN A, IGN B and P2/T2 heating connectors along the bottom edge
+    put(287, box('relay', th_pos(0.62, 287, 0.895), (0.18, 0.12, 0.04), 287, dark))
+    put(287, box('relayc', th_pos(0.62, 287, 0.917), (0.172, 0.112, 0.006), 287, dark))
+    for row in range(5):
+        for col in range(4):
+            xs_ = 0.555 + 0.04 * col + (0.02 if row % 2 else 0.0)
+            if xs_ > 0.69: continue
+            put(287, box('relays', th_pos(xs_, 284.2 + 1.35 * row, 0.9205), (0.026, 0.006, 0.0016), 287, material('slot', (0.01, 0.01, 0.012), 0.0, 0.9)))
+    def mconn(a, b, r):   # a cylindrical connector: shell, knurled coupling ring, backshell
+        d = _Vec(b) - _Vec(a); m1 = _Vec(a) + d * 0.35; m2 = _Vec(a) + d * 0.6
+        return [cylinder('mc', a, tuple(m1), r * 0.92, r * 0.92, gold, seg=14), cylinder('mk', tuple(m1), tuple(m2), r * 1.12, r * 1.12, steel, seg=18), cylinder('mb', tuple(m2), b, r * 0.8, r * 0.65, gold, seg=12)]
+    for k in range(3):   # bottom edge: IGN A, IGN B, P2/T2 heating
+        for o in mconn(th_pos(0.58 + 0.04 * k, 283.6, 0.893), th_pos(0.58 + 0.04 * k, 280.6, 0.893), 0.011): put(287, o)
+    for xx, sg in ((0.53, -1), (0.71, 1)):   # channel A and B, out of the ends
+        for o in mconn(th_pos(xx, 288.5, 0.895), th_pos(xx + sg * 0.05, 288.5, 0.895), 0.012): put(287, o)
     put(250, box('plate', th_pos(0.26, 250, 0.892), (0.12, 0.08, 0.004), 250, steel))
     # inside the cutaway sector: hydraulic and fuel lines up to the pylon, T2/P2 probe wiring, a second relay box
     put(40, box('box', th_pos(0.4, 40, 0.905), (0.16, 0.12, 0.05), 40, dark))
