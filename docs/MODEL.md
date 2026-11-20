@@ -331,17 +331,22 @@ oil). It has no random filler. The 92 random tube runs the earlier build packed 
 out: real fan cases carry far fewer rigid tubes and are dominated by braided harness.
 
 - **Harness trunks:** two trunks run round the case from the right side low, over the top beside the pylon,
-  and down the left side to the oil tank. Channel A (three bundles) rides the forward bay between the
-  stiffening ribs; channel B (two bundles) rides the aft one. They sit on stand-off cushion P-clamps, with
-  printed ID sleeves.
+  and down the left side to the oil tank. Channel A (five bundles) rides the forward bay between the
+  stiffening ribs; channel B (four bundles) rides the aft one. A third trunk (three bundles) brings the
+  aircraft wiring from the pylon's fan connector panel down the right side to the EEC and the relay box. All
+  sit on stand-off cushion P-clamps, with printed ID sleeves.
 - **EEC connectors:** J5, J7, J8 and J10 feed channel A; J9 (N1 speed) feeds channel B. Each connector is a
   receptacle shell with a knurled coupling ring and a backshell.
-- **Breakout legs** run from a trunk to each unit and sensor the booklet shows:
+- **Breakout legs** run from a trunk to each unit and sensor the booklet shows. Most are pairs of bundles,
+  since most units take two connectors (channel A and B, or signal and heater):
   - fan case P0 sensor, anti-ice valve switch, P2/T2 probe and heater, vibration pick-up;
   - ACOC oil temperature thermocouple, starter valve switch;
   - oil pressure transmitter, low oil pressure switch, IDG oil temperature thermocouple;
   - FCOC fuel temperature thermocouple, fuel filter and scavenge filter ΔP switches;
   - oil quantity transmitter, chip detector and oil temperature at the gearbox.
+- **Oil scavenge return** (Airbus oil system photo): 3/4 in stainless lines from the scavenge filter to the
+  FCOC's oil inlet, and from the FCOC's outlet back to the tank, with a 1/2 in tie line to the IDG oil
+  cooler.
 - **Pressure sense lines** (P0, Pb, P2.5, P4.9 rake, P12.5) are small stainless tubes into the EEC's lower
   face, the core ones up from the bulkhead panel.
 - **Relay box** (booklet p. 19): a black cover with staggered cooling slots. Channel A and B connectors come

@@ -342,13 +342,18 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
             off += r
             H(D, fan, [(x + off, th, h) for x, th, h in way], radius=r, conn=conn, rb=rb)
             off += r + gap
-    def leg(A, B, r=0.006, conn=(False, True)):
-        way = route_fan(A, B, 2 * r)
-        if way: H(D, fan, way, radius=r, conn=conn, rb=0.035)
+    def leg(A, B, r=0.006, conn=(False, True), pair=True):
+        w = (4.4 * r + 0.004) if pair else 2 * r
+        way = route_fan(A, B, w)
+        if way and pair:   # most units take two connectors (channel A and B, or signal and heater): two bundles side by side
+            for dx, rr in ((-1.1 * r - 0.002, r), (1.1 * r + 0.002, r * 0.8)):
+                H(D, fan, [(x + (dx if 0 < i < len(way) - 1 else 0.0), th + (math.degrees(dx / 0.95) * 0.0), h) for i, (x, th, h) in enumerate(way)], radius=rr, conn=conn, rb=0.035)
+        elif way: H(D, fan, way, radius=r, conn=conn, rb=0.035)
         else: print('fan case harness: no room for the leg', A, '->', B)
         return way
     # channel trunks: from the right side low, up over the top beside the pylon, down the left side to the oil tank
-    for xb, radii, th0, th1 in ((0.255, (0.012, 0.009, 0.007), 214, 506), (0.9, (0.013, 0.01), 206, 514)):
+    for xb, radii, th0, th1 in ((0.255, (0.014, 0.012, 0.0105, 0.009, 0.007), 214, 506), (0.9, (0.015, 0.0125, 0.0105, 0.008), 206, 514),
+                                (0.52, (0.013, 0.011, 0.009), 236, 330)):   # (the third: aircraft wiring from the pylon's fan connector panel to the EEC and relay box)
         way = [(xb, th0, 0.02)] + [(xb, th0 + 3 + (th1 - th0 - 6) * k / 14, 0.034) for k in range(15)] + [(xb, th1, 0.02)]
         bundle(way, radii, conn=(False, False))
     # EEC connectors to the trunks: J5, J7, J8, J10 forward to channel A, J9 (N1 speed) and the DEP aft to channel B
@@ -372,6 +377,15 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
             ((0.255, 488, 0.034), (0.45, 492, 0.1), 0.006),             # oil quantity transmitter on the tank
             ((0.255, 500, 0.034), (0.36, 506, 0.1), 0.006)):            # chip detector and oil temperature at the gearbox
         leg(A, B, r)
+    # oil scavenge return (Airbus TTM oil system: scavenge pump -> scavenge filter -> FCOC -> tank), with the cooler's
+    # tie line to the IDG oil cooler; 3/4 in and 1/2 in stainless lines on P-clamps
+    T(D, fan, [(0.8, 149.5, 0.05), (0.84, 147.5, 0.065), (0.97, 141.0, 0.065), (1.02, 136.0, 0.062), (1.02, 133.5, 0.06)], n=1, radius=0.011, mat='ss', rb=0.05, every=0.16)   # scavenge filter -> FCOC oil inlet
+    for A, B, r in (
+                    ((1.02, 113.0, 0.06), (0.52, 121.5, 0.07), 0.011),     # FCOC oil outlet -> tank return
+                    ((0.98, 104.0, 0.05), (1.02, 112.0, 0.05), 0.008)):    # IDG cooler <-> FCOC tie line
+        way = route_fan(A, B, 2 * r)
+        if way: T(D, fan, way, n=1, radius=r, mat='ss', rb=0.06, every=0.18)
+        else: print('fan case oil line: no room', A, '->', B)
     # pressure sense lines into the EEC's lower face (booklet p. 23: P0, Pb (P3), P2, P2.5, P4.9 rake, P12.5 fan rake):
     # small stainless tubes, the core ones up from the bulkhead panel
     for k, (A, r) in enumerate((((0.255, 296, 0.02), 0.0028), ((1.17, 214, 0.02), 0.0032), ((1.17, 236, 0.02), 0.003), ((1.17, 268, 0.02), 0.003), ((0.9, 290, 0.02), 0.0028))):
