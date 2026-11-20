@@ -50,7 +50,7 @@ const inCut = (th) => { const t = ((th % TAU) + TAU) % TAU; return t > TAU + CUT
 const INT_MATS = {
   i_tifan: { color: 0xaab1b8, metalness: 1, roughness: 0.26, f: 'titanium' }, i_ti: { color: 0xa3abb3, metalness: 1, roughness: 0.3, f: 'compressorBlade' },
   i_nickel: { color: 0x9b9c99, metalness: 1, roughness: 0.34, f: 'compressorBlade' }, i_disc: { color: 0x8a9096, metalness: 1, roughness: 0.36, f: 'bareSteel' },
-  i_case: { color: 0x7c8186, metalness: 0.8, roughness: 0.45, f: 'castPaint' }, i_filler: { color: 0xd0d1cc, metalness: 0.05, roughness: 0.5, f: 'castPaint' },
+  i_case: { color: 0x8a8b8c, metalness: 0.85, roughness: 0.46, f: 'castBare' }, i_filler: { color: 0xd0d1cc, metalness: 0.05, roughness: 0.5, f: 'castPaint' },
   i_rubber: { color: 0x111214, metalness: 0, roughness: 0.75, f: 'rubber' }, i_vsv: { color: 0x6f7c88, metalness: 0.9, roughness: 0.3, f: 'titanium' },
   i_steel: { color: 0xa0a5aa, metalness: 1, roughness: 0.3, f: 'stainlessTube' }, i_liner: { color: 0xa39a90, metalness: 0.9, roughness: 0.5, f: 'hotCase' },
   i_ceramic: { color: 0xe9e8e2, metalness: 0, roughness: 0.35, f: 'polished' }, i_hptb: { color: 0x8f8a82, metalness: 1, roughness: 0.4, f: 'turbineBlade' },
@@ -398,7 +398,7 @@ export class Scene3D {
     const harness = new THREE.MeshStandardMaterial({ color: 0xc6c0b2, metalness: 0, roughness: 0.92 }); // looms are sleeved in white braid (SR Technics component photos)
     const conduit = new THREE.MeshStandardMaterial({ color: 0x1b1d20, metalness: 0.1, roughness: 0.7 });
     const unitGrey = new THREE.MeshStandardMaterial({ color: 0x8e9398, metalness: 0.7, roughness: 0.45 }); // cast accessory housings (exciters, valve bodies)
-    this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughness: 0.62, roughnessMap: T.brushed }), section: this.capMat, loom: new THREE.MeshStandardMaterial({ color: 0xffffff, map: T.braid, roughness: 0.85, metalness: 0, bumpMap: T.braid, bumpScale: 0.4 }) };
+    this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughness: 0.62, roughnessMap: T.brushed }), section: this.capMat, loom: new THREE.MeshStandardMaterial({ color: 0xffffff, map: T.braid, roughness: 0.85, metalness: 0, bumpMap: T.braid, bumpScale: 0.4 }), loomb: new THREE.MeshStandardMaterial({ color: 0x8a6c4e, map: T.braid, roughness: 0.85, metalness: 0, bumpMap: T.braid, bumpScale: 0.4 }) };
     // the authored acoustic panels and bleed grilles use the perforated texture (they carry UVs)
     this.shared.liner_perf = linerM;
     { const t = T.liner.clone(); t.repeat.set(9, 9); t.needsUpdate = true; this.shared.grille = new THREE.MeshStandardMaterial({ color: 0x6c6e70, metalness: 0.8, roughness: 0.5, map: t, side: THREE.DoubleSide }); }
@@ -796,7 +796,7 @@ export class Scene3D {
         [pipeSteel, H(FINISH.stainlessTube, coreHeat)], [pipeGold, FINISH.cadmium], [unitGrey, H(FINISH.castBare, coreHeat)], [harness, FINISH.braid], [conduit, FINISH.darkBox],
         [this.boltMat, FINISH.bareSteel], [linerM, FINISH.acoustic], [white, { ...FINISH.nacellePaint, bottom: 0 }], [fairing, { ...FINISH.titanium, bottom: 0 }],
         [vsvMat, FINISH.titanium], [orange, FINISH.rubber], [perf, FINISH.castBare], [race, { ...FINISH.bareSteel, bottom: 0, grime: 0.05 }], [duct, FINISH.stainlessTube],
-        [this.shared.paint, FINISH.nacellePaint], [this.shared.lip, { ...FINISH.polished, grime: 0.12, grimeCol: [0.24, 0.23, 0.21], bottom: 0.3, streak: 0.12 }], [this.shared.loom, FINISH.braid],
+        [this.shared.paint, FINISH.nacellePaint], [this.shared.lip, { ...FINISH.polished, grime: 0.12, grimeCol: [0.24, 0.23, 0.21], bottom: 0.3, streak: 0.12 }], [this.shared.loom, FINISH.braid], [this.shared.loomb, { ...FINISH.braid, grime: 0.35 }],
         [this.shared.bare, { ...FINISH.nozzle, heat: [2.9, 4.45, 0.4], soot: [3.75, 4.37, 0.55], sootIn: true }],  // common nozzle: satin bare metal, a light heat tint, soot inside towards the exit
       ]);
       const done = new Set([this.capMat]);
@@ -1341,7 +1341,7 @@ export class Scene3D {
         tube_acc: { ...FINISH.stainlessTube, scale: 9, grime: 0.22, streak: 0.2 } }[name];
       if (tube) return partId === 'ext' && name !== 'tube_acc' ? { ...tube, heat: coreHeat } : tube;   // clearance-control tubes carry cool fan air
       return {
-        cast: casting ? FINISH.castBare : FINISH.castPaint, steel: FINISH.bareSteel, gold: FINISH.chromate, dark: FINISH.darkBox, composite: FINISH.composite,
+        cast: casting ? { ...FINISH.castBare, tintVar: [0.98, 1.0, 0.9], tintAmt: 0.35 } : { ...FINISH.castBare, scale: 3.5, bump: 0.35, grime: 0.34, bottom: 0.55, streak: 0.3, metalLoss: 0.18, edge: 0.25 }, steel: FINISH.bareSteel, gold: FINISH.chromate, dark: FINISH.darkBox, composite: FINISH.composite,
         primer: FINISH.primer, acoustic: FINISH.acoustic, clamp_red: FINISH.rubber, loom_band: FINISH.rubber, connector: FINISH.connector, firesleeve: FINISH.fireSleeve,
         panelline: FINISH.nacellePaint, panelline2: FINISH.nacellePaint, panel2: FINISH.nacellePaint, placard: FINISH.nacellePaint, hazard: FINISH.nacellePaint, marking: FINISH.nacellePaint,
         sp_dark: { ...FINISH.darkBox, bottom: 0, grime: 0.08 }, sp_white: { ...FINISH.nacellePaint, bottom: 0, grime: 0.06 }, sp_fair: { ...FINISH.titanium, bottom: 0 },
@@ -1389,7 +1389,7 @@ export class Scene3D {
               if (sh) { c = sh.clone(); c.onBeforeCompile = sh.onBeforeCompile; c.customProgramCacheKey = sh.customProgramCacheKey; }
               else { c = mt.clone(); c.side = THREE.DoubleSide; }
               if (mt.name === 'cast') {   // one material in the file, two finishes: painted fan case, bare cast housings
-                if (casting) { c.color.set(0x8c8f8c); c.metalness = 0.45; c.roughness = 0.58; } else { c.metalness = 0.05; c.roughness = 0.55; }
+                if (casting) { c.color.set(0x8a8c84); c.metalness = 0.45; c.roughness = 0.58; } else { c.color.set(0xa3a6a8); c.metalness = 0.72; c.roughness = 0.46; }   // castings olive-grey; the fan case bare, dull aluminium (in-service photos)
               }
               const f = authoredFinish(mt.name, id, casting);
               if (f) finish(c, f);

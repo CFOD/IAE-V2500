@@ -325,6 +325,13 @@ until they turn up into it.
 
 ### Fan case dressing
 
+**In-service condition.** The booklet and display-engine photos show cleaned, presentation-condition engines.
+In-service and shop photos (engines on transport stands and with the cowls open) are now the reference for
+colour and condition:
+- the fan case and core cases are bare, dull metal with grime, not blue-grey paint;
+- the castings are olive-grey;
+- the biggest fan case harness bundles are brown braid.
+
 The fan case dressing is laid out from the SR Technics *V2500 Component Location Manual* (right-hand and
 left-hand fan case pages) and the photos in the Airbus training manual (component location: FADEC, fuel and
 oil). It has no random filler. The 92 random tube runs the earlier build packed between the units were taken

@@ -42,6 +42,7 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
         'red': material('clamp_red', (0.74, 0.2, 0.09), 0.0, 0.62),       # red silicone P-clamp cushions (photos)
         'brk': material('bracket', (0.5, 0.52, 0.55), 0.9, 0.48),
         'loom': material('loom', (0.78, 0.76, 0.7), 0.0, 0.9),            # white braided harness (swapped for a braid texture on load)
+        'loomb': material('loomb', (0.45, 0.33, 0.22), 0.0, 0.9),         # brown braided harness (in-service photos: the big fan case trunks)
         'band': material('loom_band', (0.72, 0.13, 0.08), 0.0, 0.6),      # red identification sleeves
         'conn': material('connector', (0.46, 0.48, 0.5), 0.9, 0.4),
         'fire': material('firesleeve', (0.78, 0.36, 0.14), 0.0, 0.85),    # orange silicone fire sleeve on hoses
@@ -114,8 +115,8 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
                  layers=layers, rb=rb, end_boss=boss if boss else None, boss_mat=M['boss'], clamp_every=every,
                  tape_mat=tape(dr.prefix), torque_mat=M['torque'] if nuts else None)
 
-    def H(dr, R, way, radius=0.009, bands=True, conn=(True, True), rb=0.05):
-        dr.loom(R, way, radius=radius, mat=M['loom'], band_mat=wire(dr.prefix + str(len(WIRES) if not dr.prefix.startswith('line_') else '')) if bands else None, clamp_mat=M['red'], bracket_mat=M['brk'],
+    def H(dr, R, way, radius=0.009, bands=True, conn=(True, True), rb=0.05, brown=False):
+        dr.loom(R, way, radius=radius, mat=M['loomb' if brown else 'loom'], band_mat=wire(dr.prefix + str(len(WIRES) if not dr.prefix.startswith('line_') else '')) if bands else None, clamp_mat=M['red'], bracket_mat=M['brk'],
                 conn_mat=M['conn'], connectors=conn, rb=rb)
 
     # ================================================================== FAN CASE, RIGHT SIDE (EEC side)
@@ -335,12 +336,12 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     # in two channel trunks round the case, ridden on stand-off P-clamps between the stiffening ribs; a breakout leg
     # runs from a trunk to every sensor and unit the booklet shows, each with its connector. Channel A rides the
     # forward bay, channel B the aft one, so a single failure cannot cut both.
-    def bundle(way, radii, gap=0.004, conn=(True, True), rb=0.06):
-        """Two to four harness bundles laid side by side along one route (a flat group, as on the engine)."""
+    def bundle(way, radii, gap=0.004, conn=(True, True), rb=0.06, browns=()):
+        """Two to five harness bundles laid side by side along one route (a flat group, as on the engine). browns: which are brown braid."""
         tot = sum(2 * r for r in radii) + gap * (len(radii) - 1); off = -tot / 2
-        for r in radii:
+        for k, r in enumerate(radii):
             off += r
-            H(D, fan, [(x + off, th, h) for x, th, h in way], radius=r, conn=conn, rb=rb)
+            H(D, fan, [(x + off, th, h) for x, th, h in way], radius=r, conn=conn, rb=rb, brown=k in browns)
             off += r + gap
     def leg(A, B, r=0.006, conn=(False, True), pair=True):
         w = (4.4 * r + 0.004) if pair else 2 * r
@@ -355,7 +356,7 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     for xb, radii, th0, th1 in ((0.255, (0.014, 0.012, 0.0105, 0.009, 0.007), 214, 506), (0.9, (0.015, 0.0125, 0.0105, 0.008), 206, 514),
                                 (0.52, (0.013, 0.011, 0.009), 236, 330)):   # (the third: aircraft wiring from the pylon's fan connector panel to the EEC and relay box)
         way = [(xb, th0, 0.02)] + [(xb, th0 + 3 + (th1 - th0 - 6) * k / 14, 0.034) for k in range(15)] + [(xb, th1, 0.02)]
-        bundle(way, radii, conn=(False, False))
+        bundle(way, radii, conn=(False, False), browns=(0, 2) if len(radii) >= 4 else (1,))   # (in-service photos: the biggest bundles are brown braid)
     # EEC connectors to the trunks: J5, J7, J8, J10 forward to channel A, J9 (N1 speed) and the DEP aft to channel B
     for k, a in enumerate((298.0, 301.4, 304.8, 308.2)):
         leg((0.765, a, 0.045), (0.255, 300 + 4 * k, 0.034), r=0.008 + 0.002 * (k % 2), conn=(True, False))
