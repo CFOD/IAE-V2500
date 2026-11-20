@@ -191,12 +191,35 @@ generated shapes before.
   - The ten fuel pigtails from the distribution valve to the manifold, with B-nuts and tees.
   - The fire detection loops on their clips.
 - **Liners.** The inlet's perforated acoustic barrel with its splice straps and fastener rows. In the fan
-  case, the light-blue abradable rub strip (with the shallow track the blade tips have worn in it), the
+  case, the cream abradable rub strip (with the shallow track the blade tips have worn in it), the
   ice-impact panel and the acoustic panels.
 
-The reverser cascades now have cambered turning vanes: 14 per bay. The generated stand-ins for all of these
-are dropped when the model loads. Only the blocker-door drag links stay generated, because they move with
-the doors.
+The reverser cascades have cambered turning vanes, 14 per bay. The generated stand-ins for all of these are
+dropped when the model loads.
+
+### Thrust reverser linkage
+
+The Airbus training manual (*Reverser design*) shows 10 blocker doors and 10 rods. The linkage follows the
+conventional cascade reverser in patent US 6,764,045, figures 1 and 2.
+
+- **Doors:** each door is hinged at its forward edge to the translating sleeve. Stowed, it lies flush in the
+  duct's outer wall. Each door is a curved panel, 0.22 m long and about the duct's height. It tapers so that
+  the ten doors close the annulus when they stand radial. It has a perforated acoustic face towards the duct,
+  primer-green back stiffeners and a cross rib, two hinge lugs on the sleeve's pin, and a clevis near the
+  free edge.
+- **Drag links:** each rigid link is faired to a streamlined section, with spherical rod-end eyes, pins and
+  nuts. It runs across the fan duct from a clevis on the inner fixed structure to the door's clevis. Stowed,
+  it stands nearly radial.
+- **Motion:** as the sleeve slides 0.46 m aft, the link pulls the door's free edge down until the door stands
+  radial (93°), 21 mm off the inner fixed structure.
+
+The geometry (door 0.22 m, door clevis at 95 % of its length and 20 mm off its face, link pivot at x 2.04 m)
+came from a search for a stroke that never swings the door outward. It dips 0.9° at the start, which is
+taken as zero, as rigging play would take it up.
+
+The build writes the linkage to the manifest (`reverser`: travel, hinge, door clevis, pivot, link length).
+Each frame the app works out the door angle from the rigid link: where the circle round the hinge meets the
+circle round the pivot. So the rod never stretches, and each link points from its pivot to its door's eye.
 
 ### The accessory drive train
 

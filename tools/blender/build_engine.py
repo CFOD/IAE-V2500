@@ -537,21 +537,124 @@ def build():
         for lst in (([casL] if in_cut(th) else [casL, casLc]) if th < 180 else [casR]):
             lst.append(box('s', th_pos(1.99, th, rm), (0.46, 0.012, OML(2.0) - duct(2.0) - 0.07), th, comp))
     made.extend([join('cna_cascades_L', casL), join('cna_cascades_L__cut', casLc), join('cna_cascades_R', casR)])
-    # ten blocker doors: stowed flush in the sleeve's inner wall, hinged at their forward edge
-    from mathutils import Matrix
-    for k in range(10):
-        th = k * 36 + 18; L = 0.4; xh = 1.8; rh = duct(xh) - 0.006   # hinge line at the door's forward edge
-        hw0 = math.pi * rh / 10 * 0.94; hw1 = math.pi * (duct(xh + L) - 0.006) / 10 * 0.94
-        bm = bmesh.new()
-        slope = (duct(xh + L) - duct(xh))  # door follows the duct wall when stowed
-        vs = [bm.verts.new(v) for v in [(0, -hw0, 0), (0, hw0, 0), (L, hw1, slope), (L, -hw1, slope), (0, -hw0, -0.012), (0, hw0, -0.012), (L, hw1, slope - 0.012), (L, -hw1, slope - 0.012)]]
-        for f in [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)]: bm.faces.new([vs[i] for i in f])
+    # ten blocker doors and their drag links (Airbus TTM 'Reverser design': 10 blocker doors, 10 rods; the linkage as
+    # in the conventional reverser of patent US 6,764,045 figs. 1-2). Each door is hinged at its forward edge to the
+    # translating sleeve and lies flush in the duct's outer wall when stowed. A rigid drag link runs across the fan duct
+    # from a clevis on the inner fixed structure to a clevis near the door's free edge: as the sleeve slides aft the
+    # link pulls the door down until it stands radial across the duct. The app solves the door angle from the link
+    # (manifest 'reverser'), so the rod never stretches.
+    from mathutils import Matrix, Vector
+    ifs = lambda x: r_at(P['bypInner'], x)
+    XH, LD, TD, FD, FZ, XA, ZA, TRAVEL = 1.80, 0.22, 0.029, 0.95, 0.02, 2.04, 0.03, 0.46
+    r_in = lambda x: duct(x) - 0.0015                       # the door's duct face, flush with the sleeve's inner skin
+    rh = r_in(XH) + TD / 2                                   # hinge axis, mid-thickness at the forward edge
+    ph0 = math.pi / 10 * 0.95                                # half-angle at the hinge: 95 % of the 36 deg pitch
+    ph1 = (math.pi * (ifs(XH + 0.46 + 0.03) + 0.021) / 10 * 0.95) / r_in(XH + LD)   # narrower at the free edge, so the doors close the annulus when radial
+    fit_x = XH + FD * LD; fit_r = r_in(fit_x) - FZ           # drag-link eye on the door (stowed)
+    A_r = ifs(XA) + ZA; LINK = math.hypot(fit_x - XA, fit_r - A_r)
+    ac_m = acoustic; pr_m = primer; st_m = material('draglink', (0.56, 0.58, 0.6), 0.65, 0.46)   # titanium linkage, satin
+    def loc(x, ph, r): return (x - XH, -r * math.sin(ph), r * math.cos(ph) - rh)      # door-local (origin on the hinge axis at the door's centre angle)
+    def door_mesh(name):
+        bm = bmesh.new(); NU, NV = 10, 14; grid = {}
+        for side, rf in (('i', r_in), ('o', lambda x: r_in(x) + TD)):
+            for a in range(NU + 1):
+                for b in range(NV + 1):
+                    u = LD * a / NU; x = XH + u; hp = ph0 + (ph1 - ph0) * u / LD; ph = -hp + 2 * hp * b / NV
+                    grid[side, a, b] = bm.verts.new(loc(x, ph, rf(x)))
+        fi = []
+        for a in range(NU):
+            for b in range(NV):
+                fi.append(bm.faces.new((grid['i', a, b], grid['i', a, b + 1], grid['i', a + 1, b + 1], grid['i', a + 1, b])))
+                bm.faces.new((grid['o', a, b], grid['o', a + 1, b], grid['o', a + 1, b + 1], grid['o', a, b + 1]))
+        for a in range(NU):
+            for b in (0, NV): bm.faces.new((grid['i', a, b], grid['i', a + 1, b], grid['o', a + 1, b], grid['o', a, b]))
+        for b in range(NV):
+            for a in (0, NU): bm.faces.new((grid['i', a, b], grid['o', a, b], grid['o', a, b + 1], grid['i', a, b + 1]))
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-        nm = f'cna_blocker_{"L" if th < 180 else "R"}_{k:02d}' + ('__full' if in_cut(th) else '')
-        me = bpy.data.meshes.new(nm); bm.to_mesh(me); bm.free(); me.materials.append(cast)
-        door = link(bpy.data.objects.new(nm, me))
-        door.matrix_world = Matrix.Translation(th_pos(xh, th, rh)) @ Matrix.Rotation(math.radians(th), 4, 'X')   # local +Z = radial at th (see box())
-        made.append(door)
+        for f in bm.faces: f.material_index = 0 if f in fi else 1     # perforated acoustic face to the duct, primer elsewhere
+        me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free(); me.materials.append(ac_m); me.materials.append(pr_m)
+        for q in me.polygons: q.use_smooth = True
+        return link(bpy.data.objects.new(name, me))
+    def lbox(name, c, size, mat):   # box in door-local coordinates (axial, tangential, radial)
+        bm = bmesh.new(); bmesh.ops.create_cube(bm, size=1); bmesh.ops.scale(bm, vec=size, verts=bm.verts); bmesh.ops.translate(bm, vec=c, verts=bm.verts)
+        me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free(); me.materials.append(mat); return link(bpy.data.objects.new(name, me))
+    def lcyl(name, a, b, r, mat, seg=14):
+        a, b = Vector(a), Vector(b); d = b - a; bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=seg, radius1=r, radius2=r, depth=d.length)
+        bmesh.ops.transform(bm, matrix=Matrix.Translation((a + b) / 2) @ d.to_track_quat('Z', 'Y').to_matrix().to_4x4(), verts=bm.verts)
+        me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free(); me.materials.append(mat)
+        for q in me.polygons: q.use_smooth = True
+        return link(bpy.data.objects.new(name, me))
+    fl = Vector(loc(fit_x, 0.0, fit_r))                      # the door's link eye, door-local
+    for k in range(10):
+        th = k * 36 + 18; sd = 'L' if th < 180 else 'R'; tag = '__full' if in_cut(th) else ''
+        nm = f'cna_blocker_{sd}_{k:02d}' + tag
+        parts = [door_mesh('bd')]
+        # back face: two longitudinal stiffeners and a cross rib (they face the cascades when stowed, the oncoming air when deployed)
+        for v in (-0.5, 0.5):
+            for a in range(6):
+                u0, u1 = 0.02 + (LD - 0.04) * a / 6, 0.02 + (LD - 0.04) * (a + 1) / 6; um = (u0 + u1) / 2; x = XH + um
+                hp = ph0 + (ph1 - ph0) * um / LD; rr = r_in(x) + TD
+                c = loc(x, v * hp, rr + 0.008); parts.append(lbox('rb', (c[0], c[1], c[2]), (u1 - u0 + 0.002, 0.005, 0.016), pr_m))
+        xc = XH + 0.62 * LD; hp = ph0 + (ph1 - ph0) * 0.62
+        parts.append(lbox('cr', loc(xc, 0.0, r_in(xc) + TD + 0.006), (0.006, 2 * hp * r_in(xc) * 0.86, 0.012), pr_m))
+        # hinge: two lugs at the forward edge on the sleeve's hinge pin
+        for v in (-0.62, 0.62):
+            c = loc(XH, v * ph0, rh); parts.append(lbox('hl', (c[0] + 0.004, c[1], c[2]), (0.03, 0.012, 0.03), st_m))
+        parts.append(lcyl('hp', loc(XH, -0.7 * ph0, rh), loc(XH, 0.7 * ph0, rh), 0.0045, st_m))
+        # drag-link clevis on the duct face near the free edge: base plate, two lugs either side of the eye, pin
+        parts.append(lbox('cb', loc(fit_x, 0.0, r_in(fit_x) - 0.002), (0.05, 0.045, 0.004), st_m))
+        for dv in (-0.0125, 0.0125):
+            parts.append(lbox('cl', (fl.x, fl.y + dv, (fl.z + loc(fit_x, 0.0, r_in(fit_x))[2]) / 2), (0.032, 0.005, FZ + 0.012), st_m))
+        parts.append(lcyl('cp', (fl.x, fl.y - 0.018, fl.z), (fl.x, fl.y + 0.018, fl.z), 0.0048, st_m, seg=10))
+        door = join(nm, parts)
+        door.matrix_world = Matrix.Translation(th_pos(XH, th, rh)) @ Matrix.Rotation(math.radians(th), 4, 'X')   # local +Z = radial at th, +Y tangential
+        made.append(finish(door, 0.0012))
+    # the drag links: faired rods with spherical rod-end eyes, along local +X from the IFS pivot to the door's eye
+    def rod(name):
+        bm = bmesh.new(); N = 16; rings = []; e = 0.019
+        xs_ = [e + (LINK - 2 * e) * i / 10 for i in range(11)]
+        for x in xs_:
+            t = (x - e) / (LINK - 2 * e); taper = 0.82 + 0.18 * math.sin(math.pi * t)
+            ch, th_ = 0.034 * taper, 0.013 * taper      # streamlined: chord along the air (local Z), thin across it (local Y)
+            ring = []
+            for j in range(N):
+                a = 2 * math.pi * j / N; c_, s_ = math.cos(a), math.sin(a)
+                zz = ch / 2 * c_ * (1 - 0.18 * max(0.0, -c_)) ; yy = th_ / 2 * s_ * (1.0 - 0.35 * max(0.0, -c_))   # fuller nose, finer tail
+                ring.append(bm.verts.new((x, yy, zz)))
+            rings.append(ring)
+        for a_, b_ in zip(rings, rings[1:]):
+            for j in range(N): bm.faces.new((a_[j], a_[(j + 1) % N], b_[(j + 1) % N], b_[j]))
+        bm.faces.new(list(reversed(rings[0]))); bm.faces.new(rings[-1])
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free(); me.materials.append(st_m)
+        for q in me.polygons: q.use_smooth = True
+        o = link(bpy.data.objects.new(name, me)); out = [o]
+        for xe in (0.0, LINK):                       # rod-end eyes: boss, spherical bearing, pin across the clevis, nut
+            out.append(lcyl('eb', (xe, -0.0075, 0.0), (xe, 0.0075, 0.0), 0.0165, st_m, seg=18))
+            out.append(lcyl('es', (xe, -0.0095, 0.0), (xe, 0.0095, 0.0), 0.0092, dark, seg=14))
+            out.append(lcyl('ep', (xe, -0.019, 0.0), (xe, 0.019, 0.0), 0.0048, st_m, seg=10))
+            out.append(lcyl('en', (xe, 0.016, 0.0), (xe, 0.021, 0.0), 0.0072, st_m, seg=6))
+            out.append(lbox('ek', (xe + (0.012 if xe == 0.0 else -0.012), 0.0, 0.0), (0.014, 0.011, 0.02), st_m))   # neck into the fairing
+        return join(name, out)
+    fitK, fitF, fitR = [], [], []
+    for k in range(10):
+        th = k * 36 + 18; sd = 'L' if th < 180 else 'R'; tag = '__full' if in_cut(th) else ''
+        lk = rod(f'cna_draglink_{sd}_{k:02d}' + tag)
+        A = Vector(th_pos(XA, th, A_r)); Pt = Vector(th_pos(fit_x, th, fit_r)); d = (Pt - A).normalized()
+        n = Vector((0.0, -math.cos(math.radians(th)), -math.sin(math.radians(th))))   # tangential (direction of increasing th), Blender frame
+        n = (n - d * n.dot(d)).normalized(); y_ch = n.cross(d)                       # chord (local Z) in the link's plane, across the rod
+        R3 = Matrix((d, -n, y_ch)).transposed()                                      # columns: local X = rod, local Y = -tangential, local Z = chord
+        lk.matrix_world = Matrix.Translation(A) @ R3.to_4x4()
+        made.append(lk)
+        # the IFS clevis: base plate on the core cowl's skin and two lugs either side of the eye
+        fx = [box('fb', th_pos(XA, th, ifs(XA) + 0.003), (0.06, 0.05, 0.006), th, st_m)]
+        for dv in (-0.0125, 0.0125):
+            a_ = th + math.degrees(dv / A_r); fx.append(box('fl', th_pos(XA, a_, (ifs(XA) + A_r) / 2 + 0.006), (0.034, 0.005, ZA + 0.014), a_, st_m))
+        (fitR if sd == 'R' else fitF if tag else fitK).extend(fx)
+    made.extend([finish(join('cna_dragfit_L', fitK), 0.001), finish(join('cna_dragfitB_L__full', fitF), 0.001), finish(join('cna_dragfit_R', fitR), 0.001)])
+    REVERSER = {'travel': TRAVEL, 'hinge': [XH, round(rh, 5)], 'fit': [round(fit_x - XH, 5), round(fit_r - rh, 5)], 'pivot': [XA, round(A_r, 5)],
+                'link': round(LINK, 5), 'doors': [k * 36 + 18 for k in range(10)]}
     cowl('cna_nozzle', 2.86 + G, 4.3, bare, 20, inset=0.008)
     lip = lip_loop()
     o = revolve('lip_ring', lip, lipm); c = duplicate(o, 'lip_ring__cut'); boolean(c, wedge); made.extend([finish(o, 0), finish(c, 0)])
@@ -638,7 +741,7 @@ def build():
     made.append(finish(loft('fancowl_drainmast', [(0.84, 0.004, -1.06 - dm, -1.03 - dm), (0.9, 0.012, -1.16 - dm, -1.0 - dm), (0.98, 0.012, -1.17 - dm, -1.0 - dm), (1.06, 0.004, -1.12 - dm, -1.0 - dm)], bare, n=12), 0))
 
     for o in made:
-        if o.type == 'MESH' and o.name.startswith(('inlet_cowl', 'inlet_markings', 'fancowl_', 'cna_', 'lip_')): egg_deform(o)
+        if o.type == 'MESH' and o.name.startswith(('inlet_cowl', 'inlet_markings', 'fancowl_', 'cna_', 'lip_')) and not o.name.startswith(('cna_blocker', 'cna_draglink', 'cna_dragfit')): egg_deform(o)   # (the reverser linkage sits on the round duct walls)
         if o.type == 'MESH' and o.name.startswith(('inlet_', 'lip_')): scarf_deform(o)
 
     # ---- routed dressing: tubes, harnesses, ducts and hoses (tools/blender/dressing.py)
@@ -789,6 +892,7 @@ def build():
         'rings': IK.rings,
         'ports': details.PORTS,
         'spin': SPIN,
+        'reverser': REVERSER,
         'vis': {'parts': internals.PARTS + DT.PARTS, 'out': internals.VIS_OUT[:-1] + '|' + DT.VIS_OUT + ')', 'core': internals.VIS_CORE},
     }
     json.dump(manifest, open(os.path.join(OUT, 'model.json'), 'w'), indent=2)

@@ -1052,8 +1052,18 @@ export class Scene3D {
   /** Thrust reverser: sleeve slides aft to uncover the cascades, blocker doors swing into the duct. */
   _reverser(rev) {
     if (rev === this._rev) return; this._rev = rev;
-    if (!this.revNodes) { this.revNodes = []; this.engine.traverse((n) => { const k = /^cna_sleeve/i.test(n.name) ? 'sleeve' : /^cna_blocker/i.test(n.name) ? 'door' : null; if (k) { n.userData.rev = { k, x: n.position.x, q: n.quaternion.clone() }; this.revNodes.push(n); } }); }
-    const e = rev * rev * (3 - 2 * rev), qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -e * 0.61); // hinge = door's tangential axis (local Z after the glTF axis conversion)
+    if (!this.revNodes) {
+      this.revNodes = [];
+      this.engine.traverse((n) => {
+        const k = /^cna_sleeve/i.test(n.name) ? 'sleeve' : /^cna_blocker/i.test(n.name) ? 'door' : /^cna_draglink_[LR]_\d\d(?:__full)?$/i.test(n.name) ? 'link' : null;
+        if (k) { n.userData.rev = { k, x: n.position.x, q: n.quaternion.clone(), th: k === 'link' ? (+/_(\d\d)(?:__full)?$/.exec(n.name)[1] * 36 + 18) * DEG : 0 }; this.revNodes.push(n); }
+      });
+      const set = new Set(this.revNodes); this.revNodes = this.revNodes.filter((n) => !set.has(n.parent));   // a multi-material node's meshes share its name: move only the node
+      if (this.revKin && this.revNodes.some((n) => n.userData.rev.k === 'link') && this.dragLinks) { for (const im of this.dragLinks) { im.visible = false; if (im.parent) im.parent.remove(im); } this.dragLinks = null; }
+    }
+    const e = rev * rev * (3 - 2 * rev);
+    if (this.revKin) { this._reverserLinkage(e); return; }
+    const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -e * 0.61); // hinge = door's tangential axis (local Z after the glTF axis conversion)
     if (this.dragLinks) {
       // ten rods: each runs from a hinge on the core cowl to the aft part of its door and pulls the door down as the sleeve slides aft
       const a = e * 0.61, px = 1.8 + 0.46 * e + 0.34 * Math.cos(a), pr = 0.759 - 0.012 * (1 - e) - 0.34 * Math.sin(a), ax = 2.29, ar = rAt(P.bypInner, 2.29), ex = this.byId.cna.ex * this.explode * 1.5;
@@ -1061,6 +1071,33 @@ export class Scene3D {
       for (const im of this.dragLinks) { im.userData.ths.forEach((th, i) => { const mx = (px + ax) / 2, mr = (pr + ar) / 2; q.setFromAxisAngle(ax1, th).multiply(qz); m.compose(new THREE.Vector3(mx, mr * Math.cos(th), mr * Math.sin(th)), q, new THREE.Vector3(1, len, 1)); im.setMatrixAt(i, m); }); im.instanceMatrix.needsUpdate = true; }
     }
     for (const n of this.revNodes) { const b = n.userData.rev; n.position.x = b.x + 0.46 * e; if (b.k === 'door') n.quaternion.copy(b.q).multiply(qy); }
+  }
+  /**
+   * The authored linkage (manifest.reverser): the sleeve slides aft by travel x e, carrying each door's hinge. The door's
+   * link eye must stay one link length from the fixed pivot on the inner fixed structure, so its angle is where the
+   * circle round the hinge (radius = hinge to eye) meets the circle round the pivot (radius = link length). Each rod then
+   * points from its pivot at its door's eye, its streamlined section kept in the plane of the motion.
+   */
+  _reverserLinkage(e) {
+    const K = this.revKin, s = K.travel * e, [hx0, hr] = K.hinge, [fx, fr] = K.fit, [ax, ar] = K.pivot, L = K.link;
+    const rho = Math.hypot(fx, fr), psi0 = Math.atan2(fr, fx), hx = hx0 + s, dx = ax - hx, dr = ar - hr, D = Math.hypot(dx, dr), g = Math.atan2(dr, dx);
+    const dl = Math.acos(clamp((rho * rho + D * D - L * L) / (2 * rho * D), -1, 1)), wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+    // of the two intersections, this one swings the door into the duct (the other folds it up through the cascades);
+    // stowed, the door rests against the sleeve, so it never swings outward
+    const a = Math.max(0, wrap(psi0 - (g + dl))); this._revA = a;
+    const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -a);
+    const px = hx + rho * Math.cos(psi0 - a), pr = hr + rho * Math.sin(psi0 - a);   // the door's eye, in the plane of its door
+    const X = new THREE.Vector3(), Y = new THREE.Vector3(), Z = new THREE.Vector3(), m = new THREE.Matrix4();
+    for (const n of this.revNodes) {
+      const b = n.userData.rev;
+      if (b.k === 'sleeve') n.position.x = b.x + s;
+      else if (b.k === 'door') { n.position.x = b.x + s; n.quaternion.copy(b.q).multiply(qy); }
+      else {   // link: X from pivot to eye, Z tangential, Y (the section's chord) completing the frame
+        const c = Math.cos(b.th), sn = Math.sin(b.th);
+        X.set(px - ax, (pr - ar) * c, (pr - ar) * sn).normalize(); Z.set(0, -sn, c); Y.crossVectors(Z, X);
+        n.quaternion.setFromRotationMatrix(m.makeBasis(X, Y, Z));
+      }
+    }
   }
 
   view(name) {
@@ -1306,7 +1343,7 @@ export class Scene3D {
         sp_dark: { ...FINISH.darkBox, bottom: 0, grime: 0.08 }, sp_white: { ...FINISH.nacellePaint, bottom: 0, grime: 0.06 }, sp_fair: { ...FINISH.titanium, bottom: 0 },
         blanket: { ...FINISH.stainlessTube, scale: 7, grime: 0.18, bump: 0.3 }, seal: FINISH.rubber, abradable: { ...FINISH.castPaint, grime: 0.12, bottom: 0.1 }, icepanel: FINISH.castPaint,
         pylonfair: { ...FINISH.titanium, scale: 3, grime: 0.16, grimeCol: [0.2, 0.19, 0.17], bottom: 0.3, streak: 0.25, rough: 0.16, tintVar: [1, 1, 1], turn: 0 },   // satin bare aluminium pylon fairings (a polished one mirrored the studio's light boxes)
-        pylonside: { ...FINISH.castPaint, scale: 3, bump: 0.12, grime: 0.22, streak: 0.3, edge: 0.3 }, louvre: FINISH.darkBox,
+        pylonside: { ...FINISH.castPaint, scale: 3, bump: 0.12, grime: 0.22, streak: 0.3, edge: 0.3 }, louvre: FINISH.darkBox, draglink: { ...FINISH.titanium, rough: 0.18, grime: 0.18, bottom: 0.2 },
         heatshield: { ...FINISH.titanium, grime: 0.18, grimeCol: [0.1, 0.08, 0.06], bottom: 0.3, streak: 0.3, heat: [3.0, 4.6, 0.55], soot: [3.6, 5.3, 0.35] },   // pylon heat shield, washed by the exhaust
       }[name] || null;
     };
@@ -1363,6 +1400,7 @@ export class Scene3D {
       taken.push(id);
     }
     this.ports = manifest.ports || this.ports || []; this.ringsMeta = manifest.rings || this.ringsMeta || [];
+    this.revKin = manifest.reverser || null;   // the authored blocker-door linkage: the door angle is solved from the rigid drag link
     // the drive train: each gearshaft keeps its rest orientation and turns about its local X
     this.spinNodes = []; this.spinRatio = {};
     for (const e of manifest.spin || []) {
@@ -1378,7 +1416,7 @@ export class Scene3D {
     this.rotorRows = this.rotorRows.filter((r) => alive(r.im)); this.vsvRows = this.vsvRows.filter(alive); this.cutInst = this.cutInst.filter(alive);
     for (const [id, kind] of [['fancowl', 'fan'], ['cna', 'cd'], ['corecowl', 'cd']]) { const p = this.byId[id]; if (p && taken.includes(id)) for (const ob of p.objs) if (/^ext:/.test(ob.name)) this._rigExternalHinges(ob, kind); }
     if (this._genBifur && this.byId.cna.objs.some((ob) => ob.getObjectByName && [...ob.children].some((c) => /^cna_bifur/.test(c.name) || [...c.children].some((g) => /^cna_bifur/.test(g.name))))) for (const m of this._genBifur) if (m.parent) m.parent.remove(m);
-    this.setCutaway(this.cutaway); this.revNodes = null; this._rev = -1; this._cowlApplied = -1;
+    this.setCutaway(this.cutaway); this.revNodes = null; this._rev = -1; this._revA = 0; this._cowlApplied = -1;
     return taken;
   }
 
