@@ -338,6 +338,27 @@ until they turn up into it.
 - **Studio rim light:** near-neutral instead of strong blue, which had tinted every bare metal surface
   blue-grey.
 
+### The busy layer
+
+In-service engines (the NTSB V2500 docket photos and shop photos) are crowded with small tubes, sense lines,
+drains and harness legs between the units and the bosses on the cases. They follow irregular routes, bend
+round each other and cross at different heights, and each ends at a fitting. `dressing.py` lays this layer
+over both the fan case and the core:
+
+- **Fan case:** about 150 tube runs (one to three tubes each, 4.4 to 11 mm across, in stainless, titanium
+  or cadmium-plated finish), 40 harness legs (a quarter in brown braid) and 10 fire-sleeved flexible hoses.
+- **Core:** about 210 tube runs and 30 harness legs between the core units and 110 bosses on the
+  compressor, combustor and turbine cases.
+- **Anchors:** each run goes between two anchors, either unit ports or bosses on the case. Runs ending at a
+  case boss get a port boss and a B-nut. Each run takes one to three bends and sits on one of five height
+  layers, so crossings pass over each other.
+- **Keep-outs:** every segment is checked against the footprints of the units (EEC, relay box, solenoids,
+  ACOC, starter valve, anti-ice valve, FCOC and filter, IDG cooler, oil tank, oil pressure switches, pylon
+  panels, gearbox; on the core the VSV levers, exciters, fuel distribution valve, clearance-control valves
+  and buffer air cooler), so nothing passes through a unit.
+
+The layer is seeded, so every build is the same.
+
 ### Fan case dressing
 
 **In-service condition.** The booklet and display-engine photos show cleaned, presentation-condition engines.

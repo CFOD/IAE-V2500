@@ -50,7 +50,7 @@ const inCut = (th) => { const t = ((th % TAU) + TAU) % TAU; return t > TAU + CUT
 const INT_MATS = {
   i_tifan: { color: 0xaab1b8, metalness: 1, roughness: 0.26, f: 'titanium' }, i_ti: { color: 0xa3abb3, metalness: 1, roughness: 0.3, f: 'compressorBlade' },
   i_nickel: { color: 0x9b9c99, metalness: 1, roughness: 0.34, f: 'compressorBlade' }, i_disc: { color: 0x8a9096, metalness: 1, roughness: 0.36, f: 'bareSteel' },
-  i_case: { color: 0x8a8b8c, metalness: 0.85, roughness: 0.46, f: 'castBare' }, i_filler: { color: 0xd0d1cc, metalness: 0.05, roughness: 0.5, f: 'castPaint' },
+  i_case: { color: 0x7e7f7f, metalness: 0.82, roughness: 0.5, f: 'castBare' }, i_filler: { color: 0xd0d1cc, metalness: 0.05, roughness: 0.5, f: 'castPaint' },
   i_rubber: { color: 0x111214, metalness: 0, roughness: 0.75, f: 'rubber' }, i_vsv: { color: 0x6f7c88, metalness: 0.9, roughness: 0.3, f: 'titanium' },
   i_steel: { color: 0xa0a5aa, metalness: 1, roughness: 0.3, f: 'stainlessTube' }, i_liner: { color: 0xa39a90, metalness: 0.9, roughness: 0.5, f: 'hotCase' },
   i_ceramic: { color: 0xe9e8e2, metalness: 0, roughness: 0.35, f: 'polished' }, i_hptb: { color: 0x8f8a82, metalness: 1, roughness: 0.4, f: 'turbineBlade' },

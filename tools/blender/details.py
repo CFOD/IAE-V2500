@@ -348,19 +348,19 @@ def build_bleed_valves(d):
         # outlet: the duct flares to a round mouth closed by a domed perforated plate, ringed by the orange silicone fire seal
         # that bears on the core cowl (Airbus TTM 'compressor bleed valves' photos: a red ring with the metal dish inside)
         pc.append(K.cyl('fl', (x, 0, z1 - 0.004), (x, 0, z1 + 0.004), 0.041, M['steel'], seg=28, r2=0.072))
-        pc.append(K.cyl('mo', (x, 0, z1 + 0.004), (x, 0, rt - 0.016), 0.074, M['steel'], seg=36))       # the mouth's collar
-        pc.append(K.cyl('slh', (x, 0, rt - 0.0165), (x, 0, rt - 0.0155), 0.07, M['hole'], seg=32))      # dark throat
+        pc.append(K.cyl('mo', (x, 0, z1 + 0.004), (x, 0, rt - 0.016), 0.086, M['steel'], seg=36))       # the mouth's collar
+        pc.append(K.cyl('slh', (x, 0, rt - 0.0165), (x, 0, rt - 0.0155), 0.082, M['hole'], seg=32))      # dark throat
         for k in range(5):                                                                              # the domed plate
-            rr = 0.062 * (1 - k / 5) + 0.006; zz = rt - 0.0155 + 0.009 * math.sin(math.pi / 2 * (k + 1) / 5)
+            rr = 0.074 * (1 - k / 5) + 0.006; zz = rt - 0.0155 + 0.009 * math.sin(math.pi / 2 * (k + 1) / 5)
             pc.append(K.cyl('dm', (x, 0, zz - 0.0022), (x, 0, zz), rr, M['steel'], seg=32))
         for k in range(12):                                                                             # its retaining screws
             a = 2 * math.pi * k / 12
-            pc.append(K.cyl('ds', (x + 0.064 * math.cos(a), 0.064 * math.sin(a), rt - 0.016), (x + 0.064 * math.cos(a), 0.064 * math.sin(a), rt - 0.012), 0.0032, M['bolt'], seg=6))
+            pc.append(K.cyl('ds', (x + 0.076 * math.cos(a), 0.076 * math.sin(a), rt - 0.016), (x + 0.076 * math.cos(a), 0.076 * math.sin(a), rt - 0.012), 0.0032, M['bolt'], seg=6))
         NS = 28                                                                                         # the seal: a bulb ring round the mouth
         for k in range(NS):
             a0, a1 = 2 * math.pi * k / NS, 2 * math.pi * (k + 1.08) / NS
-            pc.append(K.cyl('sl', (x + 0.083 * math.cos(a0), 0.083 * math.sin(a0), rt - 0.013), (x + 0.083 * math.cos(a1), 0.083 * math.sin(a1), rt - 0.013), 0.0125, M['seal'], seg=10))
-        pc.append(K.cyl('slb', (x, 0, rt - 0.026), (x, 0, rt - 0.016), 0.095, M['seal'], seg=36))       # its base flange
+            pc.append(K.cyl('sl', (x + 0.096 * math.cos(a0), 0.096 * math.sin(a0), rt - 0.013), (x + 0.096 * math.cos(a1), 0.096 * math.sin(a1), rt - 0.013), 0.013, M['seal'], seg=10))
+        pc.append(K.cyl('slb', (x, 0, rt - 0.026), (x, 0, rt - 0.016), 0.108, M['seal'], seg=36))       # its base flange
         d.keep(d.rot(K.join(name, pc), th))
 
 
