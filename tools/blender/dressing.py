@@ -245,10 +245,10 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     # Stage 7 (IP) and stage 10 (HP) ports on the HPC case. The IP duct has a check valve, the HP duct the
     # HP valve; they join and rise through the upper bifurcation, through the pressure regulating valve,
     # to the precooler in the pylon.
-    L('bleed7').duct(core, [(1.58, 30, 0.0), (1.58, 30, 0.075), (1.58, 9, 0.075), (1.5, 3, 0.14), (1.5, 3, 0.57)], 0.038, M['duct'], M['flange'],
+    L('bleed7').duct(core, [(1.58, 30, 0.0), (1.58, 30, 0.075), (1.58, 9, 0.075), (1.5, 3, 0.14), (1.5, 3, 0.57)], 0.046, M['duct'], M['flange'],
            rb=0.07, joints=(0.18, 0.52), bellows=((0.6, 0.66),), ports=(True, False), port_mat=M['boss'],
            valves=((0.33, 0.07, 1.22, M['valve'], None), (0.8, 0.12, 1.3, M['valve'], M['act'])))
-    L('bleed10').duct(core, [(1.8, 332, 0.0), (1.8, 332, 0.08), (1.8, 352, 0.08), (1.62, 358, 0.1), (1.536, 1, 0.16)], 0.031, M['duct'], M['flange'],
+    L('bleed10').duct(core, [(1.8, 332, 0.0), (1.8, 332, 0.08), (1.8, 352, 0.08), (1.62, 358, 0.1), (1.536, 1, 0.16)], 0.04, M['duct'], M['flange'],
            rb=0.06, joints=(0.22, 0.78), ports=(True, False), port_mat=M['boss'], valves=((0.5, 0.11, 1.35, M['valve'], M['act']),))
 
     # ================================================================== ACTIVE CLEARANCE CONTROL

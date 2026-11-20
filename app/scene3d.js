@@ -248,7 +248,7 @@ export class Scene3D {
     const key = (this.key = new THREE.DirectionalLight(0xfff4e6, 2.0)); key.position.set(-2.5, 7, 6); key.castShadow = true;
     key.shadow.mapSize.set(4096, 4096); key.shadow.bias = -0.0003; key.shadow.normalBias = 0.02; key.shadow.radius = 2.5;
     Object.assign(key.shadow.camera, { left: -4.5, right: 5.5, top: 4, bottom: -4, near: 1, far: 22 }); scene.add(key);
-    const rim = new THREE.DirectionalLight(0x9fc2ff, 1.4); rim.position.set(5, 3, -7); scene.add(rim);
+    const rim = new THREE.DirectionalLight(0xdfe6ef, 1.15);   // near-neutral: a strong blue rim turned every bare metal surface blue-grey rim.position.set(5, 3, -7); scene.add(rim);
     const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(2, -1, 6); scene.add(fill);
     this.flameLight = new THREE.PointLight(0xff8a30, 0, 3.5, 1.6); this.flameLight.position.set(2.05, 0, 0); scene.add(this.flameLight);
 

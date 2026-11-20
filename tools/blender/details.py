@@ -338,14 +338,29 @@ def build_bleed_valves(d):
                 pc.append(K.cyl('nt', (x + 0.053 * math.cos(a), 0.053 * math.sin(a), z), (x + 0.053 * math.cos(a), 0.053 * math.sin(a), z + 0.006), 0.0045, M['bolt'], seg=6))
         pc.append(K.cyl('pf', (x, -0.158, rc + 0.048), (x, -0.168, rc + 0.048), 0.006, M['fitting'], seg=6))     # muscle-air port
         z0, z1 = rc + 0.084, rt - 0.016
-        pc.append(K.cyl('d1', (x, 0, z0), (x, 0, z0 + (z1 - z0) * 0.35), 0.041, M['steel'], seg=24))
+        pc.append(K.cyl('d1', (x, 0, z0), (x, 0, z0 + (z1 - z0) * 0.35), 0.043, M['steel'], seg=24))
         for k in range(5):                                                                                       # bellows
             z = z0 + (z1 - z0) * (0.37 + 0.05 * k)
             pc.append(K.cyl('bw', (x, 0, z), (x, 0, z + (z1 - z0) * 0.035), 0.046, M['steel'], seg=24))
         pc.append(K.cyl('d2', (x, 0, z0 + (z1 - z0) * 0.6), (x, 0, z1), 0.041, M['steel'], seg=24))
         zv = z0 + (z1 - z0) * 0.8
         pc += [K.cyl('vbd', (x, 0, zv - 0.006), (x, 0, zv + 0.006), 0.046, M['vband'], seg=24), K.box('tb', (x, 0.048, zv), (0.02, 0.012, 0.012), 0, M['vband'])]
-        pc.append(K.cyl('sl', (x, 0, z1), (x, 0, rt), 0.05, M['seal'], seg=28))                               # silicone seal against the core cowl
+        # outlet: the duct flares to a round mouth closed by a domed perforated plate, ringed by the orange silicone fire seal
+        # that bears on the core cowl (Airbus TTM 'compressor bleed valves' photos: a red ring with the metal dish inside)
+        pc.append(K.cyl('fl', (x, 0, z1 - 0.004), (x, 0, z1 + 0.004), 0.041, M['steel'], seg=28, r2=0.072))
+        pc.append(K.cyl('mo', (x, 0, z1 + 0.004), (x, 0, rt - 0.016), 0.074, M['steel'], seg=36))       # the mouth's collar
+        pc.append(K.cyl('slh', (x, 0, rt - 0.0165), (x, 0, rt - 0.0155), 0.07, M['hole'], seg=32))      # dark throat
+        for k in range(5):                                                                              # the domed plate
+            rr = 0.062 * (1 - k / 5) + 0.006; zz = rt - 0.0155 + 0.009 * math.sin(math.pi / 2 * (k + 1) / 5)
+            pc.append(K.cyl('dm', (x, 0, zz - 0.0022), (x, 0, zz), rr, M['steel'], seg=32))
+        for k in range(12):                                                                             # its retaining screws
+            a = 2 * math.pi * k / 12
+            pc.append(K.cyl('ds', (x + 0.064 * math.cos(a), 0.064 * math.sin(a), rt - 0.016), (x + 0.064 * math.cos(a), 0.064 * math.sin(a), rt - 0.012), 0.0032, M['bolt'], seg=6))
+        NS = 28                                                                                         # the seal: a bulb ring round the mouth
+        for k in range(NS):
+            a0, a1 = 2 * math.pi * k / NS, 2 * math.pi * (k + 1.08) / NS
+            pc.append(K.cyl('sl', (x + 0.083 * math.cos(a0), 0.083 * math.sin(a0), rt - 0.013), (x + 0.083 * math.cos(a1), 0.083 * math.sin(a1), rt - 0.013), 0.0125, M['seal'], seg=10))
+        pc.append(K.cyl('slb', (x, 0, rt - 0.026), (x, 0, rt - 0.016), 0.095, M['seal'], seg=36))       # its base flange
         d.keep(d.rot(K.join(name, pc), th))
 
 

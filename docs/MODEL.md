@@ -323,6 +323,21 @@ Services only rise above the cowl inside the pylon, between the hinge lines. The
 reverser's hydraulic unit, the starter duct and the hydraulic, fuel and harness runs stay under the cowl skin
 until they turn up into it.
 
+### Fixes from in-service references
+
+- **Booster case:** it now follows the flow path. It had been drawn as a straight line between its ends at
+  x 0.40 and 0.90 m, which cut up to 12 mm inside the flow path, so blade tips and vane platforms came
+  through it. A scan of every blade and vane template against the case outer surfaces now finds none
+  outside a case.
+- **HP compressor variable vanes:** each spindle stands in a bush in its boss on the case, and the levers lie
+  just above the case, so the rows read as lever hardware rather than blade tips.
+- **Compressor bleed valves** (Airbus TTM *compressor bleed valves* photos): the outlet is a round mouth with
+  a domed, screwed plate, ringed by the red-brown silicone fire seal that bears on the core cowl. It had been
+  a solid orange disc.
+- **Aircraft bleed ducts:** larger, about 92 mm (stage 7) and 80 mm (stage 10).
+- **Studio rim light:** near-neutral instead of strong blue, which had tinted every bare metal surface
+  blue-grey.
+
 ### Fan case dressing
 
 **In-service condition.** The booklet and display-engine photos show cleaned, presentation-condition engines.

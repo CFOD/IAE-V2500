@@ -388,6 +388,7 @@ def row(K, name, part, x0, x1, hub, tip, angles, tmax, mat, kind, spool=0, solid
             xs, r_top, xu = vsv; sg = 20 if hd else 14
             parts.append(K.cyl(name + suffix + '_bt', (xs, 0, rt - 0.001), (xs, 0, rt + 0.005), 0.0075, mat, seg=sg))
             parts.append(K.cyl(name + suffix + '_sp', (xs, 0, rt + 0.005), (xs, 0, r_top + 0.004), 0.0032, mat, seg=sg - 4))
+            parts.append(K.cyl(name + suffix + '_bo', (xs, 0, rt + 0.022), (xs, 0, r_top - 0.002), 0.0085, M_BOLT[0] or mat, seg=sg))   # spindle bush in its boss on the case
             parts.append(K.box(name + suffix + '_lv', ((xs + xu) / 2, 0, r_top + 0.002), (abs(xs - xu) + 0.012, 0.009, 0.004), 0, mat))
             parts.append(K.cyl(name + suffix + '_pn', (xu, 0, r_top + 0.004), (xu, 0, r_top + 0.012), 0.0026, mat, seg=sg - 6))
             if hd: parts.append(K.cyl(name + suffix + '_nt', (xs, 0, r_top + 0.004), (xs, 0, r_top + 0.008), 0.0045, M_BOLT[0] or mat, seg=6))   # spindle nut on the lever
@@ -561,7 +562,7 @@ def build_front(K, M):
         K.lathe(f'lpc_disc{i + 1}', [(x + 0.008, rr)] + circ_groove(x + 0.02, 0.024, rr) + [(x + 0.032, rr), (x + 0.03, ci(x) - 0.02), (x + 0.026, ci(x) - 0.045),
                                      (x + 0.032, ci(x) - 0.06), (x + 0.032, ci(x) - 0.075), (x + 0.008, ci(x) - 0.075), (x + 0.008, ci(x) - 0.06), (x + 0.014, ci(x) - 0.045), (x + 0.01, ci(x) - 0.02)], M['disc'], cut='deep', steps=96)
     # booster case with the 2.5 bleed ring
-    K.lathe('lpccase_shell', [(0.4, co(0.4)), (0.4, co(0.4) + 0.014), (0.9, co(0.9) + 0.016), (0.9, co(0.9))] , M['case'])
+    K.lathe('lpccase_shell', prof_band(CORE_OUTER, 0.4, 0.9, 0.0, 0.016), M['case'])   # follows the flow path (a straight line between the ends cut inside it: blade tips came through)
 
     # ---------------------------------------------------------------- intermediate case: struts across the swan-neck duct
     # (the bottom one carries the tower shaft down to the angle gearbox)
@@ -575,11 +576,11 @@ def build_front(K, M):
     vsv_x = [1.1475] + [xr0 + 0.068 * i + 0.048 for i in range(3)]
     for k, xsp in enumerate(vsv_x):
         x0 = xsp - 0.012 if k == 0 else xsp - 0.012; x1 = x0 + 0.024
-        rtop = co(xsp) + 0.04; xu = xsp - 0.024
+        rtop = co(xsp) + 0.036; xu = xsp - 0.024   # (the levers lie just above the case, on bushed spindles)
         ang = vane_angles(0, 0, 22) if k == 0 else vane_angles(44, 40, 4)
         row(K, 'hpccase_igv' if k == 0 else f'hpccase_vsv{k}', 'hpccase', x0, x1, ci, co, ang, lambda f: 0.07, M['vsv'], 'stator',
             solidity=1.2, vsv=(xsp, rtop, xu), hub_plat=False, n_st=7, n_pts=12)
-        uo = co(xu) + 0.034
+        uo = co(xu) + 0.03
         K.lathe(f'hpccase_unison{k}', [(xu - 0.006, uo + 0.008), (xu - 0.006, uo + 0.02), (xu + 0.006, uo + 0.02), (xu + 0.006, uo + 0.008)], M['steel'], cut='wedge', steps=144)
     for i in range(10):
         x = xr0 + 0.068 * i; w = 0.034 - 0.0015 * i
