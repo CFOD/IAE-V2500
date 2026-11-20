@@ -122,7 +122,7 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     # EEC connectors are at x 0.72-0.76, th 298-311.6, r 0.905
     for k in range(3):  # EEC -> fan electrical connector panel at the top
         a = 298 + 3.4 * k
-        H(D, fan, [(0.765, a, 0.045), (0.9, a, 0.03), (0.9, 338 + 3 * k, 0.03), (1.09, 338 + 3 * k, 0.03), (1.13, 342 + 3 * k, 0.14)], radius=0.009 + 0.002 * (k == 1))
+        H(D, fan, [(0.765, a, 0.045), (0.9, a, 0.03), (0.9, 338 + 3 * k, 0.03), (1.0, 338 + 3 * k, 0.03), (1.05, 342 + 3 * k, 0.07)], radius=0.009 + 0.002 * (k == 1))
     for k, a in enumerate((308.2, 311.6)):  # EEC -> relay box
         H(D, fan, [(0.765, a, 0.045), (0.785, a, 0.035), (0.785, 286 - 2 * k, 0.035), (0.69, 286 - 2 * k, 0.03), (0.6 + 0.06 * k, 283.5, 0.06)], radius=0.007)
     for k in range(4):  # relay box -> bleed solenoids
@@ -141,7 +141,7 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     # Air turbine starter supply: from the pylon at the top, round the back of the fan case behind the
     # air-cooled oil cooler, forward to the starter air valve, then on to the starter on the gearbox
     sx = AC.SAV_X1; st_th = AC.LAYOUT['starter'][1]; sv_th = AC.LAYOUT['sav'][1]
-    L('starterduct').duct(fan_base, [(sx, sv_th, duct_h(sx)), (1.135, sv_th, duct_h(1.135)), (1.135, 330, duct_h(1.135)), (1.19, 342, duct_h(1.19) + 0.02), (1.19, 356, duct_h(1.19) + 0.07)], AC.DUCT_R, M['duct'], M['flange'],
+    L('starterduct').duct(fan_base, [(sx, sv_th, duct_h(sx)), (1.135, sv_th, duct_h(1.135)), (1.135, 330, duct_h(1.135) - 0.02), (1.19, 340, duct_h(1.19) - 0.02), (1.19, 352, duct_h(1.19) - 0.02), (1.19, 357, duct_h(1.19) + 0.06)], AC.DUCT_R, M['duct'], M['flange'],
            rb=0.11, joints=(0.3, 0.58), bellows=((0.84, 0.9),), supports=0.28, support_mat=M['brk'])
     ix = AC.STARTER_INLET_X
     L('starterduct').duct(fan_base, [(ix, st_th, duct_h(ix, st_r)), (0.052, st_th, duct_h(0.052, st_r)), (0.052, sv_th, duct_h(0.052)), (0.42, sv_th, duct_h(0.42))], AC.DUCT_R, M['duct'], M['flange'],
@@ -156,10 +156,10 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
     # ================================================================== FAN CASE, LEFT SIDE (fuel, oil, hydraulics)
     # hydraulic pump -> fluid disconnect panel on the upper left (suction, pressure, case drain)
     hx, hth, hr = hyd_port
-    T(L('hyd'), fan, [(hx, hth, hr - fan(hx)), (hx - 0.01, hth - 6, 0.07), (0.175, hth - 8.5, 0.02), (0.175, 24, 0.02), (1.09, 24, 0.02), (1.13, 14, 0.14)], n=3, d=0.04,
+    T(L('hyd'), fan, [(hx, hth, hr - fan(hx)), (hx - 0.01, hth - 6, 0.07), (0.175, hth - 8.5, 0.02), (0.175, 24, 0.02), (1.02, 24, 0.02), (1.065, 14, 0.1)], n=3, d=0.04,
       radius=[0.012, 0.007, 0.006], mat='ss', rb=0.07, every=0.24)
     # fuel supply and return from the pylon panel down to the LP fuel filter
-    T(L('fuelsupply'), fan, [(1.13, 8, 0.14), (1.13, 20, 0.02), (1.13, 128, 0.02), (1.1, 138, 0.08)], n=2, d=0.03, radius=[0.011, 0.008], mat='ss', rb=0.07)
+    T(L('fuelsupply'), fan, [(1.065, 9, 0.1), (1.13, 20, 0.02), (1.13, 128, 0.02), (1.1, 138, 0.08)], n=2, d=0.03, radius=[0.011, 0.008], mat='ss', rb=0.07)
     # LP filter / fuel-cooled oil cooler <-> pump and metering unit on the gearbox
     T(L('fcoc'), fan, [(1.0, 140, 0.05), (0.97, 146, 0.02), (0.97, 157, 0.02), fcoc_port], n=2, d=0.03, radius=0.01, mat='ss', rb=0.05)
     # oil pressure to the transmitter and low-pressure switch at the top left
@@ -381,7 +381,7 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
 
 
     # ================================================================== flexible hoses
-    D.hose([(1.13, 352, 0.92), (1.1, 346, 0.98), (1.14, 340, 1.0)], 0.011, M['fire'], M['nut'])   # HCU pressure hose to the pylon
+    D.hose([(1.0, 3.5, 0.945), (1.09, 4.5, 0.97), (1.14, 5.0, 1.03)], 0.011, M['fire'], M['nut'])   # HCU pressure hose, up into the pylon between the hinge lines
     D.hose([(1.13, 356, 0.92), (1.12, 2, 0.98), (1.15, 8, 1.0)], 0.009, M['fire'], M['nut'])
 
     D.finish(link, made); C.finish(link, made)

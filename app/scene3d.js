@@ -966,6 +966,7 @@ export class Scene3D {
     c.addPass(new ShaderPass(Sanitize));
     this.ao = new GTAOPass(this.scene, this.camera, 4, 4);
     this.ao.updateGtaoMaterial({ radius: 0.35, distanceExponent: 1.4, thickness: 1.2, scale: 1.15, samples: 12 });
+    this.ao.normalMaterial.side = THREE.DoubleSide;   // as the main pass draws: a skin seen from behind must still hide what is beyond it
     this.ao.enabled = false; c.addPass(this.ao);
     c.addPass(new SoftFxPass(this.scene, this.camera));   // smoke and fire after the ambient occlusion, before bloom
     this.bloom = new UnrealBloomPass(new THREE.Vector2(4, 4), 0.32, 0.5, 1.7); c.addPass(this.bloom);
@@ -1304,7 +1305,7 @@ export class Scene3D {
         panelline: FINISH.nacellePaint, panelline2: FINISH.nacellePaint, panel2: FINISH.nacellePaint, placard: FINISH.nacellePaint, hazard: FINISH.nacellePaint, marking: FINISH.nacellePaint,
         sp_dark: { ...FINISH.darkBox, bottom: 0, grime: 0.08 }, sp_white: { ...FINISH.nacellePaint, bottom: 0, grime: 0.06 }, sp_fair: { ...FINISH.titanium, bottom: 0 },
         blanket: { ...FINISH.stainlessTube, scale: 7, grime: 0.18, bump: 0.3 }, seal: FINISH.rubber, abradable: { ...FINISH.castPaint, grime: 0.12, bottom: 0.1 }, icepanel: FINISH.castPaint,
-        pylonfair: { ...FINISH.polished, scale: 3, grime: 0.14, grimeCol: [0.2, 0.19, 0.17], bottom: 0.3, streak: 0.25, rough: 0.12 },   // bare aluminium pylon fairings
+        pylonfair: { ...FINISH.titanium, scale: 3, grime: 0.16, grimeCol: [0.2, 0.19, 0.17], bottom: 0.3, streak: 0.25, rough: 0.16, tintVar: [1, 1, 1], turn: 0 },   // satin bare aluminium pylon fairings (a polished one mirrored the studio's light boxes)
         pylonside: { ...FINISH.castPaint, scale: 3, bump: 0.12, grime: 0.22, streak: 0.3, edge: 0.3 }, louvre: FINISH.darkBox,
         heatshield: { ...FINISH.titanium, grime: 0.18, grimeCol: [0.1, 0.08, 0.06], bottom: 0.3, streak: 0.3, heat: [3.0, 4.6, 0.55], soot: [3.6, 5.3, 0.35] },   // pylon heat shield, washed by the exhaust
       }[name] || null;

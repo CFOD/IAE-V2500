@@ -159,9 +159,9 @@ def build_mounts(H, made, P, r_at, in_cut, bevel=0.0015):
     for bx in (-0.06, 0.08):                                                                    # pylon mount bolts (4) and shear pins (2)
         for by in (-0.06, 0.06): F.hexa('mf', (bx, by, 0.14), (bx, by, 0.152), 0.009, M['nut'])
     for by in (-0.025, 0.025): F.cyl('mf', (0.01, by, 0.14), (0.01, by, 0.165), 0.006, 0.006, M['steel'], seg=12)
-    F.box('mf', (0.1, 0, 0.1), (0.05, 0.34, 0.045), M['cast'])                                # cross beam assembly
+    F.box('mf', (0.1, 0, 0.09), (0.05, 0.26, 0.045), M['cast'])                               # cross beam assembly (within the pylon's width)
     for sy in (-1, 1):                                                                          # thrust links, splayed down to lugs on the case
-        a = Vector((0.1, sy * 0.155, 0.1)); zc = math.sqrt(0.835 ** 2 - 0.3 ** 2) - r0
+        a = Vector((0.1, sy * 0.115, 0.09)); zc = math.sqrt(0.835 ** 2 - 0.3 ** 2) - r0
         b = Vector((-0.22, sy * 0.3, zc + 0.025))
         F.cyl('mf', a, b, 0.015, 0.015, M['steel'], seg=14)
         for q in (a, b): F.ring('mf', -0.014, 0.014, 0.013, 0.024, M['steel'], origin=q, axis=(1, 0, 0), seg=16)

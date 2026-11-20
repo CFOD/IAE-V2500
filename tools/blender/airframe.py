@@ -53,8 +53,10 @@ def wing_lower(x, eta=ETA_E):
     return y_ref(eta) + c * airfoil(xc, tc(eta))[1]
 
 
-def _mesh(link, name, bm, mats, smooth=True, sharp=None):
+def _mesh(link, name, bm, mats, smooth=True, sharp=None, closed=False):
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    if closed and bm.calc_volume(signed=True) < 0:   # a closed body must face outwards: the renderer's ambient-occlusion
+        bmesh.ops.reverse_faces(bm, faces=bm.faces)   # pass culls back faces, and an inside-out skin let parts behind it ghost through
     me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
     for m in mats: me.materials.append(m)
     for p in me.polygons: p.use_smooth = smooth
@@ -81,7 +83,7 @@ def build_wing(link, M):
         for i in range(n): bm.faces.new((a[i], a[(i + 1) % n], b[(i + 1) % n], b[i]))
     for r in (rows[0], list(reversed(rows[-1]))): bm.faces.new(r)   # the cut ends
     _cyl_uv(bm)
-    made.append(_mesh(link, 'pylon_wing__full', bm, [M['paint']], sharp=40))
+    made.append(_mesh(link, 'pylon_wing__full', bm, [M['paint']], sharp=40, closed=True))
 
     # panel lines: slat and flap gaps along the span, spoiler panels on top, slat cut either side of the pylon
     lines = bmesh.new()
@@ -125,7 +127,7 @@ def build_wing(link, M):
         for k in range(ring_n): bm.faces.new((a[k], a[(k + 1) % ring_n], b[(k + 1) % ring_n], b[k]))
     bm.faces.new(rings[0]); bm.faces.new(list(reversed(rings[-1])))
     _cyl_uv(bm)
-    made.append(_mesh(link, 'pylon_wingflaptrack__full', bm, [M['paint']]))   # (pylon_wing*: hidden on the apron, whose A320 has its own)
+    made.append(_mesh(link, 'pylon_wingflaptrack__full', bm, [M['paint']], closed=True))   # (pylon_wing*: hidden on the apron, whose A320 has its own)
     return made
 
 
@@ -221,7 +223,7 @@ def build_pylon(link, M, oml):
     for i in range(n): bm.faces.new((tip, rings[0][(i + 1) % n], rings[0][i]))
     bm.faces.new(list(reversed(rings[-1])))
     _cyl_uv(bm)
-    py = _mesh(link, 'pylon_fairing__full', bm, mats, sharp=55)
+    py = _mesh(link, 'pylon_fairing__full', bm, mats, sharp=55, closed=True)
     made.append(py)
 
     # access panels and fastener rows on the side walls, both sides

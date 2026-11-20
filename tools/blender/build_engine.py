@@ -408,7 +408,7 @@ def build():
         # de-oiler and its breather out through the cowl, drain to the mast
         cylinder('deoiler', th_pos(0.57, gt1 + 1, 0.975), th_pos(0.57, gt1 + 7, 0.975), 0.055, 0.05, cast, seg=20),
         tube('breather', [(0.6, gt1 + 7, 0.975), (0.8, gt1 + 5, 1.0), (0.98, gt1 + 2.5, oml(0.98, gt1 + 2.5) - 0.045), (1.03, gt1, oml(1.03, gt1) - 0.016)], 0.011, steel),   # ends at the cowl outlet
-        tube('drain', [(0.6, 186, rt), (0.7, 186, rt + 0.035), (0.9, 186, rt + 0.035), (0.95, 186, oml(0.95, 186) - 0.012)], 0.006, steel),   # beside the angle gearbox, out through the cowl
+        tube('drain', [(0.6, 186, rt), (0.7, 186, rt + 0.007), (0.9, 186, rt + 0.007), (0.95, 186, oml(0.95, 186) - 0.012)], 0.006, steel),   # (between the casting and the cowl skin)   # beside the angle gearbox, out through the cowl
     ]
     # oil supply and return between the gearbox and the tank's lower-end ports
     tp = [accessories.at('oiltank', q) for q in accessories.TANK_PORTS]
@@ -443,8 +443,8 @@ def build():
             th = 360.0 * k / n + 1.3
             put(th, cylinder('b', th_pos(xr - 0.011, th, rb), th_pos(xr + 0.011, th, rb), 0.0055, 0.0055, steel, seg=6))
     # anti-ice duct: bleed air forward to the inlet lip, with its valve
-    put(332, stack('aiv', 0.62, 332.5, 0.949, [(0.012, 0.045, 0.045), (0.09, 0.04, 0.04), (0.012, 0.045, 0.045)], cast))
-    put(332, box('aiact', th_pos(0.665, 332.5, 1.0), (0.07, 0.06, 0.05), 332.5, dark))
+    put(332, stack('aiv', 0.62, 332.5, 0.94, [(0.012, 0.036, 0.036), (0.09, 0.032, 0.032), (0.012, 0.036, 0.036)], cast))   # anti-ice valve, in line with its duct
+    put(328, box('aiact', th_pos(0.665, 327.6, 0.932), (0.07, 0.06, 0.05), 327.6, dark))   # its actuator beside it, under the cowl skin
     # ignition exciters, relay box, air-cooled oil cooler and the engine data plate
     # right side, below the EEC: relay box, then the bank of bleed-valve solenoids (four in a row and two below)
     for k in range(4): put(268, stack('sol', 0.55 + 0.085 * k, 270, 0.9, [(0.02, 0.022, 0.022), (0.035, 0.03, 0.03), (0.012, 0.018, 0.018)], gold))
@@ -499,13 +499,14 @@ def build():
         g0, g1, gr = accessories.GEARBOX['th0'], accessories.GEARBOX['th1'], accessories.GEARBOX['r_out']
         put(180, tube('fire', [(0.372 + d, g0 + 1, gr - 0.01), (0.372 + d, 180, gr - 0.008), (0.372 + d, g1 - 1, gr - 0.01), (0.57, g1 + 0.6, gr - 0.03), (0.768 - d, g1 - 1, gr - 0.02), (0.768 - d, 180, gr - 0.016), (0.768 - d, g0 + 1, gr - 0.02), (0.57, g0 - 0.6, gr - 0.03), (0.372 + d, g0 + 1, gr - 0.01)], 0.0035, gold))
     # hydraulic control unit for the reverser and the pylon disconnect panels at the top of the fan frame
-    put(352, box('hcu', th_pos(1.0, 352, 0.915), (0.2, 0.14, 0.07), 352, gold))
-    for k in range(3): put(352, stack('hcus', 0.93 + 0.06 * k, 349, 0.96, [(0.012, 0.016, 0.016), (0.04, 0.02, 0.02)], steel))
-    put(352, cylinder('hcuf', th_pos(1.12, 354, 0.93), th_pos(1.12, 354, 1.0), 0.028, 0.028, steel, seg=14))
+    # (all of it stays under the cowl skin: only the lines that rise into the pylon leave it, between the hinge lines)
+    put(358, box('hcu', th_pos(0.96, 358, 0.915), (0.16, 0.14, 0.07), 358, gold))
+    for k in range(3): put(355, stack('hcus', 0.92 + 0.05 * k, 355, 0.955, [(0.012, 0.016, 0.016), (0.035, 0.02, 0.02)], steel))
+    put(359, cylinder('hcuf', th_pos(1.06, 359, 0.93), th_pos(1.06, 359, 1.0), 0.026, 0.026, steel, seg=14))   # up into the pylon
     for th0 in (346, 12):
-        put(th0, box('disc', th_pos(1.16, th0, 0.99), (0.012, 0.2, 0.09), th0, steel))
-        for k in range(5): put(th0, cylinder('dc', th_pos(1.12, th0 - 6 + 3 * k, 0.99), th_pos(1.2, th0 - 6 + 3 * k, 0.99), 0.012, 0.012, gold, seg=10))
-        for k in range(5): put(th0, tube('dh', [(1.12, th0 - 6 + 3 * k, 0.99), (1.02, th0 - 8 + 4 * k, 0.96), (0.9, th0 - 14 + 6 * k, 0.9), (0.7, th0 - 16 + 7 * k, 0.895)], 0.007, loom if k % 2 else steel))
+        put(th0, box('disc', th_pos(1.1, th0, 0.948), (0.012, 0.19, 0.07), th0, steel))
+        for k in range(5): put(th0, cylinder('dc', th_pos(1.06, th0 - 6 + 3 * k, 0.95), th_pos(1.14, th0 - 6 + 3 * k, 0.95), 0.011, 0.011, gold, seg=10))
+        for k in range(5): put(th0, tube('dh', [(1.06, th0 - 6 + 3 * k, 0.95), (0.98, th0 - 8 + 4 * k, 0.93), (0.9, th0 - 14 + 6 * k, 0.9), (0.7, th0 - 16 + 7 * k, 0.895)], 0.007, loom if k % 2 else steel))
     made.append(finish(join('fancase_dressing', kept), 0))
     made.append(finish(join('fancase_dressing2__full', full), 0))
     # ---- thrust reverser: fixed torque box, translating sleeve, cascades, blocker doors
@@ -572,16 +573,16 @@ def build():
     # ---- pylon and the slice of wing above the engine, as smooth aerodynamic surfaces (tools/blender/airframe.py)
     import airframe
     # (photos: the fairings are bare aluminium, the pylon box sides a mid grey, the heat shield dull titanium)
-    AM = {'paint': paint, 'fair': material('pylonfair', (0.74, 0.75, 0.77), 0.85, 0.3), 'side': material('pylonside', (0.4, 0.41, 0.43), 0.3, 0.5),
+    AM = {'paint': paint, 'fair': material('pylonfair', (0.72, 0.73, 0.75), 0.75, 0.46), 'side': material('pylonside', (0.4, 0.41, 0.43), 0.3, 0.5),
           'bare': material('heatshield', (0.5, 0.49, 0.47), 0.85, 0.42), 'louvre': material('louvre', (0.03, 0.03, 0.035), 0.2, 0.7),
           'line': material('panelline2', (0.12, 0.13, 0.14), 0.0, 0.6), 'fastener': material('fastener', (0.62, 0.63, 0.64), 0.9, 0.35)}
     for o in airframe.build_pylon(link, AM, oml) + airframe.build_wing(link, AM): made.append(finish(o, 0))
     # ---- cowl door hinges along the top, each side of the pylon; reverser actuators in the cascade bay
     hk, hf = [], []
     for x in (0.15, 0.45, 0.75, 1.05):
-        for th in (347, 13): (hf if in_cut(th) else hk).append(finish(loft('h', [(x - 0.07, 0.004, OML(x) - 0.004, OML(x) + 0.004), (x - 0.03, 0.02, OML(x) - 0.004, OML(x) + 0.016), (x + 0.03, 0.02, OML(x) - 0.004, OML(x) + 0.016), (x + 0.07, 0.004, OML(x) - 0.004, OML(x) + 0.004)], paint, n=12), 0))
+        for th in (351, 9): (hf if in_cut(th) else hk).append(finish(loft('h', [(x - 0.07, 0.004, OML(x) - 0.004, OML(x) + 0.004), (x - 0.03, 0.02, OML(x) - 0.004, OML(x) + 0.016), (x + 0.03, 0.02, OML(x) - 0.004, OML(x) + 0.016), (x + 0.07, 0.004, OML(x) - 0.004, OML(x) + 0.004)], paint, n=12), 0))
     from mathutils import Matrix as _M
-    for lst, th in ((hk, 347), (hf, 13)):
+    for lst, th in ((hk, 351), (hf, 9)):
         for o in lst: o.matrix_world = _M.Rotation(-math.radians(th), 4, 'X') @ o.matrix_world
     made.append(join('fancowl_hinges_R', hk)); made.append(join('fancowl_hingesB_L__full', hf))
     acts = []
