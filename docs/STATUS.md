@@ -1,9 +1,22 @@
-# Where the project stands (19 November 2026)
+# Where the project stands (20 November 2026)
 
 Work since the switch is on branch `ccr-b314d629-a56f7k-opus` (the original branch is untouched).
 The test website at iae.cfod.co.uk deploys from this branch automatically (see docs/WEB.md).
 
 ## Done recently
+- A model pass across the whole engine, checked against on-wing photos (docs/MODEL.md):
+  - **Pylon:** rebuilt as a smooth fairing on the wing. It has satin aluminium fairings over grey box sides, a
+    titanium heat shield that sweeps up behind the nozzle, pre-cooler louvres, round access panels and frame
+    rows. The wing slice is rebuilt from the A320 definition.
+  - **Roots and slots:** every rotor now has blade roots in real disc slots (fan dovetails, turbine fir-trees,
+    skewed HP compressor dovetails, booster grooves).
+  - **Cowl doors:** frames, seals, edge beams, latch keepers and stowed hold-open rods inside, notched round
+    the units.
+  - **Finishes:** the nozzle is satin metal, the spinner glossy black, the fan rub strip cream and the blades
+    gunmetal. The left door has its ventilation outlet and the nose cowl its anti-ice exhaust grille.
+  - **Clipping fixed:** parts no longer show through the top of the cowl. Services rise into the pylon only
+    between the hinge lines, and an inside-out pylon skin no longer lets the mount ghost through at High and
+    Ultra.
 - The accessory drive train modelled gear by gear (docs/MODEL.md, The accessory drive train): internal
   gearbox, tower shaft, angle gearbox, lay shaft and the main gearbox's two planes of involute gears, with
   bearings, couplings and sectioned housings. It turns at tooth-count ratios from the HP spool's angle, and

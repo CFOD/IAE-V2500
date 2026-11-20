@@ -646,6 +646,84 @@ def build():
     from dressing import build_dressing
     LINE_PARTS = build_dressing(P, r_at, in_cut, material, link, made, section)
 
+    # ---- inside the fan cowl doors (seen with the cowls open): frames, edge beams, edge seals, latch keepers and two
+    # stowed hold-open rods per door. Every piece is tested against the units under the cowl, in the egg-shaped space
+    # they end up in, and pieces that would hit one are left out: the frames come out notched round the units.
+    from mathutils import Vector as _V
+    from mathutils.bvhtree import BVHTree
+    UNIT = ('fancase_', 'line_', 'agb_', 'starter_', 'pma_', 'hydpump_', 'oilpump_', 'idg_', 'fuelpump_', 'fmu_', 'sav_', 'oiltank_', 'exciters_',
+            'eec_', 'mounts_', 'accvalves_', 'acac_', 'egtbox_', 'vsvact_', 'fdv_', 'angb_', 'layshaft_')
+    trees = []
+    for o in made:
+        if o.type != 'MESH' or not o.name.startswith(UNIT) or not o.data.polygons: continue
+        mw = o.matrix_world; trees.append(BVHTree.FromPolygons([mw @ v.co for v in o.data.vertices], [tuple(q.vertices) for q in o.data.polygons]))
+    d_in = lambda x: smooth_nacelle(x) - 0.022                     # inner face of the door skin (round, before the egg)
+    def egg_r(x, th, r):                                            # where egg_deform moves a point at radius r
+        side = smooth_nacelle(x); r_in = r_at(P['bypOuter'], x) + 0.013; w = max(0.0, min(1.0, (r - r_in) / max(0.01, side - 0.03 - r_in)))
+        return r + (oml(x, th) - side) * w
+    def clear(pts, d=0.006):
+        for x, th, r in pts:
+            q = _V(th_pos(x, th, egg_r(x, th, r)))
+            if any(t.find_nearest(q, d)[0] is not None for t in trees): return False
+        return True
+    def runs(keys, ok):                                             # consecutive kept keys, as (first, last) pairs
+        out, cur = [], None
+        for k, good in zip(keys, ok):
+            if good: cur = [k, k] if cur is None else [cur[0], k]
+            elif cur: out.append(cur); cur = None
+        if cur: out.append(cur)
+        return out
+    seal_m = material('seal', (0.85, 0.36, 0.13), 0.0, 0.6); red_m = material('hazard', (0.72, 0.05, 0.05), 0.0, 0.5)
+    for side, a0, a1 in (('L', GAP_TOP + 1.0, 179.0), ('R', 181.0, 360 - GAP_TOP - 1.0)):
+        parts = []
+        steps = [a0 + (a1 - a0) * i / 86 for i in range(87)]
+        # frames: hat stiffeners round the door, a little proud of its edges' seals
+        for xf, dp in ((0.12, 0.016), (0.42, 0.018), (0.68, 0.018), (0.98, 0.016)):
+            ri = d_in(xf)
+            ok = [clear([(xf - 0.016, t + 1, ri - dp), (xf + 0.016, t + 1, ri - dp), (xf, t + 1, ri - dp * 0.5)]) for t in steps[:-1]]
+            for t0, t1 in runs(steps[:-1], ok):
+                t1 += (a1 - a0) / 86
+                if t1 - t0 < 3: continue
+                loop = [(xf - 0.017, ri + 0.002), (xf + 0.017, ri + 0.002), (xf + 0.006, ri - dp), (xf - 0.006, ri - dp)]
+                parts.append(arc_solid('fr', loop, t0, t1, primer, steps=max(2, int(t1 - t0))))
+        # edge seals fore and aft, a bulb strip on the inner face
+        for xs in (0.012, 1.188):
+            ri = d_in(xs); ok = [clear([(xs, t + 1, ri - 0.006)], 0.004) for t in steps[:-1]]
+            for t0, t1 in runs(steps[:-1], ok):
+                t1 += (a1 - a0) / 86
+                if t1 - t0 >= 3: parts.append(arc_solid('sl', [(xs - 0.005, ri + 0.001), (xs + 0.005, ri + 0.001), (xs + 0.003, ri - 0.007), (xs - 0.003, ri - 0.007)], t0, t1, seal_m, steps=max(2, int(t1 - t0))))
+        # edge beams along the hinge and latch edges (box sections), in clear lengths
+        xs_ = [0.03 + 0.04 * i for i in range(29)]
+        for th_e in ((a0 + 1.2, a1 - 1.2) if side == 'L' else (a0 + 1.2, a1 - 1.2)):
+            ok = [clear([(x + 0.02, th_e, d_in(x) - 0.012), (x + 0.02, th_e, d_in(x) - 0.022)]) for x in xs_[:-1]]
+            for x0, x1 in runs(xs_[:-1], ok):
+                x1 += 0.04
+                if x1 - x0 < 0.1: continue
+                b = loft('bm', [(x, 0.013, d_in(x) - 0.024, d_in(x) + 0.002) for x in [x0 + (x1 - x0) * k / 6 for k in range(7)]], primer, n=12)
+                b.matrix_world = Matrix.Rotation(-math.radians(th_e), 4, 'X') @ b.matrix_world; parts.append(b)
+        # latch keepers (left door) and hooks (right door) behind the external latches
+        th_k = a1 - 0.6 if side == 'L' else a0 + 0.6
+        for xk in (0.2, 0.6, 1.0):
+            if clear([(xk, th_k, d_in(xk) - 0.02)]): parts.append(box('lk', th_pos(xk, th_k, d_in(xk) - 0.014), (0.07, 0.026, 0.028), th_k, steel))
+        # hold-open rods, stowed in clips along the door between the frames: telescopic, with a red lock collar
+        placed = 0
+        for xr in (0.27, 0.55, 0.83):
+            for ta, tb in ((60, 96), (100, 136), (128, 164), (30, 66)):
+                if placed == 2: break
+                if side == 'R': ta, tb = 360 - tb, 360 - ta
+                ri = d_in(xr); mid = (ta + tb) / 2; sag = ri * (1 - math.cos(math.radians((tb - ta) / 2)))
+                pa, pb = (xr, ta, ri - 0.03), (xr, tb, ri - 0.03)
+                path = [(xr, ta + (tb - ta) * k / 8, ri - 0.03 - sag * math.sin(math.pi * k / 8)) for k in range(9)]
+                if not clear(path + [(xr, mid, ri - 0.03 - sag - 0.012)], 0.016): continue
+                A_, B_ = _V(th_pos(*pa)), _V(th_pos(*pb)); M_ = A_ + (B_ - A_) * 0.55
+                parts += [cylinder('ho', A_, M_, 0.014, 0.014, steel, seg=14), cylinder('hi', M_ - (B_ - A_) * 0.06, B_, 0.009, 0.009, steel, seg=12),
+                          cylinder('hl', M_ - (B_ - A_) * 0.01, M_ + (B_ - A_) * 0.045, 0.0165, 0.0165, red_m, seg=14)]
+                for q in (A_, B_): parts.append(cylinder('he', q - (B_ - A_).normalized() * 0.012, q + (B_ - A_).normalized() * 0.012, 0.016, 0.016, steel, seg=12))
+                for k in (2, 6): parts.append(box('hc', th_pos(*path[k][:2], ri - 0.012), (0.03, 0.02, 0.024), path[k][1], primer))   # stowage clips
+                placed += 1; break
+        if parts:
+            o = join('fancowl_doorinner' + ('B_L__full' if side == 'L' else '_R'), parts); egg_deform(o); made.append(finish(o, 0.0015))
+
     # ---- engine internals: fan, booster, HP compressor, combustor, turbines, shafts and bearings (tools/blender/internals.py)
     import internals
     IM = {k: material('i_' + k, c, mt, ro) for k, c, mt, ro in [

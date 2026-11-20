@@ -268,6 +268,63 @@ IAE does not publish pad speeds, so these are estimates sized to the units.
 lines, flap-track fairings and wingtip fences, the tail, both gears with twin wheels and chocks, and engine 2.
 It is loaded only when the apron is first shown.
 
+### Pylon and wing (engine view)
+
+`tools/blender/airframe.py` builds the pylon and a 5 m slice of the A320 wing above the engine. The wing uses
+the same definition as the apron's A320: leading edge swept 27.5°, 5.1° dihedral, and a supercritical
+section thinning from 15.5 % to 11.5 %. So the engine view and the apron agree. The slice has slat, flap and
+spoiler panel lines, the slat cut either side of the pylon, and the flap-track fairing outboard.
+
+The pylon is a smooth fairing: 70-point sections through about 135 stations.
+
+- **Shape:** the nose rises off the fan cowl. The foot flares out to the cowl hinge lines, so the doors close
+  against it. The top fairs into the wing's lower surface. Aft of the reverser the titanium heat shield stands
+  6 cm off the hot nozzle, then sweeps up behind it to a tail under the flap.
+- **Finish (from on-wing photos):** the forward and aft fairings are satin bare aluminium, the box sides
+  between them mid grey, and the heat shield dull titanium with heat and soot staining.
+- **Details:** access panels, fastener rows and frame lines, two round access panels, and the pre-cooler
+  exhaust louvres high on the side under the wing.
+
+Both the pylon and the wing are hidden in the cutaway, where sectioning them would leave a floating slab.
+
+Closed bodies such as the pylon and wing are checked to face outwards. The renderer's ambient-occlusion pass
+draws both sides of every surface, as the main pass does. When the pylon skin faced inwards, the AO pass
+dropped it and the mount behind showed through as a ghost.
+
+Services only rise above the cowl inside the pylon, between the hinge lines. The pylon disconnect panels, the
+reverser's hydraulic unit, the starter duct and the hydraulic, fuel and harness runs stay under the cowl skin
+until they turn up into it.
+
+### Inside the fan cowl doors
+
+With the cowls open, each door shows its inner structure on the primer-green skin:
+
+- four hat-section frames;
+- box edge beams along the hinge and latch edges;
+- orange bulb seals fore and aft;
+- latch keepers (left door) and hooks (right door) behind the external latches;
+- two stowed hold-open rods, telescopic, with red lock collars and stowage clips.
+
+Every piece is tested against the units under the cowl in its final, egg-shaped position. Pieces that would
+hit a unit are left out, so the frames come out notched round the units instead of passing through them.
+
+### Blade roots and disc slots
+
+Every rotor template carries its root:
+
+- **Fan:** a dovetail on a shank shaped like the root section, under the annulus fillers.
+- **HP turbine:** three-lobe fir-trees with seal wings ("angel wings") fore and aft of the shank.
+- **LP turbine:** two-lobe fir-trees.
+- **HP compressor:** dovetails in axial slots broached at the root's stagger, as on the drum in the museum
+  photos (at most 30°).
+- **Booster:** circumferential dovetails in grooves turned in the drum rims.
+
+The disc posts between axial slots are rings of their own. The disc lathes stop at the slot bottoms, so in the
+cutaway the slots and roots show end-on at the cut. The fir-tree and dovetail profiles scale with the pitch at
+the rim, so posts never get thinner than the slots allow. The HP turbine discs have a cover plate closing the
+slots at the front (it feeds them cooling air). The LP turbine seal arms rise from the live rim below the slots
+to a land carrying the knife edges.
+
 ### Engine internals
 
 `tools/blender/internals.py` models the inside of the engine. The arrangement follows the Airbus training
