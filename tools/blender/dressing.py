@@ -39,7 +39,7 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
         'cad': material('tube_cad', (0.7, 0.6, 0.36), 0.9, 0.4),        # cadmium-plated / chromate fittings and lines
         'nut': material('fitting', (0.74, 0.74, 0.72), 1.0, 0.34),
         'clamp': material('clamp_block', (0.42, 0.44, 0.47), 0.6, 0.5),    # block clamps
-        'red': material('clamp_red', (0.74, 0.2, 0.09), 0.0, 0.62),       # red silicone P-clamp cushions (photos)
+        'red': material('clamp_red', (0.46, 0.15, 0.1), 0.0, 0.6),        # red-brown silicone P-clamp cushions (NTSB V2500 docket photos)
         'brk': material('bracket', (0.5, 0.52, 0.55), 0.9, 0.48),
         'loom': material('loom', (0.78, 0.76, 0.7), 0.0, 0.9),            # white braided harness (swapped for a braid texture on load)
         'loomb': material('loomb', (0.45, 0.33, 0.22), 0.0, 0.9),         # brown braided harness (in-service photos: the big fan case trunks)

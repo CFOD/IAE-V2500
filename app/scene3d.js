@@ -73,9 +73,11 @@ const softSprite = () => { const t = canvasTex(64, 64, (g) => { const gr = g.cre
 const linerTex = () => canvasTex(64, 64, (g) => { g.fillStyle = '#8a8a8a'; g.fillRect(0, 0, 64, 64); g.fillStyle = '#1c1c1c'; for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { g.beginPath(); g.arc(8 + x * 16 + (y % 2) * 8, 8 + y * 16, 3.2, 0, 7); g.fill(); } }, [150, 18]);
 // fine circumferential machining marks
 // braided harness sleeve: diagonal over-under weave (u round the loom, v along it)
-const braidTex = () => { const t = canvasTex(64, 64, (g, W, H) => { g.fillStyle = '#cfccc4'; g.fillRect(0, 0, W, H);
+const braidTex = (stripe = false) => { const t = canvasTex(64, 64, (g, W, H) => { g.fillStyle = '#cfccc4'; g.fillRect(0, 0, W, H);
   for (let i = -8; i < 16; i++) for (const sgn of [1, -1]) { g.strokeStyle = sgn > 0 ? 'rgba(255,255,250,0.9)' : 'rgba(150,146,138,0.85)'; g.lineWidth = 3; g.beginPath(); g.moveTo(i * 8, 0); g.lineTo(i * 8 + sgn * 64, 64); g.stroke(); }
-  g.fillStyle = 'rgba(0,0,0,0.05)'; for (let y = 0; y < H; y += 8) for (let x = (y / 8) % 2 ? 4 : 0; x < W; x += 8) g.fillRect(x, y, 4, 4); }, [3, 1]); t.colorSpace = THREE.SRGBColorSpace; return t; };
+  g.fillStyle = 'rgba(0,0,0,0.05)'; for (let y = 0; y < H; y += 8) for (let x = (y / 8) % 2 ? 4 : 0; x < W; x += 8) g.fillRect(x, y, 4, 4);
+  if (stripe) { g.strokeStyle = 'rgba(170,32,28,0.92)'; g.lineWidth = 9; for (const o of [-64, 0, 64]) { g.beginPath(); g.moveTo(o, 64); g.lineTo(o + 64, 0); g.stroke(); } }   // red helical tracer (NTSB V2500 docket photos: white braid with a red spiral)
+  }, [3, 1]); t.colorSpace = THREE.SRGBColorSpace; return t; };
 const brushedTex = () => canvasTex(8, 256, (g, w, h) => { for (let y = 0; y < h; y++) { const v = 110 + Math.random() * 80; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(0, y, w, 1); } }, [1, 6]);
 
 // Shared GLSL: value noise and fractal noise. All inputs are finite and all pow / smoothstep
@@ -255,7 +257,7 @@ export class Scene3D {
     this.cutaway = true; this.explode = 0; this.showFlow = true; this.quality = 'medium';
     this.parts = []; this.byId = {}; this.vsvRows = []; this.cutInst = []; this.rotorRows = []; this.hingePivots = []; this.cowl = { open: false, fan: 0, cd: 0 }; this.hover = null; this.selected = null;
     setSurfaceQuality(this.quality || 'medium', this.renderer);
-    this.sprite = softSprite(); this.tex = { liner: linerTex(), brushed: brushedTex(), braid: braidTex(), blade: bladeTex(false), fanBlade: bladeTex(true), cast: castTex(), paint: paintTextures(), concrete: concreteTex() };
+    this.sprite = softSprite(); this.tex = { liner: linerTex(), brushed: brushedTex(), braid: braidTex(), braidRed: braidTex(true), blade: bladeTex(false), fanBlade: bladeTex(true), cast: castTex(), paint: paintTextures(), concrete: concreteTex() };
     this.capMat = new THREE.MeshStandardMaterial({ color: 0xb8402a, metalness: 0.1, roughness: 0.7, side: THREE.DoubleSide });
     this.t = 0; this.flash = 0;
     this.engine = new THREE.Group(); scene.add(this.engine);
@@ -398,7 +400,7 @@ export class Scene3D {
     const harness = new THREE.MeshStandardMaterial({ color: 0xc6c0b2, metalness: 0, roughness: 0.92 }); // looms are sleeved in white braid (SR Technics component photos)
     const conduit = new THREE.MeshStandardMaterial({ color: 0x1b1d20, metalness: 0.1, roughness: 0.7 });
     const unitGrey = new THREE.MeshStandardMaterial({ color: 0x8e9398, metalness: 0.7, roughness: 0.45 }); // cast accessory housings (exciters, valve bodies)
-    this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughness: 0.62, roughnessMap: T.brushed }), section: this.capMat, loom: new THREE.MeshStandardMaterial({ color: 0xffffff, map: T.braid, roughness: 0.85, metalness: 0, bumpMap: T.braid, bumpScale: 0.4 }), loomb: new THREE.MeshStandardMaterial({ color: 0x8a6c4e, map: T.braid, roughness: 0.85, metalness: 0, bumpMap: T.braid, bumpScale: 0.4 }) };
+    this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughness: 0.62, roughnessMap: T.brushed }), section: this.capMat, loom: new THREE.MeshStandardMaterial({ color: 0xffffff, map: T.braidRed, roughness: 0.85, metalness: 0, bumpMap: T.braid, bumpScale: 0.4 }), loomb: new THREE.MeshStandardMaterial({ color: 0x8a6c4e, map: T.braid, roughness: 0.85, metalness: 0, bumpMap: T.braid, bumpScale: 0.4 }) };
     // the authored acoustic panels and bleed grilles use the perforated texture (they carry UVs)
     this.shared.liner_perf = linerM;
     { const t = T.liner.clone(); t.repeat.set(9, 9); t.needsUpdate = true; this.shared.grille = new THREE.MeshStandardMaterial({ color: 0x6c6e70, metalness: 0.8, roughness: 0.5, map: t, side: THREE.DoubleSide }); }
