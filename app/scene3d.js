@@ -50,19 +50,19 @@ const inCut = (th) => { const t = ((th % TAU) + TAU) % TAU; return t > TAU + CUT
 const INT_MATS = {
   i_tifan: { color: 0xaab1b8, metalness: 1, roughness: 0.26, f: 'titanium' }, i_ti: { color: 0xa3abb3, metalness: 1, roughness: 0.3, f: 'compressorBlade' },
   i_nickel: { color: 0x9b9c99, metalness: 1, roughness: 0.34, f: 'compressorBlade' }, i_disc: { color: 0x8a9096, metalness: 1, roughness: 0.36, f: 'bareSteel' },
-  i_case: { color: 0x7c8186, metalness: 0.8, roughness: 0.45, f: 'castPaint' }, i_filler: { color: 0x8d959c, metalness: 0.4, roughness: 0.45, f: 'castPaint' },
+  i_case: { color: 0x7c8186, metalness: 0.8, roughness: 0.45, f: 'castPaint' }, i_filler: { color: 0xd0d1cc, metalness: 0.05, roughness: 0.5, f: 'castPaint' },
   i_rubber: { color: 0x111214, metalness: 0, roughness: 0.75, f: 'rubber' }, i_vsv: { color: 0x6f7c88, metalness: 0.9, roughness: 0.3, f: 'titanium' },
   i_steel: { color: 0xa0a5aa, metalness: 1, roughness: 0.3, f: 'stainlessTube' }, i_liner: { color: 0xa39a90, metalness: 0.9, roughness: 0.5, f: 'hotCase' },
   i_ceramic: { color: 0xe9e8e2, metalness: 0, roughness: 0.35, f: 'polished' }, i_hptb: { color: 0x8f8a82, metalness: 1, roughness: 0.4, f: 'turbineBlade' },
   i_tbc: { color: 0xd5ccb4, metalness: 0, roughness: 0.62, f: 'hotCase' }, i_honey: { color: 0xaeaea8, metalness: 0.85, roughness: 0.55, f: 'castBare' },
-  i_hot: { color: 0x8a7f72, metalness: 0.9, roughness: 0.45, f: 'hotCase' }, i_lptb: { color: 0x9a8a68, metalness: 1, roughness: 0.4, f: 'turbineBlade' },
-  i_tec: { color: 0x9c8263, metalness: 0.9, roughness: 0.45, f: 'hotCase' }, i_shaft: { color: 0x7a8188, metalness: 1, roughness: 0.28, f: 'bareSteel' },
+  i_hot: { color: 0x878b8f, metalness: 0.9, roughness: 0.45, f: 'hotCase' }, i_lptb: { color: 0x9a8a68, metalness: 1, roughness: 0.4, f: 'turbineBlade' },
+  i_tec: { color: 0x8e8b85, metalness: 0.9, roughness: 0.48, f: 'hotCase' }, i_shaft: { color: 0x7a8188, metalness: 1, roughness: 0.28, f: 'bareSteel' },
   i_race: { color: 0xc4c9cd, metalness: 1, roughness: 0.18, f: 'bareSteel', bottom: 0, grime: 0.05 }, i_bronze: { color: 0xb58a4c, metalness: 1, roughness: 0.35, f: 'cadmium' },
   i_carbon: { color: 0x1a1a1c, metalness: 0, roughness: 0.5, f: 'darkBox' }, i_gear: { color: 0x74787d, metalness: 1, roughness: 0.27, f: 'gearSteel' }, i_hole: { color: 0x0e0b09, metalness: 0, roughness: 0.9, f: 'darkBox' },
 };
 const INT_PART_MAT = { fan: ['i_tifan'], lpc: ['i_ti'], hpc: ['i_ti'], hpt: ['i_hptb'], lpt: ['i_lptb'], liner: ['i_liner'], tec: ['i_tec'], lpshaft: ['i_shaft'], hpshaft: ['i_shaft'],
   lpccase: ['i_case'], hpccase: ['i_case'], combcase: ['i_case'], hptcase: ['i_hot'], lptcase: ['i_hot'] };
-const INT_HEAT = { hpt: [2.0, 2.45, 0.8], lpt: [2.3, 3.05, 0.7], hptcase: [2.0, 2.5, 0.9], lptcase: [2.3, 3.1, 0.9], combcase: [1.75, 2.6, 0.5], liner: [1.9, 2.25, 0.9], tec: [2.7, 3.5, 1.0], fuel: [1.85, 2.3, 0.35], ign: [1.9, 2.3, 0.35] };
+const INT_HEAT = { hpt: [2.0, 2.45, 0.8], lpt: [2.3, 3.05, 0.55], hptcase: [2.0, 2.5, 0.65], lptcase: [2.3, 3.1, 0.45], combcase: [1.75, 2.6, 0.45], liner: [1.9, 2.25, 0.9], tec: [2.7, 3.5, 0.4], fuel: [1.85, 2.3, 0.35], ign: [1.9, 2.3, 0.35] };
 
 function canvasTex(w, h, draw, repeat) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);

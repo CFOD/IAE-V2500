@@ -532,10 +532,13 @@ def build():
         hoop = [[mx - t, mr] for (mx, mr), t in zip(mid, th_)] + [[mx + t, mr] for (mx, mr), t in reversed(list(zip(mid, th_)))]
         casL.append(arc_solid('h', hoop, GAP_TOP, 179.75, comp, steps=48)); casLc.append(arc_solid('h', hoop, 112, 179.75, comp, steps=32))
         casR.append(arc_solid('h', hoop, 180.25, 360 - GAP_TOP, comp, steps=48))
-    for k in range(24):
-        th = k * 15 + 7.5; rm = (duct(2.0) + OML(2.0)) / 2 - 0.002
+    # strongbacks: a fine grid with the turning vanes (in-flight photos of a deployed reverser show cells a few cm
+    # across), heavier frames at the edges of each cascade segment (18 per nacelle)
+    for k in range(120):
+        th = k * 3 + 1.5; rm = (duct(2.0) + OML(2.0)) / 2 - 0.002; heavy = k % 6 == 0
+        if not (GAP_TOP < th < 179.75 or 180.25 < th < 360 - GAP_TOP): continue
         for lst in (([casL] if in_cut(th) else [casL, casLc]) if th < 180 else [casR]):
-            lst.append(box('s', th_pos(1.99, th, rm), (0.46, 0.012, OML(2.0) - duct(2.0) - 0.07), th, comp))
+            lst.append(box('s', th_pos(1.99, th, rm), (0.46, 0.012 if heavy else 0.0045, OML(2.0) - duct(2.0) - 0.07), th, comp))
     made.extend([join('cna_cascades_L', casL), join('cna_cascades_L__cut', casLc), join('cna_cascades_R', casR)])
     # ten blocker doors and their drag links (Airbus TTM 'Reverser design': 10 blocker doors, 10 rods; the linkage as
     # in the conventional reverser of patent US 6,764,045 figs. 1-2). Each door is hinged at its forward edge to the
@@ -672,6 +675,16 @@ def build():
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     me = bpy.data.meshes.new('fancowl_strakeB_L__full'); bm.to_mesh(me); bm.free(); me.materials.append(paint)
     made.append(finish(link(bpy.data.objects.new('fancowl_strakeB_L__full', me)), 0.002))
+    # 'NO STEP' stencilled along both faces of the strake (in-flight photo)
+    nst = material('txt:NO STEP', (0.93, 0.93, 0.9), 0.0, 0.55); bm = bmesh.new()
+    nrm = (0, math.cos(th), math.sin(th))
+    for side in (-1, 1):
+        q = [bm.verts.new(tuple(c + side * (t + 0.0009) * n for c, n in zip(at(x, dr), nrm))) for x, dr in ((0.6, 0.012), (0.84, 0.012), (0.84, 0.042), (0.6, 0.042))]
+        f = bm.faces.new(q if side > 0 else list(reversed(q)))
+        uv = bm.loops.layers.uv.verify()
+        for l, (u, v) in zip(f.loops, ((0, 0), (1, 0), (1, 1), (0, 1)) if side > 0 else ((0, 1), (1, 1), (1, 0), (0, 0))): l[uv].uv = (u if side > 0 else 1 - u, v)
+    me = bpy.data.meshes.new('fancowl_strakelabelB_L__full'); bm.to_mesh(me); bm.free(); me.materials.append(nst)
+    made.append(link(bpy.data.objects.new('fancowl_strakelabelB_L__full', me)))
 
     # ---- pylon and the slice of wing above the engine, as smooth aerodynamic surfaces (tools/blender/airframe.py)
     import airframe

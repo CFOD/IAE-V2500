@@ -21,8 +21,11 @@ on rotating spools and opening cowls. Presets (`FINISH`) are chosen per part and
 the authored model's materials get the same treatment on load. Colours and finishes follow the
 reference photos: painted blue-grey fan and compressor cases, bare grey castings, gold chromate
 accessories, stainless and titanium tubes, white braided looms with red sleeves on red P-clamps,
-green primer inside the cowls, straw-bronze-purple heat tint on the turbine cases and a bronze
-exhaust cone.
+green primer inside the cowls, and off-white composite annulus fillers between the fan blades.
+The turbine cases take on a heat tint that runs straw, bronze, purple and blue along the engine,
+desaturated by about half. Nickel alloys oxidise to a duller grey-brown than tempered steel (the
+museum's LP turbine case is blue-grey steel), so at full colour they looked copper. The exhaust cone
+is a dull grey-brown.
 
 Three more effects come per finish:
 
@@ -194,7 +197,9 @@ generated shapes before.
   case, the cream abradable rub strip (with the shallow track the blade tips have worn in it), the
   ice-impact panel and the acoustic panels.
 
-The reverser cascades have cambered turning vanes, 14 per bay. The generated stand-ins for all of these are
+The reverser cascades have cambered turning vanes, 14 per bay. Thin strongbacks every 3° make the fine
+rectangular grid that in-flight photos of a deployed reverser show, with heavier frames at the edges of each
+of the 18 cascade segments. The strake carries its NO STEP stencil. The generated stand-ins for all of these are
 dropped when the model loads.
 
 ### Thrust reverser linkage

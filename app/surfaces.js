@@ -223,6 +223,7 @@ export function finish(mat, cfg) {
           vec3 straw = vec3(0.86, 0.72, 0.44), bronze = vec3(0.62, 0.42, 0.28), purple = vec3(0.46, 0.34, 0.56), blue = vec3(0.36, 0.48, 0.68);
           vec3 tint = mix(vec3(1.0), straw, smoothstep(0.05, 0.3, sHeat)); tint = mix(tint, bronze, smoothstep(0.3, 0.55, sHeat));
           tint = mix(tint, purple, smoothstep(0.55, 0.78, sHeat)); tint = mix(tint, blue, smoothstep(0.78, 1.0, sHeat));
+          tint = mix(vec3(dot(tint, vec3(0.3, 0.59, 0.11))), tint, 0.55) * (1.0 - 0.12 * sHeat);   // nickel alloys oxidise duller than tempered steel: hints of gold and blue in a grey-brown
           diffuseColor.rgb *= mix(vec3(1.0), tint, clamp(uHeat.z, 0.0, 1.0));
         }
         // exhaust soot towards the rear
