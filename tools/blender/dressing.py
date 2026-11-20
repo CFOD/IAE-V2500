@@ -39,10 +39,9 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
         'cad': material('tube_cad', (0.7, 0.6, 0.36), 0.9, 0.4),        # cadmium-plated / chromate fittings and lines
         'nut': material('fitting', (0.74, 0.74, 0.72), 1.0, 0.34),
         'clamp': material('clamp_block', (0.42, 0.44, 0.47), 0.6, 0.5),    # block clamps
-        'red': material('clamp_red', (0.46, 0.15, 0.1), 0.0, 0.6),        # red-brown silicone P-clamp cushions (NTSB V2500 docket photos)
+        'red': material('clamp_red', (0.74, 0.2, 0.09), 0.0, 0.62),       # red silicone P-clamp cushions (photos)
         'brk': material('bracket', (0.5, 0.52, 0.55), 0.9, 0.48),
         'loom': material('loom', (0.78, 0.76, 0.7), 0.0, 0.9),            # white braided harness (swapped for a braid texture on load)
-        'loomb': material('loomb', (0.45, 0.33, 0.22), 0.0, 0.9),         # brown braided harness (in-service photos: the big fan case trunks)
         'band': material('loom_band', (0.72, 0.13, 0.08), 0.0, 0.6),      # red identification sleeves
         'conn': material('connector', (0.46, 0.48, 0.5), 0.9, 0.4),
         'fire': material('firesleeve', (0.78, 0.36, 0.14), 0.0, 0.85),    # orange silicone fire sleeve on hoses
@@ -115,8 +114,8 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
                  layers=layers, rb=rb, end_boss=boss if boss else None, boss_mat=M['boss'], clamp_every=every,
                  tape_mat=tape(dr.prefix), torque_mat=M['torque'] if nuts else None)
 
-    def H(dr, R, way, radius=0.009, bands=True, conn=(True, True), rb=0.05, brown=False):
-        dr.loom(R, way, radius=radius, mat=M['loomb' if brown else 'loom'], band_mat=wire(dr.prefix + str(len(WIRES) if not dr.prefix.startswith('line_') else '')) if bands else None, clamp_mat=M['red'], bracket_mat=M['brk'],
+    def H(dr, R, way, radius=0.009, bands=True, conn=(True, True), rb=0.05):
+        dr.loom(R, way, radius=radius, mat=M['loom'], band_mat=wire(dr.prefix + str(len(WIRES) if not dr.prefix.startswith('line_') else '')) if bands else None, clamp_mat=M['red'], bracket_mat=M['brk'],
                 conn_mat=M['conn'], connectors=conn, rb=rb)
 
     # ================================================================== FAN CASE, RIGHT SIDE (EEC side)
@@ -331,67 +330,25 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
           (1.08, 100, 0.06), (0.6, 48, 0.05), (0.66, 54, 0.05), (0.3, 6, 0.04), (0.4, 34, 0.06), (0.4, 46, 0.06), (0.3, 70, 0.07), (0.8, 60, 0.05), (1.13, 10, 0.14),
           (1.13, 18, 0.14), (1.17, 30, 0.02), (1.17, 60, 0.02), (1.17, 90, 0.02), (1.17, 120, 0.02), (1.17, 150, 0.02), (1.17, 170, 0.02), (1.17, 160, 0.02),
           (0.05, 20, 0.03), (0.05, 90, 0.03), (0.05, 150, 0.03), (0.36, 150, 0.1), (0.785, 159.5, 0.05)]
-    # ---- fan case harnesses, laid out from the SR Technics component location booklet and the Airbus training
-    # manual photos: no filler. Thick white braided bundles from the EEC's connectors (J5, J7, J8, J9, J10, DEP) run
-    # in two channel trunks round the case, ridden on stand-off P-clamps between the stiffening ribs; a breakout leg
-    # runs from a trunk to every sensor and unit the booklet shows, each with its connector. Channel A rides the
-    # forward bay, channel B the aft one, so a single failure cannot cut both.
-    def bundle(way, radii, gap=0.004, conn=(True, True), rb=0.06, browns=()):
-        """Two to five harness bundles laid side by side along one route (a flat group, as on the engine). browns: which are brown braid."""
-        tot = sum(2 * r for r in radii) + gap * (len(radii) - 1); off = -tot / 2
-        for k, r in enumerate(radii):
-            off += r
-            H(D, fan, [(x + off, th, h) for x, th, h in way], radius=r, conn=conn, rb=rb, brown=k in browns)
-            off += r + gap
-    def leg(A, B, r=0.006, conn=(False, True), pair=True):
-        w = (4.4 * r + 0.004) if pair else 2 * r
-        way = route_fan(A, B, w)
-        if way and pair:   # most units take two connectors (channel A and B, or signal and heater): two bundles side by side
-            for dx, rr in ((-1.1 * r - 0.002, r), (1.1 * r + 0.002, r * 0.8)):
-                H(D, fan, [(x + (dx if 0 < i < len(way) - 1 else 0.0), th + (math.degrees(dx / 0.95) * 0.0), h) for i, (x, th, h) in enumerate(way)], radius=rr, conn=conn, rb=0.035)
-        elif way: H(D, fan, way, radius=r, conn=conn, rb=0.035)
-        else: print('fan case harness: no room for the leg', A, '->', B)
-        return way
-    # channel trunks: from the right side low, up over the top beside the pylon, down the left side to the oil tank
-    for xb, radii, th0, th1 in ((0.255, (0.014, 0.012, 0.0105, 0.009, 0.007), 214, 506), (0.9, (0.015, 0.0125, 0.0105, 0.008), 206, 514),
-                                (0.52, (0.013, 0.011, 0.009), 236, 330)):   # (the third: aircraft wiring from the pylon's fan connector panel to the EEC and relay box)
-        way = [(xb, th0, 0.02)] + [(xb, th0 + 3 + (th1 - th0 - 6) * k / 14, 0.034) for k in range(15)] + [(xb, th1, 0.02)]
-        bundle(way, radii, conn=(False, False), browns=(0, 2) if len(radii) >= 4 else (1,))   # (in-service photos: the biggest bundles are brown braid)
-    # EEC connectors to the trunks: J5, J7, J8, J10 forward to channel A, J9 (N1 speed) and the DEP aft to channel B
-    for k, a in enumerate((298.0, 301.4, 304.8, 308.2)):
-        leg((0.765, a, 0.045), (0.255, 300 + 4 * k, 0.034), r=0.008 + 0.002 * (k % 2), conn=(True, False))
-    leg((0.765, 311.6, 0.045), (0.9, 316, 0.034), r=0.009, conn=(True, False))
-    # breakout legs from the trunks to the units and sensors (booklet pages 17-59)
-    for A, B, r in (
-            ((0.255, 252, 0.034), (0.26, 250, 0.01), 0.005),            # fan case P0 ambient pressure sensor plate
-            ((0.255, 318, 0.034), (0.29, 332, 0.06), 0.006),            # anti-ice valve position switch
-            ((0.255, 344, 0.034), (0.05, 340, 0.03), 0.007),            # P2/T2 probe and its heater, forward to the inlet flange
-            ((0.255, 360, 0.034), (0.3, 362, 0.045), 0.005),            # vibration pick-up at the top of the fan case
-            ((0.9, 238, 0.034), (0.9, 241, 0.09), 0.006),               # ACOC oil temperature thermocouple
-            ((0.9, 226, 0.034), (0.62, 224, 0.07), 0.006),              # starter valve position switch
-            ((0.9, 410, 0.034), (0.6, 408, 0.05), 0.006),               # oil pressure transmitter
-            ((0.9, 414, 0.034), (0.66, 414, 0.05), 0.005),              # low oil pressure switch
-            ((0.9, 460, 0.034), (0.98, 460, 0.06), 0.005),              # IDG oil temperature thermocouple
-            ((0.9, 480, 0.034), (1.02, 482, 0.07), 0.005),              # fuel temperature thermocouple on the FCOC
-            ((0.9, 494, 0.034), (0.95, 496, 0.08), 0.005),              # fuel filter differential pressure switch
-            ((0.9, 506, 0.034), (0.8, 509.5, 0.05), 0.005),             # scavenge filter differential pressure switch
-            ((0.255, 488, 0.034), (0.45, 492, 0.1), 0.006),             # oil quantity transmitter on the tank
-            ((0.255, 500, 0.034), (0.36, 506, 0.1), 0.006)):            # chip detector and oil temperature at the gearbox
-        leg(A, B, r)
-    # oil scavenge return (Airbus TTM oil system: scavenge pump -> scavenge filter -> FCOC -> tank), with the cooler's
-    # tie line to the IDG oil cooler; 3/4 in and 1/2 in stainless lines on P-clamps
-    T(D, fan, [(0.8, 149.5, 0.05), (0.84, 147.5, 0.065), (0.97, 141.0, 0.065), (1.02, 136.0, 0.062), (1.02, 133.5, 0.06)], n=1, radius=0.011, mat='ss', rb=0.05, every=0.16)   # scavenge filter -> FCOC oil inlet
-    for A, B, r in (
-                    ((1.02, 113.0, 0.06), (0.52, 121.5, 0.07), 0.011),     # FCOC oil outlet -> tank return
-                    ((0.98, 104.0, 0.05), (1.02, 112.0, 0.05), 0.008)):    # IDG cooler <-> FCOC tie line
+    mats = ['ss', 'ss', 'ss', 'ti', 'cad', 'ss', 'ti']
+    for side, anchors, nrun in (('R', RH, 46), ('L', LH, 46)):
+        made_n = 0; tries = 0
+        while made_n < nrun and tries < 600:
+            tries += 1
+            A, B = rng.sample(anchors, 2)
+            if abs(A[0] - B[0]) < 0.08 and abs(A[1] - B[1]) < 6: continue
+            n = rng.choice([1, 1, 1, 2, 2, 3, 4]); r = rng.choice([0.0025, 0.003, 0.0035, 0.004, 0.005, 0.0065]); d = 2.2 * r + 0.006
+            jitter = lambda P: (P[0] + rng.uniform(-0.012, 0.012), P[1] + rng.uniform(-2.5, 2.5), P[2])
+            way = route_fan(jitter(A), jitter(B), (n - 1) * d + 2 * r)
+            if way is None: continue
+            T(D, fan, way, n=n, d=d, radius=r, mat=rng.choice(mats), rb=0.025 + 0.004 * n, every=0.2 + rng.uniform(0, 0.06),
+              boss=(A[2] <= 0.031, B[2] <= 0.031))   # low anchors are ports on the fan case itself
+            made_n += 1
+    # a few more harness branches on each side
+    for A, B, r in (((0.765, 302, 0.045), (1.17, 250, 0.02), 0.008), ((0.765, 306, 0.045), sav_plug, 0.006), ((0.27, 304, 0.05), (0.05, 330, 0.03), 0.006),
+                    ((0.88, 100, 0.06), (1.17, 80, 0.02), 0.007), ((0.6, 48, 0.05), (1.17, 40, 0.02), 0.006), ((0.36, 150, 0.1), (0.145, 120, 0.03), 0.006)):
         way = route_fan(A, B, 2 * r)
-        if way: T(D, fan, way, n=1, radius=r, mat='ss', rb=0.06, every=0.18)
-        else: print('fan case oil line: no room', A, '->', B)
-    # pressure sense lines into the EEC's lower face (booklet p. 23: P0, Pb (P3), P2, P2.5, P4.9 rake, P12.5 fan rake):
-    # small stainless tubes, the core ones up from the bulkhead panel
-    for k, (A, r) in enumerate((((0.255, 296, 0.02), 0.0028), ((1.17, 214, 0.02), 0.0032), ((1.17, 236, 0.02), 0.003), ((1.17, 268, 0.02), 0.003), ((0.9, 290, 0.02), 0.0028))):
-        way = route_fan(A, (0.69, 297 + 3.2 * k, 0.03), 2 * r + 0.004)
-        if way: T(D, fan, way, n=1, radius=r, mat='ss', rb=0.03, every=0.16, boss=(A[2] <= 0.02, False))
+        if way: H(D, fan, way, radius=r, conn=(True, True))
 
     # core: same treatment between the core components, below the core cowl
     CORE_BAYS = [1.43, 1.7, 2.1, 2.32]
@@ -422,99 +379,6 @@ def build_dressing(P, r_at, in_cut, material, link, made, section):
         way = route_core(A, B, 2 * r)
         if way: H(C, core, way, radius=r, conn=(False, True))
 
-
-    # ================================================================== the busy layer
-    # In-service engines (NTSB ENG14IA028/ENG14IA001 docket photos, shop photos) are crowded with small tubes, sense
-    # lines, drains and harness legs running between the units and the bosses on the cases: irregular routes that
-    # bend round each other and cross at different heights, each ending at a fitting. This layer lays them in: every
-    # run is checked against the unit footprints, and runs are spread over height layers so crossings pass over each other.
-    import random as _r
-    brng = _r.Random(2500)
-    def wrap(th): return th % 360.0
-    FAN_KEEP = [(0.27, 0.79, 286, 324), (0.5, 0.74, 278, 296), (0.52, 0.85, 252, 277), (0.72, 1.08, 224, 252), (0.3, 0.56, 208, 236),
-                (0.54, 0.71, 324, 341), (0.93, 1.12, 106, 142), (0.86, 1.13, 128, 144), (0.85, 1.12, 92, 108), (0.36, 0.68, 116, 150),
-                (0.54, 0.71, 42, 60), (0.26, 0.34, 356, 364), (0.94, 1.22, 332, 368), (0.0, 1.22, AC.GEARBOX['th0'] - 5, AC.GEARBOX['th1'] + 5)]
-    def fan_free(x, th):
-        t = wrap(th)
-        for x0, x1, a0, a1 in FAN_KEEP:
-            if x0 < x < x1 and (a0 < t < a1 or a0 < t + 360 < a1): return False
-        return -0.01 < x < 1.17
-    def organic(A, B, h, free, wig=(0.035, 4.0)):
-        (xa, ta, ha), (xb, tb, hb) = A, B
-        if abs(tb - ta) > 180: tb += -360 if tb > ta else 360
-        nm = brng.choice([1, 2, 2, 3]); way = [A, (xa, ta, h)]
-        for k in range(nm):
-            f = (k + 1) / (nm + 1)
-            way.append((xa + (xb - xa) * f + brng.uniform(-wig[0], wig[0]), ta + (tb - ta) * f + brng.uniform(-wig[1], wig[1]), h + brng.uniform(-0.004, 0.004)))
-        way += [(xb, tb, h), (xb, tb, hb)]
-        for (x0, t0, _), (x1, t1, _) in zip(way[1:-2], way[2:-1]):
-            for s in range(9):
-                f = s / 8
-                if not free(x0 + (x1 - x0) * f, t0 + (t1 - t0) * f): return None
-        return way
-    # anchors: the units' ports (RH/LH above) and bosses on the fan case where sense lines and drains start
-    fan_bosses = []
-    while len(fan_bosses) < 70:
-        x, th = brng.uniform(0.02, 1.15), brng.uniform(0, 360)
-        if fan_free(x, th): fan_bosses.append((x, th, 0.0))
-    anchors = RH + LH + fan_bosses
-    LAYERS = (0.016, 0.024, 0.032, 0.041, 0.05)
-    made_n = tries = 0
-    while made_n < 150 and tries < 3000:
-        tries += 1
-        A, B = brng.sample(anchors, 2)
-        d = abs(A[0] - B[0]) + abs(((A[1] - B[1] + 180) % 360) - 180) / 100
-        if d < 0.12 or d > 1.1: continue
-        n = brng.choice([1, 1, 1, 2, 2, 3]); r = brng.choice([0.0022, 0.0028, 0.0032, 0.0038, 0.0045, 0.0055]); dd = 2.3 * r + 0.004
-        way = organic(A, B, brng.choice(LAYERS), fan_free)
-        if way is None: continue
-        T(D, fan, way, n=n, d=dd, radius=r, mat=brng.choice(['ss', 'ss', 'ss', 'ti', 'cad']), rb=0.02 + 0.003 * n, every=0.15 + brng.uniform(0, 0.08),
-          boss=(A[2] <= 0.001, B[2] <= 0.001))
-        made_n += 1
-    made_h = tries = 0
-    while made_h < 40 and tries < 1500:   # harness legs to sensors on the case
-        tries += 1
-        A, B = brng.sample(anchors, 2)
-        way = organic(A, (B[0], B[1], max(B[2], 0.03)), brng.choice(LAYERS[1:]), fan_free, wig=(0.05, 6.0))
-        if way is None: continue
-        H(D, fan, way, radius=brng.choice([0.004, 0.005, 0.006, 0.007]), conn=(brng.random() < 0.5, True), rb=0.03, brown=brng.random() < 0.25)
-        made_h += 1
-    for k in range(10):   # fire-sleeved flexible hoses (drains, servo returns) hanging between fittings
-        for _ in range(40):
-            A, B = brng.sample(anchors, 2)
-            if 0.1 < abs(A[0] - B[0]) + abs(((A[1] - B[1] + 180) % 360) - 180) / 100 < 0.5 and fan_free(*A[:2]) and fan_free(*B[:2]) and organic(A, B, 0.04, fan_free) is not None:
-                ra, rb_ = fan(A[0]) + 0.03, fan(B[0]) + 0.03; mid = ((A[0] + B[0]) / 2, (A[1] + B[1]) / 2 if abs(A[1] - B[1]) < 180 else (A[1] + B[1] + 360) / 2, (ra + rb_) / 2 + 0.045)
-                D.hose([(A[0], A[1], ra), mid, (B[0], B[1], rb_)], brng.choice([0.006, 0.007, 0.008]), M['fire'], M['nut']); break
-    # the core: the same, denser, between the core units (CA above) and bosses on the compressor, combustor and turbine cases
-    core_forbid = [vsv] + units
-    def core_free(x, th):
-        t = wrap(th)
-        return 1.36 < x < 2.6 and not any(f(x, t, t) for f in core_forbid)
-    core_bosses = []
-    while len(core_bosses) < 110:
-        x, th = brng.uniform(1.4, 2.55), brng.uniform(0, 360)
-        if core_free(x, th): core_bosses.append((x, th, 0.0))
-    canch = CA + core_bosses
-    made_n = tries = 0
-    while made_n < 210 and tries < 5000:
-        tries += 1
-        A, B = brng.sample(canch, 2)
-        d = abs(A[0] - B[0]) + abs(((A[1] - B[1] + 180) % 360) - 180) / 120
-        if d < 0.1 or d > 0.9: continue
-        n = brng.choice([1, 1, 2, 2, 3]); r = brng.choice([0.0022, 0.0028, 0.0032, 0.004, 0.005]); dd = 2.3 * r + 0.004
-        way = organic(A, B, brng.choice((0.03, 0.04, 0.05, 0.06, 0.07)), core_free, wig=(0.03, 6.0))
-        if way is None: continue
-        T(C, core, way, n=n, d=dd, radius=r, mat=brng.choice(['ss', 'ti', 'ti', 'cad', 'ss']), rb=0.02 + 0.003 * n, every=0.14 + brng.uniform(0, 0.06),
-          boss=(A[2] <= 0.001, B[2] <= 0.001))
-        made_n += 1
-    made_h = tries = 0
-    while made_h < 30 and tries < 1200:
-        tries += 1
-        A, B = brng.sample(canch, 2)
-        way = organic(A, (B[0], B[1], max(B[2], 0.04)), brng.choice((0.045, 0.06, 0.075)), core_free, wig=(0.04, 8.0))
-        if way is None: continue
-        H(C, core, way, radius=brng.choice([0.004, 0.005, 0.006]), conn=(brng.random() < 0.5, True), rb=0.03)
-        made_h += 1
 
     # ================================================================== flexible hoses
     D.hose([(1.0, 3.5, 0.945), (1.09, 4.5, 0.97), (1.14, 5.0, 1.03)], 0.011, M['fire'], M['nut'])   # HCU pressure hose, up into the pylon between the hinge lines

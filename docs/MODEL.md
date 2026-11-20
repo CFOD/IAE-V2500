@@ -338,28 +338,14 @@ until they turn up into it.
 - **Studio rim light:** near-neutral instead of strong blue, which had tinted every bare metal surface
   blue-grey.
 
-### The busy layer
-
-In-service engines (the NTSB V2500 docket photos and shop photos) are crowded with small tubes, sense lines,
-drains and harness legs between the units and the bosses on the cases. They follow irregular routes, bend
-round each other and cross at different heights, and each ends at a fitting. `dressing.py` lays this layer
-over both the fan case and the core:
-
-- **Fan case:** about 150 tube runs (one to three tubes each, 4.4 to 11 mm across, in stainless, titanium
-  or cadmium-plated finish), 40 harness legs (a quarter in brown braid) and 10 fire-sleeved flexible hoses.
-- **Core:** about 210 tube runs and 30 harness legs between the core units and 110 bosses on the
-  compressor, combustor and turbine cases.
-- **Anchors:** each run goes between two anchors, either unit ports or bosses on the case. Runs ending at a
-  case boss get a port boss and a B-nut. Each run takes one to three bends and sits on one of five height
-  layers, so crossings pass over each other.
-- **Keep-outs:** every segment is checked against the footprints of the units (EEC, relay box, solenoids,
-  ACOC, starter valve, anti-ice valve, FCOC and filter, IDG cooler, oil tank, oil pressure switches, pylon
-  panels, gearbox; on the core the VSV levers, exciters, fuel distribution valve, clearance-control valves
-  and buffer air cooler), so nothing passes through a unit.
-
-The layer is seeded, so every build is the same.
-
 ### Fan case dressing
+
+The fan case wiring and tubing is the original packed layout: harness and tube runs between the units'
+ports, laid in the bays between the stiffening ribs. Two attempts to rebuild it were reverted:
+- a reference-based layout of harness trunks and breakout legs, which came out sparse;
+- a generated "busy layer" of irregular runs.
+
+These units were remodelled from the SR Technics booklet photos and kept:
 
 **In-service condition.** The booklet and display-engine photos show cleaned, presentation-condition engines.
 In-service and shop photos (engines on transport stands and with the cowls open) are now the reference for
@@ -368,30 +354,6 @@ colour and condition:
 - the castings are olive-grey;
 - the biggest fan case harness bundles are brown braid.
 
-The fan case dressing is laid out from the SR Technics *V2500 Component Location Manual* (right-hand and
-left-hand fan case pages) and the photos in the Airbus training manual (component location: FADEC, fuel and
-oil). It has no random filler. The 92 random tube runs the earlier build packed between the units were taken
-out: real fan cases carry far fewer rigid tubes and are dominated by braided harness.
-
-- **Harness trunks:** two trunks run round the case from the right side low, over the top beside the pylon,
-  and down the left side to the oil tank. Channel A (five bundles) rides the forward bay between the
-  stiffening ribs; channel B (four bundles) rides the aft one. A third trunk (three bundles) brings the
-  aircraft wiring from the pylon's fan connector panel down the right side to the EEC and the relay box. All
-  sit on stand-off cushion P-clamps, with printed ID sleeves.
-- **EEC connectors:** J5, J7, J8 and J10 feed channel A; J9 (N1 speed) feeds channel B. Each connector is a
-  receptacle shell with a knurled coupling ring and a backshell.
-- **Breakout legs** run from a trunk to each unit and sensor the booklet shows. Most are pairs of bundles,
-  since most units take two connectors (channel A and B, or signal and heater):
-  - fan case P0 sensor, anti-ice valve switch, P2/T2 probe and heater, vibration pick-up;
-  - ACOC oil temperature thermocouple, starter valve switch;
-  - oil pressure transmitter, low oil pressure switch, IDG oil temperature thermocouple;
-  - FCOC fuel temperature thermocouple, fuel filter and scavenge filter ΔP switches;
-  - oil quantity transmitter, chip detector and oil temperature at the gearbox.
-- **Oil scavenge return** (Airbus oil system photo): 3/4 in stainless lines from the scavenge filter to the
-  FCOC's oil inlet, and from the FCOC's outlet back to the tank, with a 1/2 in tie line to the IDG oil
-  cooler.
-- **Pressure sense lines** (P0, Pb, P2.5, P4.9 rake, P12.5) are small stainless tubes into the EEC's lower
-  face, the core ones up from the bulkhead panel.
 - **Relay box** (booklet p. 19): a black cover with staggered cooling slots. Channel A and B connectors come
   out of the ends; IGN A, IGN B and P2/T2 heating connectors come out along the bottom edge.
 - **Bleed solenoid valves** (booklet p. 31): 7A, 7B, 7C and 10 in a row, with the make-up air valves below.
