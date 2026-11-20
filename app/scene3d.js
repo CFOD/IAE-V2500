@@ -398,7 +398,7 @@ export class Scene3D {
     const harness = new THREE.MeshStandardMaterial({ color: 0xc6c0b2, metalness: 0, roughness: 0.92 }); // looms are sleeved in white braid (SR Technics component photos)
     const conduit = new THREE.MeshStandardMaterial({ color: 0x1b1d20, metalness: 0.1, roughness: 0.7 });
     const unitGrey = new THREE.MeshStandardMaterial({ color: 0x8e9398, metalness: 0.7, roughness: 0.45 }); // cast accessory housings (exciters, valve bodies)
-    this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughnessMap: T.brushed }), section: this.capMat, loom: new THREE.MeshStandardMaterial({ color: 0xffffff, map: T.braid, roughness: 0.85, metalness: 0, bumpMap: T.braid, bumpScale: 0.4 }) };
+    this.shared = { paint: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...paint, map: T.paint.col, bumpMap: T.paint.bump, bumpScale: 0.6 }), lip: new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, ...polished, roughness: 0.62, roughnessMap: T.brushed }), section: this.capMat, loom: new THREE.MeshStandardMaterial({ color: 0xffffff, map: T.braid, roughness: 0.85, metalness: 0, bumpMap: T.braid, bumpScale: 0.4 }) };
     // the authored acoustic panels and bleed grilles use the perforated texture (they carry UVs)
     this.shared.liner_perf = linerM;
     { const t = T.liner.clone(); t.repeat.set(9, 9); t.needsUpdate = true; this.shared.grille = new THREE.MeshStandardMaterial({ color: 0x6c6e70, metalness: 0.8, roughness: 0.5, map: t, side: THREE.DoubleSide }); }
@@ -796,7 +796,7 @@ export class Scene3D {
         [pipeSteel, H(FINISH.stainlessTube, coreHeat)], [pipeGold, FINISH.cadmium], [unitGrey, H(FINISH.castBare, coreHeat)], [harness, FINISH.braid], [conduit, FINISH.darkBox],
         [this.boltMat, FINISH.bareSteel], [linerM, FINISH.acoustic], [white, { ...FINISH.nacellePaint, bottom: 0 }], [fairing, { ...FINISH.titanium, bottom: 0 }],
         [vsvMat, FINISH.titanium], [orange, FINISH.rubber], [perf, FINISH.castBare], [race, { ...FINISH.bareSteel, bottom: 0, grime: 0.05 }], [duct, FINISH.stainlessTube],
-        [this.shared.paint, FINISH.nacellePaint], [this.shared.lip, FINISH.polished], [this.shared.loom, FINISH.braid],
+        [this.shared.paint, FINISH.nacellePaint], [this.shared.lip, { ...FINISH.polished, grime: 0.12, grimeCol: [0.24, 0.23, 0.21], bottom: 0.3, streak: 0.12 }], [this.shared.loom, FINISH.braid],
         [this.shared.bare, { ...FINISH.nozzle, heat: [2.9, 4.45, 0.4], soot: [3.75, 4.37, 0.55], sootIn: true }],  // common nozzle: satin bare metal, a light heat tint, soot inside towards the exit
       ]);
       const done = new Set([this.capMat]);
